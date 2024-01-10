@@ -613,34 +613,34 @@ class AssetTypesFilter(bpy.types.PropertyGroup, Filter):
     )
     model: bpy.props.BoolProperty(
         name="Model",
-        default=True,
+        default=False,
         update=lambda self, context: _any_filter_updated_event()
     )
     material: bpy.props.BoolProperty(
         name="Material",
-        default=True,
+        default=False,
         update=lambda self, context: _any_filter_updated_event()
     )
     particle_system: bpy.props.BoolProperty(
         name="Particle System",
-        default=True,
+        default=False,
         update=lambda self, context: _any_filter_updated_event()
     )
     scene: bpy.props.BoolProperty(
         name="Scene",
-        default=True,
+        default=False,
         update=lambda self, context: _any_filter_updated_event()
     )
 
     world: bpy.props.BoolProperty(
         name="World",
-        default=True,
+        default=False,
         update=lambda self, context: _any_filter_updated_event()
     )
 
     geometry_nodes: bpy.props.BoolProperty(
         name="Geometry Nodes",
-        default=True,
+        default=False,
         update=lambda self, context: _any_filter_updated_event()
     )
 
@@ -665,6 +665,9 @@ class AssetTypesFilter(bpy.types.PropertyGroup, Filter):
             ).filter_name = self.name
 
     def filter_(self, asset: mapr.asset.Asset) -> bool:
+        if self.is_default():
+            return True
+
         type_ = asset.type_
         return any([
             type_ == mapr.asset_data.AssetDataType.blender_model and self.model,
@@ -677,15 +680,15 @@ class AssetTypesFilter(bpy.types.PropertyGroup, Filter):
 
     def reset(self):
         super().reset()
-        self.model = True
-        self.material = True
-        self.particle_system = True
-        self.scene = True
-        self.world = True
-        self.geometry_nodes = True
+        self.model = False
+        self.material = False
+        self.particle_system = False
+        self.scene = False
+        self.world = False
+        self.geometry_nodes = False
 
     def is_default(self) -> bool:
-        return all(self._all)
+        return not any(self._all)
 
     def as_dict(self) -> typing.Dict:
         return {self.name: self._all}
@@ -984,10 +987,16 @@ class DynamicFilters(bpy.types.PropertyGroup):
             filter_.enabled = filter_.name in current_view.parameters_meta.unique_parameter_names
 
     def clear(self):
+        """Clears all dynamically constructed parametrization filters"""
         self.numeric_filters.clear()
         self.tag_filters.clear()
         self.text_filters.clear()
         self.color_filters.clear()
+
+    def reset(self):
+        """Resets all filters into the default state"""
+        for filter_ in self.filters.values():
+            filter_.reset()
 
     def get_param_filter(self, filter_name: str) -> typing.Optional[Filter]:
         return self.filters.get(filter_name, None)
@@ -1156,12 +1165,24 @@ def on_registry_update():
     asset_repository.update_provider(asset_registry.instance.master_asset_provider)
 
 
+@bpy.app.handlers.persistent
+def on_load_post(_):
+    # We need to reset the filters and reconstruct on loading the blend file, because
+    # the filter properties in 'pq_mapr_filters_v2' reset and the filters state wouldn't correspond
+    # to the browser state.
+    filters_ = get_filters()
+    filters_.reset()
+    filters_.query_and_reconstruct(asset_repository.get_current_category_id())
+
+
 def register():
+
     for cls in MODULE_CLASSES:
         bpy.utils.register_class(cls)
 
     bpy.types.WindowManager.pq_mapr_filters_v2 = bpy.props.PointerProperty(type=DynamicFilters)
     asset_registry.instance.on_refresh.append(on_registry_update)
+    bpy.app.handlers.load_post.append(on_load_post)
 
 
 def unregister():
@@ -1172,3 +1193,4 @@ def unregister():
 
     # TODO: Should we really clear here?
     asset_registry.instance.on_refresh.remove(on_registry_update)
+    bpy.app.handlers.load_post.remove(on_load_post)

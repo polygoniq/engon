@@ -219,6 +219,20 @@ class MigrateLibraryPaths(bpy.types.Operator):
         "them. Finds missing custom properties and adds them. And more version migration tasks"
     )
 
+    def log_and_report(self, level: int, message: str) -> None:
+        if level == logging.INFO:
+            logger.log(level, message)
+            self.report({'INFO'}, message)
+        elif level == logging.WARNING:
+            logger.log(level, message)
+            self.report({'WARNING'}, message)
+        elif level == logging.ERROR:
+            logger.log(level, message)
+            self.report({'ERROR'}, message)
+        else:
+            # logging module defines also NOTSET, DEBUG and CRITICAL but we don't use them here
+            raise ValueError(f"Unknown log level {level}")
+
     def fix_datablock_filepath(
         self,
         datablock: typing.Union[bpy.types.Library, bpy.types.Image],
@@ -239,8 +253,9 @@ class MigrateLibraryPaths(bpy.types.Operator):
                 for directory in pack_subdirectories:
                     new_path = os.path.join(directory, filename_candidate)
                     if os.path.isfile(bpy.path.abspath(new_path)):
-                        logger.info(
-                            f"Changing {type(datablock)} {datablock.name} filepath from {datablock.filepath} to {new_path}")
+                        self.log_and_report(logging.INFO, f"Migrating filepath of "
+                                            f"{type(datablock).__name__} '{datablock.name}' from "
+                                            f"'{datablock.filepath}' to '{new_path}'")
                         datablock.filepath = new_path
                         return True
         return False
@@ -249,7 +264,7 @@ class MigrateLibraryPaths(bpy.types.Operator):
         self,
         asset_pack_migrations: typing.List[asset_changes.AssetPackMigration],
         pack_subdirectories: set[str]
-    ) -> None:
+    ) -> typing.List[bpy.types.Library]:
         library_filename_migrations: typing.List[typing.List[asset_changes.RegexMapping]] = []
         for migration in asset_pack_migrations:
             if len(migration.library_changes) > 0:
@@ -268,58 +283,91 @@ class MigrateLibraryPaths(bpy.types.Operator):
         for library in fixed_libraries:
             library.reload()
 
+        return fixed_libraries
+
+    def fix_image_filepaths(
+        self,
+        asset_pack_migrations: typing.List[asset_changes.AssetPackMigration],
+        pack_subdirectories: typing.Set[str],
+    ) -> typing.List[bpy.types.Image]:
+        """Fixes image_datablock.filepath of editable image datablocks."""
+        image_filename_migrations: typing.List[typing.List[asset_changes.RegexMapping]] = []
+        for migration in asset_pack_migrations:
+            if "images" in migration.datablock_changes:
+                image_filename_migrations.append(migration.datablock_changes["images"])
+
+        fixed_images: typing.List[bpy.types.Image] = []
+        for image in bpy.data.images:
+            if image.library is not None:
+                # we handle here only datablocks stored in this blend
+                continue
+            if image.filepath == "":
+                # packed image
+                continue
+            if os.path.isfile(bpy.path.abspath(image.filepath)):
+                continue
+
+            success = self.fix_datablock_filepath(
+                image, image_filename_migrations, pack_subdirectories)
+            if success:
+                fixed_images.append(image)
+
+        return fixed_images
+
     def fix_one_datablock(
         self,
         datablock: bpy.types.ID,
         datablock_type: str,
-        asset_pack_migrations: typing.List[asset_changes.AssetPackMigration],
-    ) -> None:
-        old_datablock_name = datablock.name
-        name_candidate = datablock.name
-        for migration in asset_pack_migrations:
-            datablock_changes = migration.datablock_changes.get(datablock_type, [])
+        asset_pack_migrations: typing.List[asset_changes.AssetPackMigrations],
+    ) -> typing.Optional[bpy.types.ID]:
+        for pack_name, version_migrations in asset_pack_migrations:
+            name_candidate = datablock.name
+            for migration in version_migrations:
+                datablock_changes = migration.datablock_changes.get(datablock_type, [])
 
-            for change in datablock_changes:
-                if not re.match(change.pattern, name_candidate):
-                    continue
+                for change in datablock_changes:
+                    if not re.match(change.pattern, name_candidate):
+                        continue
 
-                name_candidate = re.sub(change.pattern, change.replacement, name_candidate)
+                    name_candidate = re.sub(change.pattern, change.replacement, name_candidate)
 
-                lib_datablocks = get_blend_datablock_names(datablock.library.filepath)
-                if name_candidate not in lib_datablocks.get(datablock_type, []):
-                    # Datablock name_candidate does not exist in library blend
-                    continue
+                    lib_datablocks = get_blend_datablock_names(datablock.library.filepath)
+                    if name_candidate not in lib_datablocks.get(datablock_type, []):
+                        # Datablock name_candidate does not exist in library blend
+                        continue
 
-                prop_coll = getattr(bpy.data, datablock_type)
-                # Multiple linked datablocks can have the same name, we want to get the one from
-                # migrated library.
-                new_datablock = prop_coll.get(
-                    (name_candidate, datablock.library.filepath), None)
-                if new_datablock is None:
-                    with bpy.data.libraries.load(datablock.library.filepath, link=True) as (data_from, data_to):
-                        assert name_candidate in getattr(data_from, datablock_type)
-                        setattr(data_to, datablock_type, [name_candidate])
-
+                    prop_coll = getattr(bpy.data, datablock_type)
+                    # Multiple linked datablocks can have the same name, we want to get the one from
+                    # migrated library.
                     new_datablock = prop_coll.get(
                         (name_candidate, datablock.library.filepath), None)
                     if new_datablock is None:
-                        logger.error(f"Failed to link datablock '{name_candidate}' of type '"
-                                     f"'{datablock_type}' from '{datablock.library.filepath}'!")
-                        continue
+                        with bpy.data.libraries.load(datablock.library.filepath, link=True) as (data_from, data_to):
+                            assert name_candidate in getattr(data_from, datablock_type)
+                            setattr(data_to, datablock_type, [name_candidate])
 
-                datablock.user_remap(new_datablock)
-                logger.info(f"Remapped datablock '{old_datablock_name}' of type "
-                            f"'{datablock_type}' to '{name_candidate}' that is linked from "
-                            f"{datablock.library.filepath}")
-                return
+                        new_datablock = prop_coll.get(
+                            (name_candidate, datablock.library.filepath), None)
+                        if new_datablock is None:
+                            logger.error(f"Failed to link datablock '{name_candidate}' of type '"
+                                         f"'{datablock_type}' from '{datablock.library.filepath}'!")
+                            continue
 
-        logger.warning(f"No migration for datablock '{old_datablock_name}' of type "
-                       f"'{datablock_type}' was found!")
+                    datablock.user_remap(new_datablock)
+                    self.log_and_report(logging.INFO, f"Remapped datablock '{datablock.name}' of "
+                                        f"type '{datablock_type}' to '{name_candidate}' that is "
+                                        f"linked from {datablock.library.filepath}")
+                    return new_datablock
+        self.log_and_report(logging.WARNING,
+                            f"Datablock '{datablock.name}' of type '{datablock_type}' "
+                            f"wasn't migrated. No suitable migration rule was found!")
+        return None
 
     def fix_datablocks(
         self,
-        asset_pack_migrations: typing.List[asset_changes.AssetPackMigration],
-    ) -> None:
+        asset_pack_migrations: typing.List[asset_changes.AssetPackMigrations],
+    ) -> typing.List[bpy.types.ID]:
+        fixed_datablocks: typing.List[bpy.types.ID] = []
         for datablock, datablock_type in polib.utils_bpy.get_all_datablocks(bpy.data):
             if datablock.library is None:
                 # datablock stored in this blend
@@ -339,33 +387,11 @@ class MigrateLibraryPaths(bpy.types.Operator):
             if not data_missing:
                 continue
 
-            self.fix_one_datablock(datablock, datablock_type, asset_pack_migrations)
+            fixed = self.fix_one_datablock(datablock, datablock_type, asset_pack_migrations)
+            if fixed is not None:
+                fixed_datablocks.append(fixed)
 
-    def fix_image_filepaths(
-        self,
-        asset_pack_migrations: typing.List[asset_changes.AssetPackMigration],
-        pack_subdirectories: typing.Set[str],
-    ) -> None:
-        """Fixes image_datablock.filepath of editable image datablocks."""
-        image_filename_migrations: typing.List[typing.List[asset_changes.RegexMapping]] = []
-        for migration in asset_pack_migrations:
-            if "images" in migration.datablock_changes:
-                image_filename_migrations.append(migration.datablock_changes["images"])
-
-        for image in bpy.data.images:
-            if image.library is not None:
-                # we handle here only datablocks stored in this blend
-                continue
-            if image.filepath == "":
-                # packed image
-                continue
-            if os.path.isfile(bpy.path.abspath(image.filepath)):
-                continue
-
-            success = self.fix_datablock_filepath(
-                image, image_filename_migrations, pack_subdirectories)
-            if not success:
-                logger.warning(f"No migration for image '{image.name}' was found!")
+        return fixed_datablocks
 
     def migrate_instance_collection_custom_props(self) -> None:
         """Ensures that root object of instanced collection contains all current custom props
@@ -416,23 +442,31 @@ class MigrateLibraryPaths(bpy.types.Operator):
                 for root, _, _ in os.walk(pack.install_path):
                     pack_subdirectories_map[pack_name].add(root)
 
+            fixed_libraries: typing.List[bpy.types.Library] = []
+            fixed_images: typing.List[bpy.types.Image] = []
+
             for asset_pack_changes in asset_changes.ASSET_PACK_MIGRATIONS:
-                pack_subdirectories = pack_subdirectories_map.get(
-                    asset_pack_changes.pack_name, set())
-                if len(pack_subdirectories) == 0:
+                pack_subdirs = pack_subdirectories_map.get(asset_pack_changes.pack_name, set())
+                if len(pack_subdirs) == 0:
                     # This asset pack is not installed
                     continue
 
-                self.fix_blend_file_libraries(asset_pack_changes.migrations, pack_subdirectories)
-                self.fix_datablocks(asset_pack_changes.migrations)
-                self.fix_image_filepaths(asset_pack_changes.migrations, pack_subdirectories)
+                fixed_libraries.extend(
+                    self.fix_blend_file_libraries(asset_pack_changes.migrations, pack_subdirs))
+                fixed_images.extend(
+                    self.fix_image_filepaths(asset_pack_changes.migrations, pack_subdirs))
 
+            fixed_datablocks = self.fix_datablocks(asset_changes.ASSET_PACK_MIGRATIONS)
             self.migrate_instance_collection_custom_props()
         finally:
             # Clear cache from this run, no need to use the memory anymore, plus asset packs
             # (and thus their blends) can change before the next run
             get_blend_datablock_names.cache_clear()
 
+        self.log_and_report(logging.INFO,
+                            f"Migrator fixed {len(fixed_libraries)} libraries, "
+                            f"{len(fixed_images)} local images and "
+                            f"{len(fixed_datablocks)} datablocks")
         return {'FINISHED'}
 
 

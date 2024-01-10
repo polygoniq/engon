@@ -11,6 +11,7 @@
 import bpy
 import abc
 import dataclasses
+import mathutils
 import typing
 import logging
 
@@ -40,6 +41,7 @@ class ModelSpawnOptions(DatablockSpawnOptions):
     parent_collection: typing.Optional[bpy.types.Collection] = None
     # If present the spawned model instancer is selected, other objects are deselected
     select_spawned: bool = False
+    rotation_euler_override: typing.Optional[mathutils.Vector] = None
 
 
 class ModelSpawnedData(SpawnedData):
@@ -70,6 +72,9 @@ def spawn_model(
     root_collection = load.load_master_collection(path)
     root_empty = utils.create_instanced_object(root_collection.name)
     root_empty.location = context.scene.cursor.location
+
+    if options.rotation_euler_override is not None:
+        root_empty.rotation_euler = options.rotation_euler_override
 
     # Copy all children properties from the instanced objects to the instancer object
     for obj in root_empty.instance_collection.all_objects:

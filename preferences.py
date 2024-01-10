@@ -864,7 +864,12 @@ class SpawnOptions(bpy.types.PropertyGroup):
         """Returns spawn options for given asset based on its type"""
         if asset.type_ == mapr.asset_data.AssetDataType.blender_model:
             return hatchery.spawn.ModelSpawnOptions(
-                self._get_model_parent_collection(asset, context), True)
+                self._get_model_parent_collection(asset, context),
+                True,
+                # Rotate the spawned asset 90 around Y to make it straight in particle systems
+                # that use Rotation around Z Axis - which are most of our particle systems.
+                (0, 90, 0) if self.use_collection == 'PARTICLE_SYSTEM' else None
+            )
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_material:
             return hatchery.spawn.MaterialSpawnOptions(
                 int(self.texture_size),

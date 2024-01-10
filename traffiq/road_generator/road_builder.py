@@ -82,7 +82,7 @@ def move_point_towards_other_point(
     return p1 + dir_ * s
 
 
-def get_endpoint_neighbour_idx(idx: int) -> int:
+def get_endpoint_neighbor_idx(idx: int) -> int:
     """Returns 1 or idx - 1 if idx == 0, assumes idx is index of endpoint of spline"""
     return 1 if idx == 0 else idx - 1
 
@@ -197,7 +197,7 @@ class RoadBuilder:
                     searched_curves.add(mod_view.get_input_value("Road 1"))
                     searched_curves.add(mod_view.get_input_value("Road 2"))
 
-                # TODO: This considers all points of neighbours curves based on the cx
+                # TODO: This considers all points of neighbors curves based on the cx
                 # modifier stack. It would be better to store the indexes to have direct access
                 # to which curve, spline and point corresponds to the input even if it is useless
                 # for geometry nodes.
@@ -424,12 +424,12 @@ class RoadBuilder:
         start_bezier_point = build_point.get_point()
 
         # Estimate normal direction (TODO: consider handles?)
-        neighbour_idx = get_endpoint_neighbour_idx(build_point.point_idx)
+        neighbor_idx = get_endpoint_neighbor_idx(build_point.point_idx)
 
         crossroad_point_offset = self._get_crossroad_point_offset()
         start_bezier_point.co = move_point_towards_other_point(
             start_bezier_point.co,
-            build_point.segment.spline.bezier_points[neighbour_idx].co,
+            build_point.segment.spline.bezier_points[neighbor_idx].co,
             crossroad_point_offset
         )
 
@@ -438,7 +438,7 @@ class RoadBuilder:
             curve,
             move_point_towards_other_point(
                 start_bezier_point.co,
-                build_point.segment.spline.bezier_points[neighbour_idx].co,
+                build_point.segment.spline.bezier_points[neighbor_idx].co,
                 # Offset 2 times backwards, so the future crossroad location is exactly
                 # in the expected middle.
                 -2 * crossroad_point_offset
@@ -614,10 +614,10 @@ class RoadBuilder:
         started_curve_obj, started_type = self.provisional_segment.curve_obj, self.provisional_segment.road_type
         position = build_point.position.copy()
         bp1 = build_point.get_point()
-        neighbour_idx = get_endpoint_neighbour_idx(build_point.point_idx)
+        neighbor_idx = get_endpoint_neighbor_idx(build_point.point_idx)
         bp1.co = move_point_towards_other_point(
             bp1.co,
-            build_point.segment.spline.bezier_points[neighbour_idx].co,
+            build_point.segment.spline.bezier_points[neighbor_idx].co,
             self._get_crossroad_point_offset()
         )
         s2, i = self.provisional_segment.spline, self.provisional_segment.endpoint_idx
@@ -678,7 +678,7 @@ class RoadBuilder:
         )
         s3.bezier_points[i].co = move_point_towards_other_point(
             s3.bezier_points[i].co,
-            s3.bezier_points[get_endpoint_neighbour_idx(i)].co,
+            s3.bezier_points[get_endpoint_neighbor_idx(i)].co,
             point_offset
         )
 
@@ -698,10 +698,10 @@ class RoadBuilder:
         assert self.provisional_segment is not None
         started_curve_obj, started_type = self.provisional_segment.curve_obj, self.provisional_segment.road_type
         spline, idx = self.provisional_segment.spline, self.provisional_segment.endpoint_idx
-        neighbour_point = spline.bezier_points[get_endpoint_neighbour_idx(idx)]
+        neighbor_point = spline.bezier_points[get_endpoint_neighbor_idx(idx)]
         spline.bezier_points[idx].co = move_point_towards_other_point(
             spline.bezier_points[idx].co,
-            neighbour_point.co,
+            neighbor_point.co,
             self._get_crossroad_point_offset()
         )
         adjacencies = list(build_point.crossroad.adjacencies)
