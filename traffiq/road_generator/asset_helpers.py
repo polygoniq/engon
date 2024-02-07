@@ -41,7 +41,7 @@ class RoadNodegroup(enum.Enum):
     Markings = "tq_RoadMark"
     Distribute = "tq_Distribute"
     RoadProfile = "tq_Profile"
-    Scatter = "tq_ScatterToTarget"
+    Scatter = "tq_Scatter"
     Crosswalk = "tq_Crosswalk"
     Cleanup = "tq_Cleanup"
 

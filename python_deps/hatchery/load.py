@@ -5,6 +5,34 @@ import os
 import typing
 
 
+def try_get_linked_datablock(
+    datablock_collection: bpy.types.bpy_prop_collection,
+    datablock_name: str,
+    blend_path: str
+) -> typing.Optional[bpy.types.ID]:
+    """Returns datablock 'datablock_name' linked from 'blend_path' or None if datablock wasn't linked yet.
+
+    Tries to find library corresponding to 'blend_path' and then checks if there's the datablock
+    'datablock_name' linked from this library.
+    """
+    # Filenames longer than 63 characters are cropped in Blender
+    expected_lib_name = os.path.basename(blend_path)[:63]
+    # This is not 100% reliable, there can be multiple libraries with the same name, so we also
+    # check if library.filepath is the same as the blend_path later.
+    library = bpy.data.libraries.get(expected_lib_name, None)
+    if library is None:
+        return None
+
+    lib_path = bpy.path.abspath(library.filepath)
+    blend_path = os.path.abspath(blend_path)
+    try:
+        if os.path.samefile(lib_path, blend_path):
+            return datablock_collection.get((datablock_name, library.filepath), None)
+    except OSError:
+        pass
+    return None
+
+
 def load_master_collection(
     blend_path: str,
     link: bool = True
@@ -14,6 +42,15 @@ def load_master_collection(
     Master collection is the collection with the same name as basename of the 'blend_path'
     """
     asset_name, _ = os.path.splitext(os.path.basename(blend_path))
+    if link:
+        # Check if collection is already linked. Linking already linked collection doesn't do
+        # anything wrong, Blender recognizes that the same collection is already linked. However it
+        # prints warning: "WARN (blo.readfile): ...\readfile.c:4543 link_named_part: Append: ID 'ASSET_NAME' is already linked"
+        # which looks unprofessional.
+        linked_collection = try_get_linked_datablock(bpy.data.collections, asset_name, blend_path)
+        if linked_collection is not None:
+            return linked_collection
+
     with bpy.data.libraries.load(blend_path, link=link) as (data_from, data_to):
         # The root collection of the asset should have the same name as the asset name
         assert asset_name in data_from.collections

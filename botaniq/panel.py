@@ -34,7 +34,7 @@ import logging
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-ADDON_CLASSES: typing.List[typing.Type] = []
+MODULE_CLASSES: typing.List[typing.Type] = []
 
 
 def botaniq_duplicate_data_filter(data: bpy.types.ID) -> bool:
@@ -83,7 +83,7 @@ class SetColor(bpy.types.Operator):
         return {'FINISHED'}
 
 
-ADDON_CLASSES.append(SetColor)
+MODULE_CLASSES.append(SetColor)
 
 
 @polib.log_helpers_bpy.logged_operator
@@ -97,7 +97,7 @@ class RandomizeFloatProperty(bpy.types.Operator):
 
     def draw(self, context: bpy.types.Context):
         layout = self.layout
-        prefs = preferences.get_preferences(context)
+        prefs = preferences.get_preferences(context).botaniq_preferences
         layout.prop(prefs, "float_min", slider=True)
         layout.prop(prefs, "float_max", slider=True)
 
@@ -105,7 +105,7 @@ class RandomizeFloatProperty(bpy.types.Operator):
         return context.window_manager.invoke_props_dialog(self)
 
     def execute(self, context: bpy.types.Context):
-        prefs = preferences.get_preferences(context)
+        prefs = preferences.get_preferences(context).botaniq_preferences
         for obj in set(context.selected_objects).union(asset_helpers.gather_instanced_objects(context.selected_objects)):
             custom_prop = obj.get(self.custom_property_name, None)
             if custom_prop is None:
@@ -125,7 +125,7 @@ class RandomizeFloatProperty(bpy.types.Operator):
         return {'FINISHED'}
 
 
-ADDON_CLASSES.append(RandomizeFloatProperty)
+MODULE_CLASSES.append(RandomizeFloatProperty)
 
 
 class BotaniqPanelInfoMixin:
@@ -140,7 +140,7 @@ class BotaniqPanelInfoMixin:
 
 @polib.log_helpers_bpy.logged_panel
 class BotaniqPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_botaniq"
+    bl_idname = "VIEW_3D_PT_engon_botaniq"
     bl_label = "botaniq"
     bl_order = 10
 
@@ -148,11 +148,15 @@ class BotaniqPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
         self.layout.label(
             text="", icon_value=polib.ui_bpy.icon_manager.get_engon_feature_icon_id("botaniq"))
 
+    def draw_header_preset(self, context: bpy.types.Context) -> None:
+        polib.ui_bpy.draw_doc_button(
+            self.layout, preferences.__package__, rel_url="panels/botaniq/panel_overview")
+
     def draw(self, context: bpy.types.Context):
         pass
 
 
-ADDON_CLASSES.append(BotaniqPanel)
+MODULE_CLASSES.append(BotaniqPanel)
 
 
 class AdjustmentMixin:
@@ -196,7 +200,7 @@ class AdjustmentMixin:
 
 @polib.log_helpers_bpy.logged_panel
 class AdjustmentsPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_botaniq_adjustments"
+    bl_idname = "VIEW_3D_PT_engon_botaniq_adjustments"
     bl_parent_id = BotaniqPanel.bl_idname
     bl_label = "Adjustments"
 
@@ -338,12 +342,12 @@ class AdjustmentsPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
         ).custom_property_name = polib.asset_pack_bpy.CustomPropertyNames.BQ_RANDOM_PER_LEAF
 
 
-ADDON_CLASSES.append(AdjustmentsPanel)
+MODULE_CLASSES.append(AdjustmentsPanel)
 
 
 @polib.log_helpers_bpy.logged_panel
 class AnimationsPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_botaniq_animations"
+    bl_idname = "VIEW_3D_PT_engon_botaniq_animations"
     bl_parent_id = BotaniqPanel.bl_idname
     bl_label = "Animations"
 
@@ -496,12 +500,12 @@ class AnimationsPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
         self.draw_object_anim_details(context, layout, active_object, animated_object)
 
 
-ADDON_CLASSES.append(AnimationsPanel)
+MODULE_CLASSES.append(AnimationsPanel)
 
 
 @polib.log_helpers_bpy.logged_panel
 class AnimationAdvancedPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_botaniq_animations_advanced"
+    bl_idname = "VIEW_3D_PT_engon_botaniq_animations_advanced"
     bl_parent_id = AnimationsPanel.bl_idname
     bl_label = "Animations Advanced"
 
@@ -559,14 +563,147 @@ class AnimationAdvancedPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
                      icon='AUTO' if fmod_limits.mute is True else 'BLANK1')
 
 
-ADDON_CLASSES.append(AnimationAdvancedPanel)
+MODULE_CLASSES.append(AnimationAdvancedPanel)
+
+
+class VineGeneratorPanelMixin(
+    BotaniqPanelInfoMixin,
+    polib.geonodes_mod_utils_bpy.GeoNodesModifierInputsPanelMixin
+):
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        obj = context.active_object
+        if obj is None:
+            return False
+        return len(polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
+            obj, asset_helpers.BQ_VINE_GENERATOR_NODE_GROUP_NAME)) > 0
+
+
+class VineGeneratorPanel(VineGeneratorPanelMixin, bpy.types.Panel):
+    bl_idname = "VIEW_3D_PT_botaniq_vine_generator"
+    bl_parent_id = BotaniqPanel.bl_idname
+    bl_label = "Vine Generator"
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        return super().poll(context) or bpy.data.node_groups.get(
+            asset_helpers.BQ_VINE_GENERATOR_NODE_GROUP_NAME, None) is not None
+
+    def draw_header(self, context: bpy.types.Context) -> None:
+        self.layout.label(text="", icon="GRAPH")
+
+    def draw(self, context: bpy.types.Context):
+        layout: bpy.types.UILayout = self.layout
+        obj = context.active_object
+        if obj is None or len(polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
+                obj, asset_helpers.BQ_VINE_GENERATOR_NODE_GROUP_NAME)) == 0:
+            layout.label(text="Select a Vine Generator object")
+
+
+MODULE_CLASSES.append(VineGeneratorPanel)
+
+
+class VineGeneratorGeneralAdjustmentsPanel(VineGeneratorPanelMixin, bpy.types.Panel):
+    bl_idname = "VIEW_3D_PT_botaniq_vine_generator_general_adjustments"
+    bl_parent_id = VineGeneratorPanel.bl_idname
+    bl_label = "General Adjustments"
+
+    template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
+        asset_helpers.BQ_VINE_GENERATOR_NODE_GROUP_NAME,
+        filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(
+            x,
+            "Target Object",
+            "Target Collection",
+            "Merge Distance",
+            "Curve Subdivision",
+            "Cast to Target",
+            "Angle Threshold",
+            "Normal Orientation",
+            "Seed"
+        ),
+        socket_names_drawn_first=[
+            "Target Object",
+            "Target Collection"
+        ]
+    )
+
+    def draw(self, context: bpy.types.Context):
+        self.draw_active_object_modifiers_node_group_inputs_template(
+            self.layout,
+            context,
+            VineGeneratorGeneralAdjustmentsPanel.template,
+        )
+
+
+MODULE_CLASSES.append(VineGeneratorGeneralAdjustmentsPanel)
+
+
+class VineGeneratorStemAdjustmentsPanel(VineGeneratorPanelMixin, bpy.types.Panel):
+    bl_idname = "VIEW_3D_PT_botaniq_vine_generator_stem_adjustments"
+    bl_parent_id = VineGeneratorPanel.bl_idname
+    bl_label = "Stem Adjustments"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
+        asset_helpers.BQ_VINE_GENERATOR_NODE_GROUP_NAME,
+        filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(
+            x,
+            "Stem",
+        ),
+        socket_names_drawn_first=[
+            "Stem Material",
+        ]
+    )
+
+    def draw(self, context: bpy.types.Context):
+        self.draw_active_object_modifiers_node_group_inputs_template(
+            self.layout,
+            context,
+            VineGeneratorStemAdjustmentsPanel.template,
+        )
+
+
+MODULE_CLASSES.append(VineGeneratorStemAdjustmentsPanel)
+
+
+class VineGeneratorLeavesAdjustmentsPanel(VineGeneratorPanelMixin, bpy.types.Panel):
+    bl_idname = "VIEW_3D_PT_botaniq_vine_generator_leaves_adjustments"
+    bl_parent_id = VineGeneratorPanel.bl_idname
+    bl_label = "Leaves Adjustments"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
+        asset_helpers.BQ_VINE_GENERATOR_NODE_GROUP_NAME,
+        filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(
+            x,
+            "Leaves",
+            "Leaf",
+            "Min Scale",
+            "Max Scale",
+            "Rotation Sky",
+            "Deviation Sky",
+        ),
+        socket_names_drawn_first=[
+            "Leaves Collection",
+        ]
+    )
+
+    def draw(self, context: bpy.types.Context):
+        self.draw_active_object_modifiers_node_group_inputs_template(
+            self.layout,
+            context,
+            VineGeneratorLeavesAdjustmentsPanel.template,
+        )
+
+
+MODULE_CLASSES.append(VineGeneratorLeavesAdjustmentsPanel)
 
 
 def register():
-    for cls in ADDON_CLASSES:
+    for cls in MODULE_CLASSES:
         bpy.utils.register_class(cls)
 
 
 def unregister():
-    for cls in reversed(ADDON_CLASSES):
+    for cls in reversed(MODULE_CLASSES):
         bpy.utils.unregister_class(cls)

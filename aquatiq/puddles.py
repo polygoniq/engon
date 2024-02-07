@@ -90,8 +90,9 @@ def check_puddles_nodegroup_count(objects: typing.Iterable[bpy.types.Object], pr
         if obj.type not in {'MESH', 'CURVE'}:
             continue
 
-        mat = obj.active_material
-
+        mat = polib.material_utils_bpy.safe_get_active_material(obj)
+        if mat is None:
+            continue
         can_have_effect, _ = can_material_have_effect(mat)
         if not can_have_effect:
             continue
@@ -138,6 +139,11 @@ class AddPuddles(bpy.types.Operator):
                 self.report({'WARNING'}, f"{mat.name} has no active Material Output!")
                 continue
 
+            surface_input = material_output.inputs.get("Surface")
+            if not surface_input.is_linked:
+                self.report({'WARNING'}, f"Material Output in '{mat.name}' has no Surface input!")
+                continue
+
             nodes = mat.node_tree.nodes
             # Use existing nodegroup if possible, otherwise create new
             puddles_instances = polib.node_utils_bpy.find_nodegroups_by_name(
@@ -153,8 +159,6 @@ class AddPuddles(bpy.types.Operator):
             puddles_instance.name = asset_helpers.AQ_PUDDLES_NODEGROUP_NAME
 
             links = mat.node_tree.links
-
-            surface_input = material_output.inputs.get("Surface")
             # If the instance node was already there but has no shader input for some reason,
             # don't connect its output to its input creating circular dependency
             if surface_input.links[0].from_node != puddles_instance:

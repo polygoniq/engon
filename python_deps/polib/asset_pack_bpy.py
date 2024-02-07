@@ -718,7 +718,7 @@ def find_object_in_hierarchy(
     return search_hierarchy(root_obj)
 
 
-def get_hierarchy(root):
+def get_hierarchy(root: bpy.types.ID) -> typing.List[bpy.types.ID]:
     """Gathers children of 'root' recursively
     """
 

@@ -28,9 +28,7 @@ from . import asset_registry
 logger = logging.getLogger(__name__)
 
 
-BOTANIQ_ALL_SEASONS_RAW = "spring-summer-autumn-winter"
 PARTICLE_SYSTEMS_COLLECTION = "engon_particle_systems"
-BQ_COLLECTION_NAME = "botaniq"
 ANIMATION_EMPTIES_COLL_NAME = "animation_empties"
 
 
@@ -39,6 +37,13 @@ AQ_MASK_NAME = "aq_mask"
 AQ_PUDDLES_NODEGROUP_NAME = "aq_Puddles"
 # Node groups where 'aq_mask' alpha affects something in the shader
 AQ_MASKABLE_NODE_GROUP_NAMES = {"aq_Fountain", AQ_PUDDLES_NODEGROUP_NAME}
+AQ_RIVER_GENERATOR_NODE_GROUP_NAME = "aq_Generator_River"
+AQ_RAIN_GENERATOR_NODE_GROUP_NAME = "aq_Rain-Generator_Rain"
+
+# botaniq constants
+BOTANIQ_ALL_SEASONS_RAW = "spring-summer-autumn-winter"
+BQ_COLLECTION_NAME = "botaniq"
+BQ_VINE_GENERATOR_NODE_GROUP_NAME = "bq_Vine_Generator"
 
 
 PARTICLE_SYSTEM_PREFIX = f"engon_{polib.asset_pack_bpy.PARTICLE_SYSTEM_TOKEN}_"

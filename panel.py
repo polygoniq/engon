@@ -284,6 +284,8 @@ class EngonPanel(EngonPanelMixin, bpy.types.Panel):
     def draw_header_preset(self, context: bpy.types.Context) -> None:
         self.layout.operator(
             mapr_browser.browser.MAPR_BrowserOpenAssetPacksPreferences.bl_idname, text="", icon='SETTINGS')
+        polib.ui_bpy.draw_doc_button(
+            self.layout, __package__, rel_url="panels/engon/panel_overview")
 
     def draw(self, context: bpy.types.Context):
         prefs = preferences.get_preferences(context)
@@ -335,7 +337,7 @@ MODULE_CLASSES.append(EngonPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class MaintenancePanel(EngonPanelMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_migrator"
+    bl_idname = "VIEW_3D_PT_engon_migrator"
     bl_parent_id = EngonPanel.bl_idname
     bl_label = ".blend maintenance"
     bl_options = {'DEFAULT_CLOSED'}

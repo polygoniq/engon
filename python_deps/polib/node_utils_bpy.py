@@ -48,7 +48,7 @@ def get_socket_type(socket: NodeSocketInterfaceCompat) -> str:
     else:
         assert isinstance(socket, bpy.types.NodeTreeInterfaceSocket), \
             "Given socket is not a Node Tree interface! Isn't it a node group?"
-        socket_type = socket.socket_type
+        socket_type = socket.bl_socket_idname
 
     # We remap the values to their newer versions, in 4.0 the values changed
     # from 'key' to the 'value' in MAP
@@ -158,11 +158,14 @@ def find_nodegroups_by_name(
     Nodegroups have node.label, node.name and node.node_tree.name, if node.label is empty,
     Blender UI, displays node_tree.name in nodegroup header. That's why node.name is often not
     renamed to anything reasonable. So most of the times we want to search nodegroups by
-    node_tree.name.
+    node_tree.name. If use_node_tree_name is True and the nodegroup has no node_tree, it is skipped.
     """
     def nodegroup_filter(node: bpy.types.Node) -> bool:
         if node.type != 'GROUP':
             return False
+        if use_node_tree_name and node.node_tree is None:
+            return False
+
         name_for_comparing = node.node_tree.name if use_node_tree_name else node.name
         return utils_bpy.remove_object_duplicate_suffix(name_for_comparing) == name
 
@@ -382,7 +385,11 @@ def get_channel_nodes_map(
     return channel_nodes_map
 
 
-def filter_node_socket_name(socket: bpy.types.NodeSocket, *names: str, case_sensitive: bool = False) -> bool:
+def filter_node_socket_name(
+    socket: bpy.types.NodeSocket | NodeSocketInterfaceCompat,
+    *names: str,
+    case_sensitive: bool = False
+) -> bool:
     socket_name = socket.name if case_sensitive else socket.name.lower()
     names = names if case_sensitive else map(lambda x: x.lower(), names)
     for name in names:
@@ -393,9 +400,17 @@ def filter_node_socket_name(socket: bpy.types.NodeSocket, *names: str, case_sens
 
 @dataclasses.dataclass
 class NodeSocketsDrawTemplate:
+    """Template for drawing node sockets from a nodegroup in a material or geonodes modifier.
+
+    The 'filter_' and 'socket_names_drawn_first' are optional and they are mutually exclusive if provided.
+    If 'socket_names_drawn_first' is not None, their relative inputs are drawn first if they exist
+    and 'filter_' is applied to the rest.
+    """
+
     name: str
-    # Filter of properties that should be drawn
-    filter_: typing.Callable[[bpy.types.NodeSocket], bool] = lambda _: True
+    filter_: typing.Callable[
+        [bpy.types.NodeSocket | NodeSocketInterfaceCompat], bool] = lambda _: True
+    socket_names_drawn_first: typing.Optional[typing.List[str]] = None
 
     def draw_from_material(
         self,
@@ -419,12 +434,57 @@ class NodeSocketsDrawTemplate:
         for i, group in enumerate(nodegroups):
             if i >= draw_max_first_occurrences:
                 break
-            draw_node_inputs_filtered(layout, group, filter_=self.filter_)
+
+            inputs_set = set(filter(is_drawable_node_input, group.inputs))
+            self._draw_template(
+                inputs_set,
+                lambda input_: layout.row().prop(input_, "default_value", text=input_.name)
+            )
+
+    def draw_from_geonodes_modifier(
+        self,
+        layout: bpy.types.UILayout,
+        mod: bpy.types.NodesModifier,
+    ) -> None:
+        assert mod.type == 'NODES'
+        if mod.node_group is None or mod.node_group.name != self.name:
+            layout.label(text=f"No '{self.name}' nodegroup found", icon='INFO')
+            return
+
+        inputs_set = set(filter(is_drawable_node_tree_input, get_node_tree_inputs(mod.node_group)))
+        self._draw_template(
+            inputs_set,
+            lambda input_: draw_modifier_input(layout, mod, input_)
+        )
+
+    def _draw_template(
+        self,
+        inputs_set: typing.Set[NodeSocketInterfaceCompat] | typing.Set[bpy.types.NodeSocket],
+        draw_function: typing.Callable[[NodeSocketInterfaceCompat | bpy.types.NodeSocket], None]
+    ) -> None:
+        already_drawn = set()
+        if self.socket_names_drawn_first is not None:
+            socket_name_to_input_map = {input_.name.lower(): input_ for input_ in inputs_set}
+            for name in self.socket_names_drawn_first:
+                input_ = socket_name_to_input_map.get(name.lower(), None)
+                if input_ is None:
+                    continue
+                already_drawn.add(input_)
+                draw_function(input_)
+
+        to_be_drawn = inputs_set - already_drawn
+        for input_ in to_be_drawn:
+            if self.filter_(input_):
+                draw_function(input_)
 
 
 def is_drawable_node_input(input_: bpy.types.NodeSocket) -> bool:
     return hasattr(input_, "default_value") and input_.enabled and \
         not input_.hide_value and not input_.is_linked
+
+
+def is_drawable_node_tree_input(input_: NodeSocketInterfaceCompat) -> bool:
+    return get_socket_type(input_) != 'NodeSocketGeometry' and not input_.hide_value
 
 
 def draw_node_inputs_filtered(
@@ -438,6 +498,38 @@ def draw_node_inputs_filtered(
 
         if filter_(input_):
             layout.row().prop(input_, "default_value", text=input_.name)
+
+
+def draw_modifier_input(layout: bpy.types.UILayout, mod: bpy.types.NodesModifier, input_: NodeSocketInterfaceCompat):
+    if get_socket_type(input_) == 'NodeSocketObject':
+        layout.row().prop_search(
+            mod,
+            f"[\"{input_.identifier}\"]",
+            bpy.data,
+            "objects",
+            text=input_.name,
+            icon='OBJECT_DATA'
+        )
+    elif get_socket_type(input_) == 'NodeSocketMaterial':
+        layout.row().prop_search(
+            mod,
+            f"[\"{input_.identifier}\"]",
+            bpy.data,
+            "materials",
+            text=input_.name,
+            icon='MATERIAL_DATA'
+        )
+    elif get_socket_type(input_) == 'NodeSocketCollection':
+        layout.row().prop_search(
+            mod,
+            f"[\"{input_.identifier}\"]",
+            bpy.data,
+            "collections",
+            text=input_.name,
+            icon='OUTLINER_COLLECTION'
+        )
+    else:
+        layout.row().prop(mod, f"[\"{input_.identifier}\"]", text=input_.name)
 
 
 def draw_node_tree(

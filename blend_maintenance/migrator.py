@@ -35,7 +35,6 @@ from .. import preferences
 from .. import asset_registry
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
-
 MODULE_CLASSES: typing.List[typing.Type] = []
 
 
@@ -90,7 +89,7 @@ class FindMissingFiles(bpy.types.Operator):
         missing_datablocks: typing.Set[bpy.types.ID] = set()
         datablocks_to_reload: typing.List[bpy.types.ID] = []
         for datablock in itertools.chain(bpy.data.libraries, bpy.data.images):
-            if not os.path.isfile(bpy.path.abspath(datablock.filepath, library=datablock.library)):
+            if not polib.utils_bpy.isfile_case_sensitive(bpy.path.abspath(datablock.filepath, library=datablock.library)):
                 missing_datablocks.add(datablock)
 
         for pack in asset_registry.instance.get_registered_packs():
@@ -198,7 +197,7 @@ MODULE_CLASSES.append(MigrateFromMaterialiq4)
 # Using unbounded cache, make sure it gets cleared eventually
 @functools.cache
 def get_blend_datablock_names(blend_filepath: str) -> typing.Dict[str, typing.List[str]]:
-    assert os.path.isfile(bpy.path.abspath(blend_filepath))
+    assert polib.utils_bpy.isfile_case_sensitive(bpy.path.abspath(blend_filepath))
     assert os.path.splitext(blend_filepath)[1] == ".blend"
 
     ret: typing.Dict[str, typing.List[str]] = {}
@@ -252,7 +251,7 @@ class MigrateLibraryPaths(bpy.types.Operator):
                 # filename_candidate exists and then assign its path as library.filepath
                 for directory in pack_subdirectories:
                     new_path = os.path.join(directory, filename_candidate)
-                    if os.path.isfile(bpy.path.abspath(new_path)):
+                    if polib.utils_bpy.isfile_case_sensitive(bpy.path.abspath(new_path)):
                         self.log_and_report(logging.INFO, f"Migrating filepath of "
                                             f"{type(datablock).__name__} '{datablock.name}' from "
                                             f"'{datablock.filepath}' to '{new_path}'")
@@ -272,7 +271,7 @@ class MigrateLibraryPaths(bpy.types.Operator):
 
         fixed_libraries: typing.List[bpy.types.Library] = []
         for library in bpy.data.libraries:
-            if os.path.isfile(bpy.path.abspath(library.filepath)):
+            if polib.utils_bpy.isfile_case_sensitive(bpy.path.abspath(library.filepath)):
                 continue
             success = self.fix_datablock_filepath(
                 library, library_filename_migrations, pack_subdirectories)
@@ -304,7 +303,7 @@ class MigrateLibraryPaths(bpy.types.Operator):
             if image.filepath == "":
                 # packed image
                 continue
-            if os.path.isfile(bpy.path.abspath(image.filepath)):
+            if polib.utils_bpy.isfile_case_sensitive(bpy.path.abspath(image.filepath)):
                 continue
 
             success = self.fix_datablock_filepath(

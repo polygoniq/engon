@@ -50,7 +50,7 @@
 
 ## About
 
-> Engon is a small code-only addon that contains all asset addon functionality: spawning, variants,
+> engon is a small code-only addon that contains all asset addon functionality: spawning, variants,
 > find missing files, snap to > ground, animations, ... All the former addon functionality: botaniq
 > scatter, ... in one big addon containing all the code. That way we can ship bug fixes and add
 > even more functionality very quickly. And you can auto-update without downloading tens of GB of

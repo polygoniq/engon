@@ -449,16 +449,23 @@ class RemoveParticleSystem(bpy.types.Operator):
 
         instance_collection = ps_settings_to_remove.instance_collection
 
-        # Gather all objects children out of instanced objects, those objects don't neccessarily
-        # have to be linked in the collection, they can be just parented to the object.
-        hierarchies = [
-            polib.asset_pack_bpy.get_hierarchy(obj) for obj in instance_collection.all_objects]
-
         # We remove only from scatter and botaniq animation collections,
         # we don't want to delete other user's setup
         collection_candidates: typing.Set[bpy.types.Collection] = set()
+        hierarchies: typing.List[typing.List[bpy.types.ID]] = []
         if instance_collection is not None:
             collection_candidates.add(instance_collection)
+
+            # Gather all objects children out of instanced objects, those objects don't necessarily
+            # have to be linked in the collection, they can be just parented to the object.
+            hierarchies = [
+                polib.asset_pack_bpy.get_hierarchy(obj) for obj in instance_collection.all_objects
+            ]
+        else:
+            self.report(
+                {'WARNING'},
+                f"No related instance collection in {ps_to_remove.name}"
+            )
 
         # If the empties collection is present, consider it too.
         if asset_helpers.ANIMATION_EMPTIES_COLL_NAME in bpy.data.collections:
@@ -832,7 +839,7 @@ MODULE_CLASSES.append(ScatterPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class ScatterParticlesSettingsPanel(panel.EngonPanelMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_scatter_particle_properties"
+    bl_idname = "VIEW_3D_PT_engon_scatter_particle_properties"
     bl_parent_id = ScatterPanel.bl_idname
     bl_label = "Particle Settings"
 
@@ -881,7 +888,7 @@ MODULE_CLASSES.append(ScatterParticlesSettingsPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class ScatterVisibilitySettingsPanel(panel.EngonPanelMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_scatter_visibility"
+    bl_idname = "VIEW_3D_PT_engon_scatter_visibility"
     bl_parent_id = ScatterPanel.bl_idname
     bl_label = "Visibility Settings"
 
@@ -939,7 +946,7 @@ MODULE_CLASSES.append(ScatterVisibilitySettingsPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class ScatterWeightPaintPanel(panel.EngonPanelMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_scatter_weight_paint"
+    bl_idname = "VIEW_3D_PT_engon_scatter_weight_paint"
     bl_parent_id = ScatterPanel.bl_idname
     bl_label = "Paint"
 
@@ -1015,7 +1022,7 @@ MODULE_CLASSES.append(ScatterWeightPaintPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class ScatterInstancerDetailPanel(panel.EngonPanelMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_scatter_instancer_detail"
+    bl_idname = "VIEW_3D_PT_engon_scatter_instancer_detail"
     bl_parent_id = ScatterPanel.bl_idname
     bl_label = "Objects"
 

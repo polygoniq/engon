@@ -93,7 +93,7 @@ class MaterialiqWorldsPanelMixin:
 
 @polib.log_helpers_bpy.logged_panel
 class MaterialiqPanel(MaterialiqPanelMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_materialiq"
+    bl_idname = "VIEW_3D_PT_engon_materialiq"
     bl_label = "materialiq"
     bl_category = "polygoniq"
     bl_order = 10
@@ -104,6 +104,8 @@ class MaterialiqPanel(MaterialiqPanelMixin, bpy.types.Panel):
 
     def draw_header_preset(self, context: bpy.types.Context) -> None:
         self.layout.prop(get_panel_props(context), "advanced_ui", text="", icon='MENU_PANEL')
+        polib.ui_bpy.draw_doc_button(
+            self.layout, preferences.__package__, rel_url="panels/materialiq/panel_overview")
 
     def draw_material_list(self, context: bpy.types.Context) -> None:
         # We use similar code to draw material slots as blender does
@@ -171,7 +173,7 @@ MODULE_CLASSES.append(MaterialiqPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class ToolsPanel(MaterialiqPanelMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_materialiq_tools"
+    bl_idname = "VIEW_3D_PT_engon_materialiq_tools"
     bl_parent_id = MaterialiqPanel.bl_idname
     bl_label = "Tools"
 
@@ -205,7 +207,7 @@ MODULE_CLASSES.append(ToolsPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class MaterialPropertiesPanel(MaterialiqMaterialMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_materialiq_default_view"
+    bl_idname = "VIEW_3D_PT_engon_materialiq_default_view"
     bl_parent_id = MaterialiqPanel.bl_idname
     bl_label = "Material Properties"
     bl_options = {'DEFAULT_CLOSED'}
@@ -222,12 +224,12 @@ MODULE_CLASSES.append(MaterialPropertiesPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class MappingPanel(MaterialiqMaterialMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_materialiq_mapping"
+    bl_idname = "VIEW_3D_PT_engon_materialiq_mapping"
     bl_parent_id = MaterialPropertiesPanel.bl_idname
     bl_label = "Mapping"
     bl_options = {'DEFAULT_CLOSED'}
 
-    node_sockets_basic_template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
+    basic_template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
         "mq_Mapping",
         filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(
             x,
@@ -239,7 +241,7 @@ class MappingPanel(MaterialiqMaterialMixin, bpy.types.Panel):
         )
     )
 
-    node_sockets_advanced_template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
+    advanced_template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
         "mq_Mapping",
         filter_=lambda x: not polib.node_utils_bpy.filter_node_socket_name(
             x,
@@ -261,10 +263,10 @@ class MappingPanel(MaterialiqMaterialMixin, bpy.types.Panel):
         col = layout.column(align=True)
 
         if MaterialiqAdvancedUIPanelMixin.poll(context):
-            MappingPanel.node_sockets_advanced_template.draw_from_material(mat, col)
+            MappingPanel.advanced_template.draw_from_material(mat, col)
             return
 
-        MappingPanel.node_sockets_basic_template.draw_from_material(mat, col)
+        MappingPanel.basic_template.draw_from_material(mat, col)
 
 
 MODULE_CLASSES.append(MappingPanel)
@@ -272,12 +274,12 @@ MODULE_CLASSES.append(MappingPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class TextureBombingPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_materialiq_tex_bomb"
+    bl_idname = "VIEW_3D_PT_engon_materialiq_tex_bomb"
     bl_parent_id = MappingPanel.bl_idname
     bl_label = "Texture Bombing"
     bl_options = {'DEFAULT_CLOSED'}
 
-    node_sockets_template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
+    template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
         "mq_Mapping",
         filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(
             x,
@@ -295,7 +297,7 @@ class TextureBombingPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
             return
 
         col = layout.column(align=True)
-        TextureBombingPanel.node_sockets_template.draw_from_material(mat, col)
+        TextureBombingPanel.template.draw_from_material(mat, col)
 
 
 MODULE_CLASSES.append(TextureBombingPanel)
@@ -303,12 +305,12 @@ MODULE_CLASSES.append(TextureBombingPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class AdjustmentsPanel(MaterialiqMaterialMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_materialiq_adjustments"
+    bl_idname = "VIEW_3D_PT_engon_materialiq_adjustments"
     bl_parent_id = MaterialPropertiesPanel.bl_idname
     bl_label = "Adjustments"
     bl_options = {'DEFAULT_CLOSED'}
 
-    node_sockets = polib.node_utils_bpy.NodeSocketsDrawTemplate(
+    template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
         "mq_Adjust",
         filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(
             x,
@@ -352,7 +354,7 @@ class AdjustmentsPanel(MaterialiqMaterialMixin, bpy.types.Panel):
         if mat is None:
             return
         col = layout.column(align=True)
-        AdjustmentsPanel.node_sockets.draw_from_material(mat, col)
+        AdjustmentsPanel.template.draw_from_material(mat, col)
 
 
 MODULE_CLASSES.append(AdjustmentsPanel)
@@ -360,12 +362,12 @@ MODULE_CLASSES.append(AdjustmentsPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class AdjustmentsDiffusePanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_materialiq_adjustments_diffuse"
+    bl_idname = "VIEW_3D_PT_engon_materialiq_adjustments_diffuse"
     bl_parent_id = AdjustmentsPanel.bl_idname
     bl_label = "Diffuse"
     bl_options = {'DEFAULT_CLOSED'}
 
-    node_sockets = polib.node_utils_bpy.NodeSocketsDrawTemplate(
+    template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
         "mq_Adjust",
         filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(
             x,
@@ -389,7 +391,7 @@ class AdjustmentsDiffusePanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
             return
 
         col = layout.column(align=True)
-        AdjustmentsDiffusePanel.node_sockets.draw_from_material(mat, col)
+        AdjustmentsDiffusePanel.template.draw_from_material(mat, col)
 
 
 MODULE_CLASSES.append(AdjustmentsDiffusePanel)
@@ -397,12 +399,12 @@ MODULE_CLASSES.append(AdjustmentsDiffusePanel)
 
 @polib.log_helpers_bpy.logged_panel
 class AdjustmentsSpecularPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_materialiq_adjustments_specular"
+    bl_idname = "VIEW_3D_PT_engon_materialiq_adjustments_specular"
     bl_parent_id = AdjustmentsPanel.bl_idname
     bl_label = "Specular"
     bl_options = {'DEFAULT_CLOSED'}
 
-    node_sockets = polib.node_utils_bpy.NodeSocketsDrawTemplate(
+    template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
         "mq_Adjust",
         filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(
             x,
@@ -420,7 +422,7 @@ class AdjustmentsSpecularPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
             return
 
         col = layout.column(align=True)
-        AdjustmentsSpecularPanel.node_sockets.draw_from_material(mat, col)
+        AdjustmentsSpecularPanel.template.draw_from_material(mat, col)
 
 
 MODULE_CLASSES.append(AdjustmentsSpecularPanel)
@@ -428,12 +430,12 @@ MODULE_CLASSES.append(AdjustmentsSpecularPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class AdjustmentsRoughnessPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_materialiq_adjustments_roughness"
+    bl_idname = "VIEW_3D_PT_engon_materialiq_adjustments_roughness"
     bl_parent_id = AdjustmentsPanel.bl_idname
     bl_label = "Roughness"
     bl_options = {'DEFAULT_CLOSED'}
 
-    node_sockets = polib.node_utils_bpy.NodeSocketsDrawTemplate(
+    template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
         "mq_Adjust",
         filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(
             x,
@@ -451,7 +453,7 @@ class AdjustmentsRoughnessPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel)
             return
 
         col = layout.column(align=True)
-        AdjustmentsRoughnessPanel.node_sockets.draw_from_material(mat, col)
+        AdjustmentsRoughnessPanel.template.draw_from_material(mat, col)
 
 
 MODULE_CLASSES.append(AdjustmentsRoughnessPanel)
@@ -459,12 +461,12 @@ MODULE_CLASSES.append(AdjustmentsRoughnessPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class AdjustmentsNormalPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_materialiq_adjustments_normal"
+    bl_idname = "VIEW_3D_PT_engon_materialiq_adjustments_normal"
     bl_parent_id = AdjustmentsPanel.bl_idname
     bl_label = "Normal"
     bl_options = {'DEFAULT_CLOSED'}
 
-    adjustment_sockets = polib.node_utils_bpy.NodeSocketsDrawTemplate(
+    adjustment_template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
         "mq_Adjust",
         filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(
             x,
@@ -473,7 +475,7 @@ class AdjustmentsNormalPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
     )
 
     # There should be only one Bevel node on top level of materialiq material
-    bevel_sockets = polib.node_utils_bpy.NodeSocketsDrawTemplate(
+    bevel_template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
         "Bevel",
         filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(
             x,
@@ -491,8 +493,8 @@ class AdjustmentsNormalPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
             return
 
         col = layout.column(align=True)
-        AdjustmentsNormalPanel.adjustment_sockets.draw_from_material(mat, col)
-        AdjustmentsNormalPanel.bevel_sockets.draw_from_material(mat, col)
+        AdjustmentsNormalPanel.adjustment_template.draw_from_material(mat, col)
+        AdjustmentsNormalPanel.bevel_template.draw_from_material(mat, col)
 
 
 MODULE_CLASSES.append(AdjustmentsNormalPanel)
@@ -500,12 +502,12 @@ MODULE_CLASSES.append(AdjustmentsNormalPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class TransparentAdjustmentsPanel(MaterialiqMaterialMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_materialiq_transparent_adjustments"
+    bl_idname = "VIEW_3D_PT_engon_materialiq_transparent_adjustments"
     bl_parent_id = AdjustmentsPanel.bl_idname
     bl_label = "Transparency"
     bl_options = {'DEFAULT_CLOSED'}
 
-    node_sockets = polib.node_utils_bpy.NodeSocketsDrawTemplate(
+    template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
         "mq_Transparent",
     )
 
@@ -531,7 +533,7 @@ class TransparentAdjustmentsPanel(MaterialiqMaterialMixin, bpy.types.Panel):
             return
 
         col = layout.column(align=True)
-        TransparentAdjustmentsPanel.node_sockets.draw_from_material(mat, col)
+        TransparentAdjustmentsPanel.template.draw_from_material(mat, col)
 
 
 MODULE_CLASSES.append(TransparentAdjustmentsPanel)
@@ -539,7 +541,7 @@ MODULE_CLASSES.append(TransparentAdjustmentsPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class TexturesPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_materialiq_textures"
+    bl_idname = "VIEW_3D_PT_engon_materialiq_textures"
     bl_parent_id = MaterialPropertiesPanel.bl_idname
     bl_label = "Textures"
     bl_options = {'DEFAULT_CLOSED'}
@@ -608,7 +610,7 @@ MODULE_CLASSES.append(TexturesPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class DisplacementPanel(MaterialiqMaterialMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_materialiq_displace"
+    bl_idname = "VIEW_3D_PT_engon_materialiq_displace"
     bl_parent_id = MaterialPropertiesPanel.bl_idname
     bl_label = "Displacement"
 
@@ -635,7 +637,7 @@ MODULE_CLASSES.append(DisplacementPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class AdaptiveSubdivPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_materialiq_adaptive_subdiv"
+    bl_idname = "VIEW_3D_PT_engon_materialiq_adaptive_subdiv"
     bl_parent_id = DisplacementPanel.bl_idname
     bl_label = "Scene Subdivision"
 
@@ -659,7 +661,7 @@ MODULE_CLASSES.append(AdaptiveSubdivPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class ModifiersDisplacementPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_materialiq_modifiers_displacement"
+    bl_idname = "VIEW_3D_PT_engon_materialiq_modifiers_displacement"
     bl_parent_id = DisplacementPanel.bl_idname
     bl_label = "Modifiers"
 
@@ -697,7 +699,7 @@ MODULE_CLASSES.append(ModifiersDisplacementPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class AdjustmentsDisplacementPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_materialiq_adjustments_displacement"
+    bl_idname = "VIEW_3D_PT_engon_materialiq_adjustments_displacement"
     bl_parent_id = DisplacementPanel.bl_idname
     bl_label = "Shader Displacement"
 
@@ -748,7 +750,7 @@ MODULE_CLASSES.append(AdjustmentsDisplacementPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class EditNodeTreePanel(MaterialiqPanelMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_materialiq_edit_material"
+    bl_idname = "VIEW_3D_PT_engon_materialiq_edit_material"
     bl_description = "Shows values of nodes connected to the material output in the N panel"
     bl_parent_id = MaterialiqPanel.bl_idname
     bl_label = "Edit Material"
@@ -791,7 +793,7 @@ MODULE_CLASSES.append(EditNodeTreePanel)
 
 @polib.log_helpers_bpy.logged_panel
 class DisplaySettingsPanel(MaterialiqPanelMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_materialiq_material_settings"
+    bl_idname = "VIEW_3D_PT_engon_materialiq_material_settings"
     bl_parent_id = MaterialiqPanel.bl_idname
     bl_label = "Material Settings"
     bl_options = {'DEFAULT_CLOSED'}

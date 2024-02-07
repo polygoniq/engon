@@ -72,12 +72,26 @@ TAGS = {
 # on this list!
 NUMERIC_PARAMETERS = {
     "model_year": {
-        "description": "When was this man-made object made"
+        "description": "When was this man-made object made",
+        "type": "int",
     },
     "price_usd": {
         "description": "Price in USD for which this man-made object was typically sold in $model_year year",
         "search_weight": 0.0,
-    }
+        "unit": "$",
+    },
+    "width": {
+        "description": "Width of the asset in meters",
+        "unit": "m",
+    },
+    "height": {
+        "description": "Height of the asset in meters",
+        "unit": "m",
+    },
+    "depth": {
+        "description": "Depth of the asset in meters",
+        "unit": "m",
+    },
 }
 
 
@@ -100,6 +114,11 @@ TEXT_PARAMETERS = {
         "is_required": True,
         "search_weight": 0.0,
         "show_filter": False,
+    },
+    # This is used for transferring the asset id from the recipe to the deserialized .blend file
+    "mapr_asset_data_id": {
+        "search_weight": 0.0,
+        "show_filter": False
     },
     "bpy.data.version": {
         "description": "Which version of the .blend format was used for this asset",
@@ -211,6 +230,10 @@ COLOR_PARAMETERS = {
         "search_weight": 0.0,
     },
 }
+
+# Mapping of parameter name to unit. If the parameter is not specified here it is considered unitless.
+PARAMETER_UNITS = {param: info.get(
+    "unit") for param, info in NUMERIC_PARAMETERS.items() if info.get("unit", None) is not None}
 
 # Mapping of "group_name": ["child", "parameter", "names"]. If the parameter is not specified here
 # it is considered ungrouped and should be drawn outside of any groups.

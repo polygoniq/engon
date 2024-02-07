@@ -104,9 +104,9 @@ class MAPR_ShowAssetDetail(bpy.types.Operator):
             return
 
         heading.label(text="Parameters")
-        already_considered_parameters = set()
+        already_considered_parameters: typing.Set[str] = set()
         for i, (group_name, group_parameters) in enumerate(mapr.known_metadata.PARAMETER_GROUPING.items()):
-            asset_parameters = []
+            asset_parameters: typing.List[str] = []
             for param_name in group_parameters:
                 param_name = mapr.parameter_meta.remove_type_from_name(param_name)
                 value = all_parameters.get(param_name, None)
@@ -137,7 +137,12 @@ class MAPR_ShowAssetDetail(bpy.types.Operator):
             col = group_box.column(align=True)
             for param_name in asset_parameters:
                 value = all_parameters[param_name]
-                col.label(text=f"{mapr.known_metadata.format_parameter_name(param_name)}: {value}")
+                param_unit = mapr.known_metadata.PARAMETER_UNITS.get(param_name, "")
+                if isinstance(value, float):
+                    # Format value with up to 2 decimal places without trailing zeros
+                    value = int(value) if value % 1 == 0 else float(f"{value:.2f}")
+                col.label(
+                    text=f"{mapr.known_metadata.format_parameter_name(param_name)}: {value} {param_unit}")
 
         not_yet_drawn = set(all_parameters) - already_considered_parameters
 
@@ -500,7 +505,7 @@ class MAPR_BrowserToggleArea(bpy.types.Operator):
     bl_idname = "engon.browser_toggle_area"
     bl_description = "Toggles area under mouse to mapr browser and back. If the previous area " \
         "contained preferences, this does nothing"
-    bl_label = "Toggle Engon Browser"
+    bl_label = "Toggle engon Browser"
 
     def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout

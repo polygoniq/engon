@@ -2,6 +2,7 @@
 # copyright (c) 2018- polygoniq xyz s.r.o.
 
 import bpy
+import addon_utils
 import sys
 import os
 import pathlib
@@ -15,6 +16,9 @@ import time
 import re
 import logging
 logger = logging.getLogger(f"polygoniq.{__name__}")
+
+
+POLYGONIQ_DOCS_URL = "https://docs.polygoniq.com"
 
 
 def autodetect_install_path(product: str, init_path: str, install_path_checker: typing.Callable[[str], bool]) -> str:
@@ -231,6 +235,54 @@ def normalize_path(path: str) -> str:
     return path.replace("\\", "/")
 
 
+def get_case_sensitive_path(path: str) -> str:
+    """Returns the path with capitalization as it appears on disk.
+
+    Some OSes such as Windows do not consider capitalization while
+    resolving paths, while others such as UNIX-based systems do.
+    """
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"File not found: {path}")
+
+    components = pathlib.Path(path).parts
+
+    case_sensitive_path = "."
+    if os.path.isabs(path):
+        # First component of absolute path is either a drive letter or a `/`, no need to check case
+        case_sensitive_path = components[0]
+        components = components[1:]
+
+    # Reconstruct the path with case-sensitive names
+    for component in components:
+        # Check the case of each entry in the directory
+        # Using os.path.realpath is not reliable, as it does
+        # not return case-sensitive paths for google drive files
+        entries = os.listdir(case_sensitive_path)
+        case_sensitive_entry = None
+        for entry in entries:
+            # pathlib makes sure correct case-sensitivity is used on every OS
+            if pathlib.Path(entry) == pathlib.Path(component):
+                case_sensitive_entry = entry
+                break
+        assert case_sensitive_entry is not None
+        case_sensitive_path = os.path.join(case_sensitive_path, case_sensitive_entry)
+
+    return case_sensitive_path
+
+
+def isfile_case_sensitive(path: str) -> bool:
+    """Similar to os.path.isfile, but case sensitive.
+
+    Case sensitive checks are needed on Windows and other case insensitive platforms.
+    """
+    # fast case insensitive check, filters out folders
+    if not os.path.isfile(path):
+        return False
+
+    case_sensitive_path = get_case_sensitive_path(path)
+    return normalize_path(path) == normalize_path(case_sensitive_path)
+
+
 def get_bpy_filepath_relative_to_dir(input_dir: str, filepath: str, library=None) -> str:
     file_abspath = bpy.path.abspath(filepath, library=library)
     rel_path = bpy.path.relpath(file_abspath, start=input_dir)
@@ -261,3 +313,15 @@ def get_all_datablocks(data: bpy.types.BlendData) -> typing.List[typing.Tuple[bp
                 if isinstance(datablock, bpy.types.ID):
                     ret.append((datablock, member_variable_name))
     return ret
+
+
+def get_addon_docs_page(module_name: str) -> str:
+    """Returns url of add-on docs based on its module name."""
+    for mod in addon_utils.modules(refresh=False):
+        if mod.__name__ == module_name:
+            mod_info = addon_utils.module_bl_info(mod)
+            # Get only the name without suffix (_full, _lite, etc.)
+            name = mod_info["name"].split("_", 1)[0]
+            version = ".".join(map(str, mod_info["version"]))
+            return f"{POLYGONIQ_DOCS_URL}/{name}/{version}"
+    raise ValueError(f"No module '{module_name}' was found!")

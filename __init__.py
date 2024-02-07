@@ -102,14 +102,14 @@ finally:
 
 
 bl_info = {
-    "name": "engon by polygoniq",
+    "name": "engon",
     "author": "polygoniq xyz s.r.o.",
-    "version": (1, 0, 0),  # bump doc_url as well!
+    "version": (1, 0, 1),  # bump doc_url as well!
     "blender": (3, 3, 0),
     "location": "polygoniq tab in the sidebar of the 3D View window",
     "description": "",
     "category": "Object",
-    "doc_url": "https://docs.polygoniq.com/engon/1.0.0/",
+    "doc_url": "https://docs.polygoniq.com/engon/1.0.1/",
     "tracker_url": "https://polygoniq.com/discord/"
 }
 

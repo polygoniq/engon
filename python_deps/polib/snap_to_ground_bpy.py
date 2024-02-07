@@ -83,9 +83,9 @@ def snap_to_ground_iterate(instance: bpy.types.Object, obj: bpy.types.Object,
                            get_ray_casted_plane: GetRayCastedPlaneCallable,
                            debug: bool = False) -> None:
     """Snap to ground iteratively, we first estimate final rotation until angular delta
-    is lower than our tolerance. Only then we can get an accurate raycasted position delta.
+    is lower than our tolerance. Only then we can get an accurate raycast position delta.
     """
-    ANGULAR_DELTA_TOLERANGE = math.radians(1)
+    ANGULAR_DELTA_TOLERANCE = math.radians(1)
     MAXIMUM_ITERATIONS = 10
 
     iteration = 1
@@ -113,10 +113,23 @@ def snap_to_ground_iterate(instance: bpy.types.Object, obj: bpy.types.Object,
 
         delta_rotation = mathutils.Vector(
             orig_plane_normal).rotation_difference(altered_plane_normal)
-        instance.matrix_world = instance.matrix_world @ delta_rotation.to_matrix().to_4x4()
+
+        # Since matrix_world is composed as location @ rotation @ scale, we need to decompose it
+        # into separate matrices, multiply only rotation and then compose it back.
+        # See https://blender.stackexchange.com/a/44783
+        # We could also use e.g. instance.rotation_quaternion but we would need to call
+        # bpy.context.view_layer.update() after each change to update matrix_world, which is slower.
+        orig_loc, orig_rot, orig_scale = instance.matrix_world.decompose()
+        orig_loc_mat = mathutils.Matrix.Translation(orig_loc)
+        orig_rot_mat = orig_rot.to_matrix().to_4x4()
+        delta_rot_mat = delta_rotation.to_matrix().to_4x4()
+        orig_scale_mat = mathutils.Matrix.Diagonal(orig_scale).to_4x4()
+        # assemble the new matrix
+        instance.matrix_world = orig_loc_mat @ delta_rot_mat @ orig_rot_mat @ orig_scale_mat
+
         if debug:
             logger.debug(f"iteration: {iteration}, angular error: {delta_rotation.angle}")
-        if abs(delta_rotation.angle) < ANGULAR_DELTA_TOLERANGE:
+        if abs(delta_rotation.angle) < ANGULAR_DELTA_TOLERANCE:
             break
         iteration += 1
         if iteration > MAXIMUM_ITERATIONS:
@@ -187,7 +200,7 @@ def snap_to_ground_separate_wheels(instance: bpy.types.Object, obj: bpy.types.Ob
     instance_old_matrix_world = copy.deepcopy(instance.matrix_world)
 
     def get_ray_casted_plane() -> typing.Tuple[typing.List[mathutils.Vector], typing.Optional[typing.List[mathutils.Vector]]]:
-        bottom_corners = get_wheel_contact_points(wheels, instance)
+        bottom_corners = get_wheel_contact_points(wheels, instance, debug)
         return ray_cast_plane(ground_objects, bottom_corners)
 
     snap_to_ground_iterate(instance, obj, instance_old_matrix_world,

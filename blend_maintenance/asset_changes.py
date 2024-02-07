@@ -212,6 +212,24 @@ botaniq_6_8_0_english_names_to_latin = AssetPackMigration(
     }
 )
 
+_botaniq_6_8_0_decapitalize_cortaderia_mapping = RegexMapping(
+    re.compile(r"^bq_Grass_Cortaderia-Selloana_([ABCDEFHG])_spring-summer"),
+    r"bq_Grass_Cortaderia-selloana_\1_spring-summer"
+)
+
+botaniq_6_8_0_decapitalize_cortaderia = AssetPackMigration(
+    [
+        RegexMapping(
+            re.compile(r"^bq_Grass_Cortaderia-Selloana_([ABCDEFHG])_spring-summer.blend"),
+            r"bq_Grass_Cortaderia-selloana_\1_spring-summer.blend"
+        )
+    ],
+    {
+        "collections": [_botaniq_6_8_0_decapitalize_cortaderia_mapping],
+        "meshes": [_botaniq_6_8_0_decapitalize_cortaderia_mapping],
+        "objects": [_botaniq_6_8_0_decapitalize_cortaderia_mapping]
+    }
+)
 
 evermotion_am154_1_3_0_am154_prefix = AssetPackMigration(
     [
@@ -275,13 +293,31 @@ traffiq_1_7_0_tq_prefix = AssetPackMigration(
 )
 
 
+_traffiq_2_0_0_remove_percent_from_incline_sign_mapping = RegexMapping(
+    re.compile(r"^tq_StreetSign_Warning_Incline-12%$"), r"tq_StreetSign_Warning_Incline-12")
+
+traffiq_2_0_0_remove_percent_from_incline_sign = AssetPackMigration(
+    [
+        RegexMapping(
+            re.compile(r"^tq_StreetSign_Warning_Incline-12%\.blend$"),
+            r"tq_StreetSign_Warning_Incline-12.blend"
+        )
+    ],
+    {
+        "collections": [_traffiq_2_0_0_remove_percent_from_incline_sign_mapping],
+        "meshes": [_traffiq_2_0_0_remove_percent_from_incline_sign_mapping],
+        "objects": [_traffiq_2_0_0_remove_percent_from_incline_sign_mapping],
+    }
+)
+
 ASSET_PACK_MIGRATIONS = [
     AssetPackMigrations(
         pack_name="botaniq",
         migrations=[
             botaniq_6_8_0_unify_bq_prefix,
             botaniq_6_8_0_rename_vases_to_pots,
-            botaniq_6_8_0_english_names_to_latin
+            botaniq_6_8_0_english_names_to_latin,
+            botaniq_6_8_0_decapitalize_cortaderia
         ]
     ),
     AssetPackMigrations(
@@ -299,7 +335,8 @@ ASSET_PACK_MIGRATIONS = [
     AssetPackMigrations(
         pack_name="traffiq",
         migrations=[
-            traffiq_1_7_0_tq_prefix
+            traffiq_1_7_0_tq_prefix,
+            traffiq_2_0_0_remove_percent_from_incline_sign
         ]
     )
 ]

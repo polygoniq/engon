@@ -92,13 +92,17 @@ class TraffiqPanelInfoMixin:
 
 @polib.log_helpers_bpy.logged_panel
 class TraffiqPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_traffiq"
+    bl_idname = "VIEW_3D_PT_engon_traffiq"
     bl_label = "traffiq"
     bl_order = 10
 
     def draw_header(self, context: bpy.types.Context):
         self.layout.label(
             text="", icon_value=polib.ui_bpy.icon_manager.get_engon_feature_icon_id("traffiq"))
+
+    def draw_header_preset(self, context: bpy.types.Context) -> None:
+        polib.ui_bpy.draw_doc_button(
+            self.layout, preferences.__package__, rel_url="panels/traffiq/panel_overview")
 
     def draw(self, context: bpy.types.Context):
         # TODO: All that was formerly here was replaced with engon universal operators,
@@ -111,7 +115,7 @@ MODULE_CLASSES.append(TraffiqPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class ColorsPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_traffiq_colors"
+    bl_idname = "VIEW_3D_PT_engon_traffiq_colors"
     bl_parent_id = TraffiqPanel.bl_idname
     bl_label = "Color Settings"
 
@@ -176,7 +180,7 @@ MODULE_CLASSES.append(ColorsPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class LightsPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_traffiq_lights"
+    bl_idname = "VIEW_3D_PT_engon_traffiq_lights"
     bl_parent_id = TraffiqPanel.bl_idname
     bl_label = "Light Settings"
 
@@ -223,7 +227,7 @@ MODULE_CLASSES.append(LightsPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class WearPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_traffiq_wear"
+    bl_idname = "VIEW_3D_PT_engon_traffiq_wear"
     bl_parent_id = TraffiqPanel.bl_idname
     bl_label = "Wear Sliders"
 
@@ -296,7 +300,7 @@ MODULE_CLASSES.append(WearPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class RigsPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_traffiq_rigs"
+    bl_idname = "VIEW_3D_PT_engon_traffiq_rigs"
     bl_parent_id = TraffiqPanel.bl_idname
     bl_label = "Rigs"
 
@@ -364,7 +368,7 @@ def get_position_display_name(position: str) -> str:
 
 @polib.log_helpers_bpy.logged_panel
 class RigsGroundSensorsPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_traffiq_rigs_ground_sensors"
+    bl_idname = "VIEW_3D_PT_engon_traffiq_rigs_ground_sensors"
     bl_parent_id = RigsPanel.bl_idname
     bl_label = "Ground Sensors"
 
@@ -409,7 +413,7 @@ MODULE_CLASSES.append(RigsGroundSensorsPanel)
 
 @polib.log_helpers_bpy.logged_panel
 class RigsRigPropertiesPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_traffiq_rigs_rig_properties"
+    bl_idname = "VIEW_3D_PT_engon_traffiq_rigs_rig_properties"
     bl_parent_id = RigsPanel.bl_idname
     bl_label = "Rig Properties"
 

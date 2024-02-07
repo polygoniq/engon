@@ -297,15 +297,28 @@ def _any_filter_updated_event():
 
 
 class NumericParameterFilter(bpy.types.PropertyGroup, Filter):
-    range_start: bpy.props.FloatProperty(
+    is_int: bpy.props.BoolProperty()
+
+    range_start_float: bpy.props.FloatProperty(
         get=lambda self: self._range_start_get(),
         set=lambda self, value: self._range_start_set(value),
         default=-1.0
     )
-    range_end: bpy.props.FloatProperty(
+    range_end_float: bpy.props.FloatProperty(
         get=lambda self: self._range_end_get(),
         set=lambda self, value: self._range_end_set(value),
         default=1.0
+    )
+
+    range_start_int: bpy.props.IntProperty(
+        get=lambda self: self._range_start_get(),
+        set=lambda self, value: self._range_start_set(value),
+        default=-1
+    )
+    range_end_int: bpy.props.IntProperty(
+        get=lambda self: self._range_end_get(),
+        set=lambda self, value: self._range_end_set(value),
+        default=1
     )
 
     range_min: bpy.props.FloatProperty(options={'HIDDEN'})
@@ -316,13 +329,15 @@ class NumericParameterFilter(bpy.types.PropertyGroup, Filter):
         self.name_without_type = mapr.parameter_meta.remove_type_from_name(self.name)
         # Filter should be enabled by default after initializing
         self.enabled = True
+        # Infer the numeric type from the parameter meta (False means float)
+        self.is_int = isinstance(parameter_meta.min_, int) and isinstance(parameter_meta.max_, int)
         # Store meta information of min max to the filter
         self.range_min = parameter_meta.min_
         self.range_max = parameter_meta.max_
         # Initialize user facing properties to min max, those have to be initialized after
         # the ranges, so the set methods do not clamp to 0.0
-        self.range_start = parameter_meta.min_
-        self.range_end = parameter_meta.max_
+        self._range_start_set(parameter_meta.min_)
+        self._range_end_set(parameter_meta.max_)
 
     def draw(self, context: bpy.types.Context, layout: bpy.types.UILayout) -> None:
         col = layout.column(align=True)
@@ -330,7 +345,9 @@ class NumericParameterFilter(bpy.types.PropertyGroup, Filter):
         # Draw label as disabled
         sub = row.column()
         sub.enabled = False
-        sub.label(text=self.get_nice_name())
+        unit = mapr.known_metadata.PARAMETER_UNITS.get(self.name_without_type, None)
+        unit_str = f" ({unit})" if unit is not None else ""
+        sub.label(text=f"{self.get_nice_name()}{unit_str}")
         # Draw Reset button
         if self.is_applied() or self.enabled is False:
             row.operator(
@@ -341,17 +358,17 @@ class NumericParameterFilter(bpy.types.PropertyGroup, Filter):
             ).filter_name = self.name
 
         row = col.row(align=True)
-        row.prop(self, "range_start", text="Min")
-        row.prop(self, "range_end", text="Max")
+        row.prop(self, self._range_start_name(), text="Min")
+        row.prop(self, self._range_end_name(), text="Max")
 
     def is_default(self):
-        return math.isclose(self.range_start, self.range_min) and \
-            math.isclose(self.range_end, self.range_max)
+        return math.isclose(self._range_start_get(), self.range_min) and \
+            math.isclose(self._range_end_get(), self.range_max)
 
     def reset(self):
         super().reset()
-        self.range_start = self.range_min
-        self.range_end = self.range_max
+        self._range_start_set(self.range_min)
+        self._range_end_set(self.range_max)
 
     def filter_(self, asset: mapr.asset.Asset) -> bool:
         # Include asset if the values for this filter are close to default
@@ -363,10 +380,21 @@ class NumericParameterFilter(bpy.types.PropertyGroup, Filter):
         if self.name_without_type not in asset.numeric_parameters:
             return False
 
-        return self.range_start < asset.numeric_parameters[self.name_without_type] < self.range_end
+        return self._range_start_get() < asset.numeric_parameters[self.name_without_type] < self._range_end_get()
 
     def as_dict(self) -> typing.Dict:
-        return {self.name: {"min": self.range_start, "max": self.range_end}}
+        return {self.name: {"min": self._range_start_get(), "max": self._range_end_get()}}
+
+    def _convert_to_num_type(self, value: typing.Union[int, float]) -> typing.Union[int, float]:
+        return int(value) if self.is_int else float(value)
+
+    def _range_start_name(self) -> str:
+        num_type = "int" if self.is_int else "float"
+        return f"range_start_{num_type}"
+
+    def _range_end_name(self) -> str:
+        num_type = "int" if self.is_int else "float"
+        return f"range_end_{num_type}"
 
     def _range_start_set(self, value: float):
         if value < self.range_min:
@@ -375,11 +403,11 @@ class NumericParameterFilter(bpy.types.PropertyGroup, Filter):
         if value > self.range_max:
             value = self.range_max
 
-        self["range_start"] = value
+        self[self._range_start_name()] = self._convert_to_num_type(value)
         _any_filter_updated_event()
 
     def _range_start_get(self):
-        return self.get("range_start", -1.0)
+        return self._convert_to_num_type(self.get(self._range_start_name(), -1.0))
 
     def _range_end_set(self, value: float):
         if value > self.range_max:
@@ -387,11 +415,11 @@ class NumericParameterFilter(bpy.types.PropertyGroup, Filter):
         if value < self.range_min:
             value = self.range_min
 
-        self["range_end"] = value
+        self[self._range_end_name()] = self._convert_to_num_type(value)
         _any_filter_updated_event()
 
     def _range_end_get(self):
-        return self.get("range_end", 1.0)
+        return self._convert_to_num_type(self.get(self._range_end_name(), 1.0))
 
 
 MODULE_CLASSES.append(NumericParameterFilter)

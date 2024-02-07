@@ -225,12 +225,13 @@ class GeneralPreferences(bpy.types.PropertyGroup):
     def draw_pack_info_search_paths(self, context: bpy.types.Context, layout: bpy.types.UILayout):
         box = layout.box()
         row = box.row()
+        row.alignment = 'LEFT'
         row.prop(self, "show_pack_info_paths",
                  icon='DISCLOSURE_TRI_DOWN' if self.show_pack_info_paths else 'DISCLOSURE_TRI_RIGHT',
                  text="",
                  emboss=False,)
         row.label(text="Asset Pack Search Paths (For Advanced Users)")
-
+        polib.ui_bpy.draw_doc_button(row, __package__, rel_url="advanced_topics/search_paths")
         pack_info_search_path_list_ensure_valid_index(context)
 
         if not self.show_pack_info_paths:
@@ -492,7 +493,18 @@ class AssetPackInstallationDialog(bpy.types.Operator, asset_pack_installer.Asset
     bl_description = "Asset Pack Installation Dialog"
     bl_options = {'REGISTER', 'INTERNAL'}
 
-    try_updating: bpy.props.BoolProperty()
+    try_updating: bpy.props.BoolProperty(
+        get=lambda self: asset_pack_installer.instance.try_updating,
+        set=lambda self, value: setattr(asset_pack_installer.instance, "try_updating", value),
+        description="If checked, proceeding with the installation will start an UPDATE dialog for this Asset Pack"
+    )
+
+    try_reinstalling: bpy.props.BoolProperty(
+        get=lambda self: asset_pack_installer.instance.try_reinstalling,
+        set=lambda self, value: setattr(asset_pack_installer.instance, "try_reinstalling", value),
+        description="If checked, proceeding with the installation will REMOVE the already present Asset Pack. "
+        "This new Asset Pack will be installed in its place."
+    )
 
     def draw(self, context: bpy.types.Context):
         installer = asset_pack_installer.instance
@@ -501,7 +513,7 @@ class AssetPackInstallationDialog(bpy.types.Operator, asset_pack_installer.Asset
         if self.check_should_dialog_close():
             if not self.close:
                 self.close = True
-            self.draw_status_and_error_messages(layout)
+            self.draw_status_and_messages(layout)
             return
 
         self.draw_pack_info(layout, header="This Asset Pack will be installed:")
@@ -519,13 +531,23 @@ class AssetPackInstallationDialog(bpy.types.Operator, asset_pack_installer.Asset
         col.label(text=f"Estimated Pack Size: {installer.pack_size}")
         col.label(text=f"Free Disk Space: {installer.free_space}")
         col = box.column()
-        self.draw_status_and_error_messages(col)
+        self.draw_status_and_messages(col)
         if installer.is_update_available:
             col.box().prop(self, "try_updating", text="Try Updating")
+        elif installer.is_reinstall_available:
+            col.box().prop(self, "try_reinstalling", text="Try Reinstalling")
 
-        box = layout.box()
-        box.label(text=f"Clicking 'OK' will COPY all contents of this Asset Pack "
-                  f"into the installation directory.")
+        col = layout.box().column(align=True)
+        if not installer.is_ready:
+            col.label(text="Clicking 'OK' will ABORT the installation.")
+        elif self.try_updating:
+            col.label(text="Clicking 'OK' will start an UPDATE dialog for this Asset Pack.")
+        elif self.try_reinstalling:
+            col.label(text="Clicking 'OK' will REMOVE the already present Asset Pack.")
+            col.label(text="It will COPY all contents of this Asset Pack into the installation directory.")
+        else:
+            col.label(
+                text="Clicking 'OK' will COPY all contents of this Asset Pack into the installation directory.")
 
         layout.prop(self, "canceled", toggle=True, text="Cancel Installation", icon='CANCEL')
 
@@ -591,7 +613,7 @@ class AssetPackUninstallationDialog(bpy.types.Operator, asset_pack_installer.Ass
         if self.check_should_dialog_close():
             if not self.close:
                 self.close = True
-            self.draw_status_and_error_messages(layout)
+            self.draw_status_and_messages(layout)
             return
 
         self.draw_pack_info(
@@ -602,11 +624,14 @@ class AssetPackUninstallationDialog(bpy.types.Operator, asset_pack_installer.Ass
         col.label(text=f"Pack Folder Name: {installer.pack_root_directory}")
         col.label(text=f"Estimated Freed Disk Space: {installer.pack_size}")
         col = box.column()
-        self.draw_status_and_error_messages(col)
+        self.draw_status_and_messages(col)
 
         box = layout.box()
-        box.label(text=f"Clicking 'OK' will REMOVE all contents of this Asset Pack "
-                  f"from the installation directory.")
+        if not installer.is_ready:
+            box.label(text="Clicking 'OK' will ABORT the uninstallation.")
+        else:
+            box.label(
+                text="Clicking 'OK' will REMOVE all contents of this Asset Pack from the installation directory.")
 
         layout.prop(self, "canceled", toggle=True, text="Cancel Uninstallation", icon='CANCEL')
 
@@ -700,7 +725,7 @@ class AssetPackUpdateDialog(bpy.types.Operator, asset_pack_installer.AssetPackIn
         if self.check_should_dialog_close():
             if not self.close:
                 self.close = True
-            self.draw_status_and_error_messages(layout)
+            self.draw_status_and_messages(layout)
             return
 
         self.draw_pack_info(
@@ -712,12 +737,15 @@ class AssetPackUpdateDialog(bpy.types.Operator, asset_pack_installer.AssetPackIn
         col.label(text=f"Estimated Extra Space Required: {installer.pack_size}")
         col.label(text=f"Free Disk Space: {installer.free_space}")
         col = box.column()
-        self.draw_status_and_error_messages(col)
+        self.draw_status_and_messages(col)
 
         col = layout.box().column(align=True)
-        col.label(text=f"Clicking 'OK' will REMOVE all contents of the old version of the Asset Pack "
-                  f"from the installation directory.")
-        col.label(text=f"It will be REPLACED with the new version.")
+        if not installer.is_ready:
+            col.label(text="Clicking 'OK' will ABORT the update.")
+        else:
+            col.label(
+                text="Clicking 'OK' will REMOVE the old version of the Asset Pack from the installation directory.")
+            col.label(text="It will be REPLACED with the new version.")
 
         layout.prop(self, "canceled", toggle=True, text="Cancel Update", icon='CANCEL')
 
@@ -1045,97 +1073,6 @@ class MaprPreferences(bpy.types.PropertyGroup):
 MODULE_CLASSES.append(MaprPreferences)
 
 
-class PuddleProperties(bpy.types.PropertyGroup):
-    puddle_factor: bpy.props.FloatProperty(
-        name=asset_helpers.PuddleNodeInputs.PUDDLE_FACTOR,
-        get=lambda _: PuddleProperties.get_active_object_puddle_input_value(
-            asset_helpers.PuddleNodeInputs.PUDDLE_FACTOR),
-        set=lambda _, value: PuddleProperties.set_selection_puddle_inputs(
-            asset_helpers.PuddleNodeInputs.PUDDLE_FACTOR, value),
-        soft_min=0.0,
-        soft_max=1.0,
-        precision=3
-    )
-
-    puddle_scale: bpy.props.FloatProperty(
-        name=asset_helpers.PuddleNodeInputs.PUDDLE_SCALE,
-        get=lambda _: PuddleProperties.get_active_object_puddle_input_value(
-            asset_helpers.PuddleNodeInputs.PUDDLE_SCALE),
-        set=lambda _, value: PuddleProperties.set_selection_puddle_inputs(
-            asset_helpers.PuddleNodeInputs.PUDDLE_SCALE, value),
-        soft_min=0.0,
-        soft_max=1000.0,
-        precision=3
-    )
-
-    animation_speed: bpy.props.FloatProperty(
-        name=asset_helpers.PuddleNodeInputs.ANIMATION_SPEED,
-        get=lambda _: PuddleProperties.get_active_object_puddle_input_value(
-            asset_helpers.PuddleNodeInputs.ANIMATION_SPEED),
-        set=lambda _, value: PuddleProperties.set_selection_puddle_inputs(
-            asset_helpers.PuddleNodeInputs.ANIMATION_SPEED, value),
-        soft_min=0.0,
-        soft_max=1000.0,
-        precision=3
-    )
-
-    noise_strength: bpy.props.FloatProperty(
-        name=asset_helpers.PuddleNodeInputs.NOISE_STRENGTH,
-        get=lambda _: PuddleProperties.get_active_object_puddle_input_value(
-            asset_helpers.PuddleNodeInputs.NOISE_STRENGTH),
-        set=lambda _, value: PuddleProperties.set_selection_puddle_inputs(
-            asset_helpers.PuddleNodeInputs.NOISE_STRENGTH, value),
-        soft_min=0.0,
-        soft_max=1.0,
-        precision=3
-    )
-
-    angle_threshold: bpy.props.FloatProperty(
-        name=asset_helpers.PuddleNodeInputs.ANGLE_THRESHOLD,
-        get=lambda _: PuddleProperties.get_active_object_puddle_input_value(
-            asset_helpers.PuddleNodeInputs.ANGLE_THRESHOLD),
-        set=lambda _, value: PuddleProperties.set_selection_puddle_inputs(
-            asset_helpers.PuddleNodeInputs.ANGLE_THRESHOLD, value),
-        soft_min=0.0,
-        soft_max=90.0,
-        precision=3
-    )
-
-    @staticmethod
-    def get_active_object_puddle_input_value(input_name: str) -> float:
-        if bpy.context.active_object is None:
-            return 0.0
-
-        mat = bpy.context.active_object.active_material
-        if mat is None:
-            return 0.0
-
-        puddles_name = asset_helpers.AQ_PUDDLES_NODEGROUP_NAME
-        puddle_nodes = polib.node_utils_bpy.find_nodegroups_by_name(mat.node_tree, puddles_name)
-        if len(puddle_nodes) == 0:
-            return 0.0
-        puddle_node = puddle_nodes.pop()
-        return puddle_node.inputs[input_name].default_value
-
-    @staticmethod
-    def set_selection_puddle_inputs(input_name: str, value: float) -> None:
-        for obj in bpy.context.selected_objects:
-            if obj is None:
-                continue
-
-            mat = obj.active_material
-            if mat is None:
-                continue
-
-            puddles_name = asset_helpers.AQ_PUDDLES_NODEGROUP_NAME
-            puddle_nodes = polib.node_utils_bpy.find_nodegroups_by_name(mat.node_tree, puddles_name)
-            for puddle_node in puddle_nodes:
-                puddle_node.inputs[input_name].default_value = value
-
-
-MODULE_CLASSES.append(PuddleProperties)
-
-
 class AquatiqPreferences(bpy.types.PropertyGroup):
     draw_mask_factor: bpy.props.FloatProperty(
         name="Mask Factor",
@@ -1147,10 +1084,6 @@ class AquatiqPreferences(bpy.types.PropertyGroup):
 
     def update_mask_factor(self, context: bpy.types.Context):
         context.tool_settings.vertex_paint.brush.color = [self.draw_mask_factor] * 3
-
-    puddle_properties: bpy.props.PointerProperty(
-        type=PuddleProperties
-    )
 
 
 MODULE_CLASSES.append(AquatiqPreferences)
@@ -1699,11 +1632,13 @@ class Preferences(bpy.types.AddonPreferences):
         # Asset Packs section
         box = col.box()
         row = box.row()
+        row.alignment = 'LEFT'
         row.prop(self.general_preferences, "show_asset_packs",
                  icon='DISCLOSURE_TRI_DOWN' if self.general_preferences.show_asset_packs else 'DISCLOSURE_TRI_RIGHT',
                  text="",
                  emboss=False,)
         row.label(text="Asset Packs")
+        polib.ui_bpy.draw_doc_button(row, __package__, rel_url="getting_started/asset_packs")
         if self.general_preferences.show_asset_packs:
             row = box.row()
             row.alignment = 'LEFT'

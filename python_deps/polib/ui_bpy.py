@@ -6,6 +6,7 @@ import addon_utils
 import sys
 import typing
 import os
+from . import utils_bpy
 
 ICON_DIR_NAME = "icons"
 
@@ -272,3 +273,18 @@ def expand_addon_prefs(module_name: str) -> None:
             mod_info["show_expanded"] = True
             return
     raise ValueError(f"No module '{module_name}' was found!")
+
+
+def draw_doc_button(layout: bpy.types.UILayout, module: str, rel_url: str = "") -> None:
+    """Draws a button leading to an add-on's docs URL based on its module name.
+
+    Points to the homepage by default, but can be changed by passing 'rel_url' parameter.
+    """
+
+    url = f"{utils_bpy.get_addon_docs_page(module)}/{rel_url}"
+    layout.operator(
+        "wm.url_open",
+        text="",
+        icon='HELP',
+        emboss=False
+    ).url = url

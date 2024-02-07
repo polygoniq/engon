@@ -80,3 +80,67 @@ class NodesModifierInputsNameView:
 
     def __contains__(self, input_name: str) -> bool:
         return input_name in self.name_to_identifier_map
+
+
+class GeoNodesModifierInputsPanelMixin:
+    """Mixin for displaying Geometry Nodes modifier inputs.
+
+    Adds functionally to draw inputs of Geometry Nodes modifiers of active objects
+    using a provided template.
+    """
+
+    DRAW_ALL = -1
+
+    def draw_active_object_modifiers_node_group_inputs_template(
+        self,
+        layout: bpy.types.UILayout,
+        context: bpy.types.Context,
+        inputs: node_utils_bpy.NodeSocketsDrawTemplate,
+        draw_modifier_header: bool = False,
+        max_occurrences: int = 1
+    ) -> None:
+        obj = context.active_object
+        if obj is None:
+            return
+        mods = get_geometry_nodes_modifiers_by_node_group(
+            obj, inputs.name)
+        if len(mods) == 0:
+            return
+        root_layout = layout
+        for i, mod in enumerate(mods):
+            if max_occurrences != GeoNodesModifierInputsPanelMixin.DRAW_ALL and i >= max_occurrences:
+                break
+            if draw_modifier_header:
+                layout = self.draw_geonodes_modifier_ui_box(root_layout, mod)
+                if not mod.show_expanded:
+                    continue
+            col = layout.column(align=True)
+            inputs.draw_from_geonodes_modifier(col, mods[i])
+
+    def draw_geonodes_modifier_ui_box(
+        self,
+        layout: bpy.types.UILayout,
+        mod: bpy.types.NodesModifier
+    ) -> bpy.types.UILayout:
+        box = layout.box()
+        row = box.row(align=True)
+        row.prop(mod, "show_expanded", text="", emboss=False)
+        row.prop(mod, "name", text="")
+        row.prop(mod, "show_in_editmode", text="")
+        row.prop(mod, "show_viewport", text="")
+        row.prop(mod, "show_render", text="")
+        row.operator("object.modifier_copy", text="", icon='DUPLICATE').modifier = mod.name
+        row.operator("object.modifier_remove", text="", icon='X', emboss=False).modifier = mod.name
+        return box
+
+
+def get_geometry_nodes_modifiers_by_node_group(
+    obj: bpy.types.Object,
+    node_group_name: str
+) -> typing.List[bpy.types.NodesModifier]:
+    output: typing.List[bpy.types.NodesModifier] = []
+    for mod in obj.modifiers:
+        if mod.type == 'NODES' and mod.node_group is not None:
+            if mod.node_group.name == node_group_name:
+                output.append(mod)
+    return output
