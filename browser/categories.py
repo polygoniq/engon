@@ -66,7 +66,7 @@ def draw_category_pills_header(
     ui_scale = context.preferences.system.ui_scale
     estimated_row_width_px = 0
     current_category = master_provider.get_category_id_from_string(
-        filters.asset_repository.get_current_category_id())
+        filters.asset_repository.current_category_id)
     col = layout.column()
     row = col.row(align=True)
     row.alignment = 'LEFT'
@@ -120,7 +120,7 @@ def draw_tree_category_navigation(
     context: bpy.types.Context,
     layout: bpy.types.UILayout,
 ) -> None:
-    current_category = filters.asset_repository.get_current_category_id()
+    current_category = filters.asset_repository.current_category_id
     child_categories = asset_registry.instance.master_asset_provider.list_sorted_categories(
         current_category)
 

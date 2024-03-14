@@ -3,11 +3,60 @@
 
 import typing
 import abc
+import functools
 from . import category
 from . import asset
 from . import asset_data
+from . import query
+from . import parameter_meta
 import logging
 logger = logging.getLogger(f"polygoniq.{__name__}")
+
+
+class DataView:
+    """One view of data - lists of assets based on provided Query and AssetProvider."""
+
+    def __init__(self, asset_provider: 'AssetProvider', query_: query.Query):
+        self.assets: typing.List[asset.Asset] = []
+        for asset_ in asset_provider.list_assets(query_.category_id, query_.recursive):
+            if all(f.filter_(asset_) for f in query_.filters):
+                self.assets.append(asset_)
+
+        sort_lambda, reverse = self._get_sort_parameters(query_.sort_mode)
+        self.assets.sort(key=lambda x: sort_lambda(x), reverse=reverse)
+
+        self.parameters_meta = parameter_meta.AssetParametersMeta(self.assets)
+        self.used_query = query_
+        logger.debug(f"Created DataView {self}")
+
+    def _get_sort_parameters(
+        self,
+        sort_mode: str
+    ) -> typing.Tuple[typing.Callable[[asset.Asset], str], bool]:
+        """Return lambda and reverse bool to pass into Python sort() based on sort mode
+
+        Returns tuple of (lambda, reverse)
+        """
+        if sort_mode == query.SortMode.ALPHABETICAL_ASC:
+            return (lambda x: x.title, False)
+        elif sort_mode == query.SortMode.ALPHABETICAL_DESC:
+            return (lambda x: x.title, True)
+        else:
+            raise NotImplementedError(f"Unknown sort mode {sort_mode}")
+
+    def __repr__(self) -> str:
+        return f"DataView at {id(self)} based on query:\n {self.used_query} " \
+            f"containing {len(self.assets)} assets"
+
+
+class EmptyDataView(DataView):
+    """Data view containing no data - useful on places, where DataView cannot be constructed yet."""
+
+    def __init__(self):
+        self.assets = []
+        self.parameters_meta = parameter_meta.AssetParametersMeta(self.assets)
+        self.used_query = None
+        logger.debug(f"Created EmptyDataView {self}")
 
 
 class AssetProvider(abc.ABC):
@@ -70,6 +119,13 @@ class AssetProvider(abc.ABC):
         """Returns metadata of asset data with given ID
         """
         pass
+
+    def query(self, query_: query.Query) -> DataView:
+        """Queries the asset provider for assets based on given query
+
+        This is a high level API, consider using this instead of list_assets.
+        """
+        return DataView(self, query_)
 
     def list_categories(self, parent_id: category.CategoryID, recursive: bool = False) -> typing.Iterable[category.Category]:
         """List child categories of a given parent category
@@ -211,3 +267,35 @@ class AssetProviderMultiplexer(AssetProvider):
             if ret is not None:
                 return ret
         return None
+
+
+class CachedAssetProviderMultiplexer(AssetProviderMultiplexer):
+    """Wraps the 'query' call and caches the results using LRU cache."""
+
+    def __init__(self, maxsize: int = 128):
+        super().__init__()
+        # Create 'cached_query' method wrapped with lru_cache for each instance of the
+        # cached asset provider, that wraps the actual call to self._cached_query.
+        # The decorator version keeps hard reference to self, which may cause memory leaks
+        # when the instances are deleted.
+        # More info: https://rednafi.com/python/lru_cache_on_methods/
+        self.query = functools.lru_cache(maxsize=maxsize)(self._cached_query)
+
+    def add_asset_provider(self, asset_provider: AssetProvider) -> None:
+        super().add_asset_provider(asset_provider)
+        self.clear_cache()
+
+    def remove_asset_provider(self, asset_provider: AssetProvider) -> None:
+        super().remove_asset_provider(asset_provider)
+        self.clear_cache()
+
+    def clear_providers(self) -> None:
+        super().clear_providers()
+        self.clear_cache()
+
+    def _cached_query(self, query_: query.Query) -> DataView:
+        logger.debug(f"Cache miss for query {query_}, querying...")
+        return super().query(query_)
+
+    def clear_cache(self) -> None:
+        self.query.cache_clear()

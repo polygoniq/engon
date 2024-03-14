@@ -105,7 +105,11 @@ class FindMissingFiles(bpy.types.Operator):
                 datablocks_to_reload.append(datablock)
 
         for datablock in datablocks_to_reload:
-            datablock.reload()
+            try:
+                datablock.reload()
+                logger.info(f"Reloaded '{datablock.name}'")
+            except ReferenceError:
+                logger.error("ReferenceError: Failed to reload some data")
 
         return {'FINISHED'}
 

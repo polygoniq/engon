@@ -88,24 +88,29 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
         self.child_asset_data = index_json.get("child_asset_data", {})
 
         for category_id, category_metadata_json in index_json.get("category_metadata", {}).items():
-            category_metadata = category.Category()
-            category_metadata.id_ = category_id
-            category_metadata.title = category_metadata_json.get("title", "unknown")
-            self.categories[category_id] = category_metadata
+            self.categories[category_id] = category.Category(
+                id_=category_id,
+                title=category_metadata_json.get("title", "unknown"),
+                preview_file=category_metadata_json.get("preview_file", None)
+            )
 
         for asset_id, asset_metadata_json in index_json.get("asset_metadata", {}).items():
-            asset_metadata = asset.Asset()
-            asset_metadata.id_ = asset_id
-            asset_metadata.title = asset_metadata_json.get("title", "unknown")
-            asset_metadata.type_ = asset_data.AssetDataType[asset_metadata_json.get(
-                "type", "unknown")]
-            asset_metadata.preview_file = asset_metadata_json.get("preview_file", "")
-            asset_metadata.numeric_parameters.update(
-                asset_metadata_json.get("numeric_parameters", {}))
-            asset_metadata.color_parameters.update(
-                asset_metadata_json.get("color_parameters", {}))
-            asset_metadata.text_parameters.update(asset_metadata_json.get("text_parameters", {}))
-            asset_metadata.tags.update(asset_metadata_json.get("tags", []))
+            # Update vector parameters with color parameters for older asset packs
+            # compatibility (prior to engon 1.2.0). Color parameters were defined solely prior to
+            # the introduction of vector parameters.
+            vector_parameters = asset_metadata_json.get("vector_parameters", {})
+            vector_parameters.update(asset_metadata_json.get("color_parameters", {}))
+
+            asset_metadata = asset.Asset(
+                id_=asset_id,
+                title=asset_metadata_json.get("title", "unknown"),
+                type_=asset_data.AssetDataType[asset_metadata_json.get("type", "unknown")],
+                preview_file=asset_metadata_json.get("preview_file", ""),
+                tags=asset_metadata_json.get("tags", []),
+                numeric_parameters=asset_metadata_json.get("numeric_parameters", {}),
+                vector_parameters=vector_parameters,
+                text_parameters=asset_metadata_json.get("text_parameters", {})
+            )
             # clear search matter cache since we updated search matter
             # we instantiated the class right here so this will do nothing but we include it for
             # people who will copy code from here
@@ -113,31 +118,35 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
             self.assets[asset_id] = asset_metadata
 
         for asset_data_id, asset_data_json in index_json.get("asset_data", {}).items():
-            asset_data_instance: typing.Optional[blender_asset_data.BlenderAssetData] = None
+            asset_data_class: typing.Optional[
+                typing.Type[blender_asset_data.BlenderAssetData]] = None
             asset_data_type = asset_data_json.get("type")
             if asset_data_type == "blender_model":
-                asset_data_instance = blender_asset_data.BlenderModelAssetData()
+                asset_data_class = blender_asset_data.BlenderModelAssetData
             elif asset_data_type == "blender_material":
-                asset_data_instance = blender_asset_data.BlenderMaterialAssetData()
+                asset_data_class = blender_asset_data.BlenderMaterialAssetData
             elif asset_data_type == "blender_world":
-                asset_data_instance = blender_asset_data.BlenderWorldAssetData()
+                asset_data_class = blender_asset_data.BlenderWorldAssetData
             elif asset_data_type == "blender_scene":
-                asset_data_instance = blender_asset_data.BlenderSceneAssetData()
+                asset_data_class = blender_asset_data.BlenderSceneAssetData
             elif asset_data_type == "blender_particle_system":
-                asset_data_instance = blender_asset_data.BlenderParticleSystemAssetData()
+                asset_data_class = blender_asset_data.BlenderParticleSystemAssetData
             elif asset_data_type == "blender_geometry_nodes":
-                asset_data_instance = blender_asset_data.BlenderGeometryNodesAssetData()
+                asset_data_class = blender_asset_data.BlenderGeometryNodesAssetData
             else:
                 raise NotImplementedError()
-            if asset_data_instance is not None:
-                asset_data_instance.id_ = asset_data_id
-                asset_data_instance.primary_blend_file = asset_data_json.get(
-                    "primary_blend_file", "")
-                self.record_file_id(asset_data_instance.primary_blend_file)
-                asset_data_instance.dependency_files = asset_data_json.get("dependency_files", [])
-                for dependency_file in asset_data_instance.dependency_files:
-                    self.record_file_id(dependency_file)
-                self.asset_data[asset_data_id] = asset_data_instance
+
+            assert asset_data_class is not None
+            asset_data_instance = asset_data_class(
+                id_=asset_data_id,
+                primary_blend_file=asset_data_json.get("primary_blend_file", ""),
+                dependency_files=asset_data_json.get("dependency_files", [])
+            )
+            self.record_file_id(asset_data_instance.primary_blend_file)
+            for dependency_file in asset_data_instance.dependency_files:
+                self.record_file_id(dependency_file)
+
+            self.asset_data[asset_data_id] = asset_data_instance
 
     def list_child_category_ids(self, parent_id: category.CategoryID) -> typing.Iterable[category.CategoryID]:
         yield from self.child_categories.get(parent_id, [])

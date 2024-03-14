@@ -12,10 +12,12 @@ if "asset_data" not in locals():
     from . import blender_asset_data
     from . import blender_asset_spawner
     from . import category
+    from . import filters
     from . import file_provider
     from . import known_metadata
     from . import local_json_provider
     from . import parameter_meta
+    from . import query
 else:
     import importlib
     asset_data = importlib.reload(asset_data)
@@ -24,10 +26,12 @@ else:
     blender_asset_data = importlib.reload(blender_asset_data)
     blender_asset_spawner = importlib.reload(blender_asset_spawner)
     category = importlib.reload(category)
+    filters = importlib.reload(filters)
     file_provider = importlib.reload(file_provider)
     known_metadata = importlib.reload(known_metadata)
     local_json_provider = importlib.reload(local_json_provider)
     parameter_meta = importlib.reload(parameter_meta)
+    query = importlib.reload(query)
 
 # fake bl_info so that this gets picked up by vscode blender integration
 bl_info = {
@@ -43,8 +47,10 @@ __all__ = [
     "blender_asset_data",
     "blender_asset_spawner",
     "category",
+    "filters",
     "file_provider",
     "known_metadata",
     "local_json_provider",
-    "parameter_meta"
+    "parameter_meta",
+    "query"
 ]

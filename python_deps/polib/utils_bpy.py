@@ -133,6 +133,10 @@ def generate_unique_name(old_name: str, container: typing.Iterable[typing.Any]) 
     return new_name
 
 
+def get_top_level_package_name(package_name: str) -> str:
+    return package_name.split(".", 1)[0]
+
+
 def convert_size(size_bytes: int) -> str:
     if size_bytes == 0:
         return "0 B"
@@ -258,6 +262,9 @@ def get_case_sensitive_path(path: str) -> str:
         # Using os.path.realpath is not reliable, as it does
         # not return case-sensitive paths for google drive files
         entries = os.listdir(case_sensitive_path)
+        # Path may contain current directory or up one level notation, we don't use realpath,
+        # because we don't want to change the format of the input path
+        entries.extend([".", ".."])
         case_sensitive_entry = None
         for entry in entries:
             # pathlib makes sure correct case-sensitivity is used on every OS

@@ -195,7 +195,7 @@ def draw_asset_previews(
     mapr_prefs: preferences.MaprPreferences
 ) -> None:
     pm = previews.manager_instance
-    assets = filters.asset_repository.get_current_assets()
+    assets = filters.asset_repository.current_assets
     if len(asset_registry.instance.get_registered_packs()) == 0:
         col = layout.column()
         col.separator()
@@ -313,7 +313,7 @@ def prefs_header_draw_override(self, context: bpy.types.Context):
 
     row.separator_spacer()
     sub = row.row(align=True)
-    sub.popover(panel=spawn.SpawnOptionsPopoverPanel.bl_idname, text="", icon='FILE_TICK')
+    sub.popover(panel=spawn.SpawnOptionsPopoverPanel.bl_idname, text="", icon='OPTIONS')
     sub.prop(mapr_filters, "sort_mode", text="", icon='SORTALPHA', icon_only=True)
     sub.prop(prefs, "preview_scale_percentage", slider=True, text="")
     sub.popover(
@@ -377,6 +377,12 @@ class MAPR_BrowserOpen(bpy.types.Operator):
         cls.prev_area_ui_types[area] = area.ui_type
         area.ui_type = 'PREFERENCES'
         preferences.get_preferences(context).mapr_preferences.prefs_hijacked = True
+        # If the asset repository doesn't contain any view (it wasn't queried previously) we
+        # query and reconstruct the filters manually within the root category.
+        if filters.asset_repository.last_view is None:
+            filters.get_filters(context).query_and_reconstruct(
+                mapr.category.DEFAULT_ROOT_CATEGORY.id_)
+
         cls.hijack_preferences(context)
 
 

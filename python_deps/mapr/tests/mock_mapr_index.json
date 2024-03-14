@@ -1,0 +1,220 @@
+{
+    "asset_data": {
+        "data_id_1": {
+            "dependency_files": [],
+            "primary_blend_file": "/mock_pack:blends/models/category_2/data_id_1.blend",
+            "type": "blender_model"
+        },
+        "data_id_2": {
+            "dependency_files": [],
+            "primary_blend_file": "/mock_pack:blends/models/category_1/data_id_2.blend",
+            "type": "blender_model"
+        },
+        "data_id_3": {
+            "dependency_files": [],
+            "primary_blend_file": "/mock_pack:blends/models/category_2/data_id_3.blend",
+            "type": "blender_model"
+        },
+        "data_id_4": {
+            "dependency_files": [],
+            "primary_blend_file": "/mock_pack:blends/models/category_1/data_id_4.blend",
+            "type": "blender_model"
+        }
+    },
+    "asset_metadata": {
+        "asset_id_1": {
+            "vector_parameters": {
+                "introduced_in": [1, 2, 3]
+            },
+            "color_parameters": {
+                "viewport_color": [1.0, 0.0, 0.0]
+            },
+            "numeric_parameters": {
+                "depth": 1.0836272239685059,
+                "height": 0.7299996018409729,
+                "image_count": 2,
+                "material_count": 1,
+                "model_year": 2023,
+                "object_count": 1,
+                "price_usd": 500.0,
+                "triangle_count": 1148,
+                "triangle_count_applied": 1148,
+                "width": 2.096391201019287
+            },
+            "preview_file": "/mock_pack:previews/models/category_2/asset_id_1.png",
+            "tags": [
+                "Dining",
+                "Indoor",
+                "Kitchen",
+                "Restaurant"
+            ],
+            "text_parameters": {
+                "bpy.data.version": "3.3.6",
+                "copyright": "(c) 2018- polygoniq xyz s.r.o.",
+                "country_of_origin": "USA",
+                "furniture_style": "Minimalist",
+                "license": "Royalty Free",
+                "mapr_asset_id": "asset_id_1",
+                "polygoniq_addon": "mock_pack"
+            },
+            "title": "ST201 DINING Minimalist Rectangular Basic",
+            "type": "blender_model"
+        },
+        "asset_id_2": {
+            "vector_parameters": {
+                "introduced_in": [2, 0, 0]
+            },
+            "numeric_parameters": {
+                "depth": 1.0556060075759888,
+                "height": 0.8022251725196838,
+                "image_count": 6,
+                "material_count": 3,
+                "model_year": 2023,
+                "object_count": 1,
+                "price_usd": 1000.0,
+                "triangle_count": 107678,
+                "triangle_count_applied": 107678,
+                "width": 3.224522590637207
+            },
+            "preview_file": "/mock_pack:previews/models/category_1/asset_id_2.png",
+            "tags": [
+                "Indoor",
+                "Living room",
+                "Lobby",
+                "Office"
+            ],
+            "text_parameters": {
+                "bpy.data.version": "3.3.6",
+                "copyright": "(c) 2018- polygoniq xyz s.r.o.",
+                "country_of_origin": "Poland",
+                "furniture_style": "Modern",
+                "license": "Royalty Free",
+                "mapr_asset_id": "asset_id_2",
+                "polygoniq_addon": "mock_pack"
+            },
+            "title": "SF101 MULTISEAT Modern Upholstered",
+            "type": "blender_model"
+        },
+        "asset_id_3": {
+            "vector_parameters": {
+                "introduced_in": [3, 0, 0]
+            },
+            "numeric_parameters": {
+                "depth": 0.7002078294754028,
+                "height": 0.3697204291820526,
+                "image_count": 3,
+                "material_count": 4,
+                "model_year": 2023,
+                "object_count": 1,
+                "price_usd": 950.0,
+                "triangle_count": 2160,
+                "triangle_count_applied": 2160,
+                "width": 0.7002077102661133
+            },
+            "preview_file": "/mock_pack:previews/models/category_2/asset_id_3.png",
+            "tags": [
+                "Indoor",
+                "Living room",
+                "Office"
+            ],
+            "text_parameters": {
+                "bpy.data.version": "3.3.6",
+                "brand": "Kart",
+                "copyright": "(c) 2018- polygoniq xyz s.r.o.",
+                "country_of_origin": "Germany",
+                "furniture_style": "Minimalist",
+                "license": "Royalty Free",
+                "mapr_asset_id": "asset_id_3",
+                "model": "14641",
+                "polygoniq_addon": "mock_pack"
+            },
+            "title": "ST001 COFFEE Minimalist Square Small",
+            "type": "blender_model"
+        },
+        "asset_id_4": {
+            "vector_parameters": {
+                "introduced_in": [4, 0, 0]
+            },
+            "numeric_parameters": {
+                "depth": 2.060352325439453,
+                "height": 0.8315317034721375,
+                "image_count": 4,
+                "material_count": 2,
+                "model_year": 2023,
+                "object_count": 1,
+                "price_usd": 950.0,
+                "triangle_count": 88322,
+                "triangle_count_applied": 88322,
+                "width": 1.995913028717041
+            },
+            "preview_file": "/mock_pack:previews/models/category_1/asset_id_4.png",
+            "tags": [
+                "Indoor",
+                "Living room",
+                "Lobby",
+                "Outdoor"
+            ],
+            "text_parameters": {
+                "bpy.data.version": "3.3.6",
+                "brand": "IKEA",
+                "copyright": "(c) 2018- polygoniq xyz s.r.o.",
+                "country_of_origin": "Romania",
+                "furniture_style": "Contemporary",
+                "license": "Royalty Free",
+                "mapr_asset_id": "asset_id_4",
+                "model": "Soderhamn",
+                "polygoniq_addon": "mock_pack"
+            },
+            "title": "SF201 CORNER Modern Upholstered",
+            "type": "blender_model"
+        }
+    },
+    "category_metadata": {
+        "/": {
+            "title": "all"
+        },
+        "/mock_pack": {
+            "title": "mock_pack"
+        },
+        "/mock_pack/category_1": {
+            "title": "category_1"
+        },
+        "/mock_pack/category_2": {
+            "title": "category_2"
+        }
+    },
+    "child_asset_data": {
+        "asset_id_1": [
+            "data_id_1"
+        ],
+        "asset_id_2": [
+            "data_id_4"
+        ],
+        "asset_id_3": [
+            "data_id_3"
+        ],
+        "asset_id_4": [
+            "data_id_2"
+        ]
+    },
+    "child_assets": {
+        "/mock_pack/category_1": [
+            "asset_id_2",
+            "asset_id_4"
+        ],
+
+        "/mock_pack/category_2": [
+            "asset_id_1",
+            "asset_id_3"
+        ]
+    },
+    "child_categories": {
+        "/": [
+            "/mock_pack"
+        ],
+        "/mock_pack": [
+            "/mock_pack/category_1",
+            "/mock_pack/category_2"
+        ]
+    }
+}

@@ -32,13 +32,13 @@ class TextParameterMeta:
 
 
 class VectorParameterMeta:
-    def __init__(self, name: str, value: typing.List[int | float]):
+    def __init__(self, name: str, value: mathutils.Vector):
         self.name: str = name
         self.length = len(value)
-        self.min_ = mathutils.Vector(value)
-        self.max_ = mathutils.Vector(value)
+        self.min_ = value
+        self.max_ = value
 
-    def register_value(self, value: typing.List[int | float]) -> None:
+    def register_value(self, value: mathutils.Vector) -> None:
         # The vector length should be the same for all values of one parameter
         assert len(value) == self.length
         self.min_ = mathutils.Vector(min(value[i], self.min_[i]) for i in range(self.length))
@@ -61,7 +61,7 @@ class AssetParametersMeta:
     def __init__(self, assets: typing.Iterable[asset.Asset]):
         self.numeric: typing.Dict[str, NumericParameterMeta] = {}
         self.text: typing.Dict[str, TextParameterMeta] = {}
-        self.color: typing.Dict[str, VectorParameterMeta] = {}
+        self.vector: typing.Dict[str, VectorParameterMeta] = {}
         self.unique_tags: typing.Set[str] = set()
         self.unique_parameter_names: typing.Set[str] = set()
 
@@ -80,25 +80,26 @@ class AssetParametersMeta:
                 else:
                     self.text[unique_name].register_value(value)
 
-            for param, value in asset_.color_parameters.items():
-                unique_name = f"col:{param}"
-                if unique_name not in self.color:
-                    self.color[unique_name] = VectorParameterMeta(unique_name, value)
+            for param, value in asset_.vector_parameters.items():
+                unique_name = f"vec:{param}"
+                if unique_name not in self.vector:
+                    self.vector[unique_name] = VectorParameterMeta(
+                        unique_name, mathutils.Vector(value))
                 else:
-                    self.color[unique_name].register_value(value)
+                    self.vector[unique_name].register_value(mathutils.Vector(value))
 
             self.unique_tags.update({f"tag:{t}" for t in asset_.tags})
 
         self.unique_parameter_names.update(self.text)
         self.unique_parameter_names.update(self.numeric)
-        self.unique_parameter_names.update(self.color)
+        self.unique_parameter_names.update(self.vector)
         self.unique_parameter_names.update(self.unique_tags)
 
     def __repr__(self) -> str:
         import pprint
         pp = pprint.PrettyPrinter(depth=4)
         return f"{self.__class__.__name__} at {id(self)}:\n" \
-            f"{pp.pformat(self.numeric)}\n{pp.pformat(self.text)}\n{pp.pformat(self.color)}\n"\
+            f"{pp.pformat(self.numeric)}\n{pp.pformat(self.text)}\n{pp.pformat(self.vector)}\n"\
             f"{self.unique_tags}\nUnique Names: {self.unique_parameter_names}"
 
 

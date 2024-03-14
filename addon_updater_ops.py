@@ -528,7 +528,7 @@ class AddonUpdaterUpdatedSuccessful(bpy.types.Operator):
             else:
                 col = layout.column()
                 col.label(
-                    text="Addon successfully installed", icon="FILE_TICK")
+                    text="Addon successfully installed", icon='CHECKBOX_HLT')
                 alert_row = col.row()
                 alert_row.alert = True
                 alert_row.operator(
@@ -550,7 +550,7 @@ class AddonUpdaterUpdatedSuccessful(bpy.types.Operator):
                 col = layout.column()
                 col.scale_y = 0.7
                 col.label(
-                    text="Addon successfully installed", icon="FILE_TICK")
+                    text="Addon successfully installed", icon='CHECKBOX_HLT')
                 col.label(
                     text="Consider restarting blender to fully reload.",
                     icon="BLANK1")

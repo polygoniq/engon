@@ -260,7 +260,7 @@ def bootstrap_telemetry():
         _log(Message(MessageType.MACHINE_REGISTERED, data=MACHINE, product="polib"))
 
         # wait 5 seconds to give all addons time to register
-        bpy.app.timers.register(lambda: log_installed_addons(), first_interval=5)
+        bpy.app.timers.register(lambda: log_installed_addons(), first_interval=5, persistent=True)
 
         BOOTSTRAPPED = True
 

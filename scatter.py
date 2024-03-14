@@ -22,6 +22,8 @@ import bpy
 import typing
 import itertools
 import logging
+import math
+import mathutils
 import polib
 import hatchery
 from . import asset_helpers
@@ -540,14 +542,22 @@ class ParticleSystemAppendSelection(bpy.types.Operator):
 
         for obj in selection:
             if obj.type != 'MESH':
+                msg = f"Cannot append {obj.name}, it is not a mesh."
+                logger.warning(msg)
+                self.report({'WARNING'}, msg)
                 continue
 
             if obj == active_object:
                 continue
 
             if obj.name in instance_collection.all_objects:
+                msg = f"Cannot append {obj.name}, it is already in the particle system."
+                logger.warning(msg)
+                self.report({'WARNING'}, msg)
                 continue
 
+            # Rotate the spawned asset 90° around Y axis to make it straight in particle systems.
+            obj.rotation_euler = mathutils.Euler((0, math.radians(90), 0), 'XYZ')
             instance_collection.objects.link(obj)
             logger.info(f"Appended {obj.name}")
 

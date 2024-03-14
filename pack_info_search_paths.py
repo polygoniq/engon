@@ -169,11 +169,11 @@ class PackInfoSearchPath(bpy.types.PropertyGroup):
     def _generate_glob(path_type: str, file_path: str, directory_path: str, glob_expression) -> str:
         if path_type == PackInfoSearchPathType.SINGLE_FILE:
             # the glob is just the file path
-            return file_path
+            return glob.escape(file_path)
         elif path_type == PackInfoSearchPathType.INSTALL_DIRECTORY:
-            return os.path.join(directory_path, "*", "*.pack-info")
+            return os.path.join(glob.escape(directory_path), "*", "*.pack-info")
         elif path_type == PackInfoSearchPathType.RECURSIVE_SEARCH:
-            return os.path.join(directory_path, "**", "*.pack-info")
+            return os.path.join(glob.escape(directory_path), "**", "*.pack-info")
         elif path_type == PackInfoSearchPathType.GLOB:
             return glob_expression
         else:

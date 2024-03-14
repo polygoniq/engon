@@ -85,7 +85,10 @@ class AquatiqPanel(AquatiqPanelInfoMixin, bpy.types.Panel):
 
     def draw_header_preset(self, context: bpy.types.Context) -> None:
         polib.ui_bpy.draw_doc_button(
-            self.layout, preferences.__package__, rel_url="panels/aquatiq/panel_overview")
+            self.layout,
+            polib.utils_bpy.get_top_level_package_name(__package__),
+            rel_url="panels/aquatiq/panel_overview"
+        )
 
     def draw(self, context: bpy.types.Context):
         pass

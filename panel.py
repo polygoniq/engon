@@ -23,7 +23,7 @@ import typing
 import logging
 import random
 import polib
-from . import mapr_browser
+from . import browser
 from . import asset_registry
 from . import preferences
 from . import blend_maintenance
@@ -283,7 +283,7 @@ class EngonPanel(EngonPanelMixin, bpy.types.Panel):
 
     def draw_header_preset(self, context: bpy.types.Context) -> None:
         self.layout.operator(
-            mapr_browser.browser.MAPR_BrowserOpenAssetPacksPreferences.bl_idname, text="", icon='SETTINGS')
+            browser.browser.MAPR_BrowserOpenAssetPacksPreferences.bl_idname, text="", icon='SETTINGS')
         polib.ui_bpy.draw_doc_button(
             self.layout, __package__, rel_url="panels/engon/panel_overview")
 
@@ -292,16 +292,16 @@ class EngonPanel(EngonPanelMixin, bpy.types.Panel):
         col = self.layout.column(align=True)
         row = col.row(align=True)
         row.scale_y = 1.5
-        if mapr_browser.browser.MAPR_BrowserChooseArea.is_running:
+        if browser.browser.MAPR_BrowserChooseArea.is_running:
             row.label(text="Select area with mouse!", icon='RESTRICT_SELECT_ON')
         else:
             row.operator(
-                mapr_browser.browser.MAPR_BrowserChooseArea.bl_idname,
+                browser.browser.MAPR_BrowserChooseArea.bl_idname,
                 text="Browse Assets",
                 icon='RESTRICT_SELECT_OFF'
             )
             row.operator(
-                mapr_browser.browser.MAPR_BrowserOpen.bl_idname,
+                browser.browser.MAPR_BrowserOpen.bl_idname,
                 text="",
                 icon='WINDOW'
             )
@@ -310,7 +310,7 @@ class EngonPanel(EngonPanelMixin, bpy.types.Panel):
             row.scale_x = 1.2
             row.alert = True
             row.operator(
-                mapr_browser.browser.MAPR_BrowserClose.bl_idname,
+                browser.browser.MAPR_BrowserClose.bl_idname,
                 text="",
                 icon='PANEL_CLOSE'
             )
@@ -343,6 +343,9 @@ class MaintenancePanel(EngonPanelMixin, bpy.types.Panel):
     bl_options = {'DEFAULT_CLOSED'}
     # We want to display the maintenance sub-panel last, as it won't be a frequently used feature
     bl_order = 99
+
+    def draw_header(self, context: bpy.types.Context):
+        self.layout.label(text="", icon='BLENDER')
 
     def draw(self, context: bpy.types.Context):
         layout = self.layout

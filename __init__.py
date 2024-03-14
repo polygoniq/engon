@@ -86,7 +86,7 @@ try:
     from . import asset_helpers
     from . import preferences
     from . import panel
-    from . import mapr_browser
+    from . import browser
     from . import blend_maintenance
 
     from . import aquatiq
@@ -104,12 +104,12 @@ finally:
 bl_info = {
     "name": "engon",
     "author": "polygoniq xyz s.r.o.",
-    "version": (1, 0, 1),  # bump doc_url as well!
+    "version": (1, 0, 2),  # bump doc_url as well!
     "blender": (3, 3, 0),
     "location": "polygoniq tab in the sidebar of the 3D View window",
     "description": "",
     "category": "Object",
-    "doc_url": "https://docs.polygoniq.com/engon/1.0.1/",
+    "doc_url": "https://docs.polygoniq.com/engon/1.0.2/",
     "tracker_url": "https://polygoniq.com/discord/"
 }
 
@@ -127,7 +127,7 @@ def register():
     panel.register()
     scatter.register()
     blend_maintenance.register()
-    mapr_browser.register()
+    browser.register()
     aquatiq.register()
     botaniq.register()
     materialiq.register()
@@ -137,7 +137,12 @@ def register():
     # We need to call the first pack refresh manually, then it's called when paths change
     bpy.app.timers.register(
         lambda: preferences.get_preferences(bpy.context).refresh_packs(),
-        first_interval=0
+        first_interval=0,
+        # This is important. If an existing blend file is opened with double-click or on command
+        # line with e.g. "blender.exe path/to/blend", this register() is called in the startup blend
+        # file but right after the target blend file is opened which would discards the callback
+        # without persistent=True.
+        persistent=True
     )
 
     # Make engon preferences open after first registration
@@ -153,7 +158,7 @@ def unregister():
     materialiq.unregister()
     botaniq.unregister()
     aquatiq.unregister()
-    mapr_browser.unregister()
+    browser.unregister()
     blend_maintenance.unregister()
     scatter.unregister()
     panel.unregister()

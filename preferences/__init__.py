@@ -18,24 +18,28 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
-from . import addon_updater_ops
+from .. import addon_updater_ops
 import bpy
 import bpy_extras
 import typing
 import os
 import glob
 import json
+import math
+import mathutils
 import logging
-import enum
 import polib
 import hatchery
 import mapr
-from . import asset_pack_installer
-from . import pack_info_search_paths
-from . import asset_registry
-from . import asset_helpers
-from . import keymaps
-from . import ui_utils
+from . import aquatiq_preferences
+from . import botaniq_preferences
+from . import traffiq_preferences
+from .. import asset_pack_installer
+from .. import pack_info_search_paths
+from .. import asset_registry
+from .. import asset_helpers
+from .. import keymaps
+from .. import ui_utils
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -57,10 +61,6 @@ DISPLAY_ENUM_ITEMS = (
     ('TEXTURED', "Textured",
         "Textured, Display the object with textures (if textures are enabled in the viewport)"),
 )
-
-
-BUMPS_MODIFIER_NAME = "tq_bumps_displacement"
-BUMPS_MODIFIERS_CONTAINER_NAME = "tq_Bump_Modifiers_Container"
 
 
 class ScatterProperties(bpy.types.PropertyGroup):
@@ -189,13 +189,12 @@ class GeneralPreferences(bpy.types.PropertyGroup):
 
         Does not reload Asset Packs.
         """
-        filtered_out = [p for p in self.pack_info_search_paths
-                        if not (p.path_type == path_type and
-                                p.get_path_or_expression_by_type() == path_or_expression)]
+        filtered_out = [p.as_dict() for p in self.pack_info_search_paths if not (
+            p.path_type == path_type and p.get_path_or_expression_by_type() == path_or_expression)]
+
         self.pack_info_search_paths.clear()
         for sp in filtered_out:
-            self.add_new_pack_info_search_path(path_type=sp.path_type, file_path=sp.file_path,
-                                               directory_path=sp.directory_path, glob_expression=sp.glob_expression)
+            self.pack_info_search_paths.add().load_from_dict(sp)
         pack_info_search_path_list_ensure_valid_index(context)
 
     def get_search_paths_as_dict(self) -> typing.Dict:
@@ -231,7 +230,11 @@ class GeneralPreferences(bpy.types.PropertyGroup):
                  text="",
                  emboss=False,)
         row.label(text="Asset Pack Search Paths (For Advanced Users)")
-        polib.ui_bpy.draw_doc_button(row, __package__, rel_url="advanced_topics/search_paths")
+        polib.ui_bpy.draw_doc_button(
+            row,
+            polib.utils_bpy.get_top_level_package_name(__package__),
+            rel_url="advanced_topics/search_paths"
+        )
         pack_info_search_path_list_ensure_valid_index(context)
 
         if not self.show_pack_info_paths:
@@ -526,10 +529,7 @@ class AssetPackInstallationDialog(bpy.types.Operator, asset_pack_installer.Asset
             SelectAssetPackInstallPath.bl_idname, text="", icon='FILE_FOLDER').filepath = os.path.expanduser("~" + os.sep)
         split.prop(self, "install_path", text="")
 
-        col = box.column(align=True)
-        col.label(text=f"Pack Folder Name: {installer.pack_root_directory}")
-        col.label(text=f"Estimated Pack Size: {installer.pack_size}")
-        col.label(text=f"Free Disk Space: {installer.free_space}")
+        self.draw_installer_info(box)
         col = box.column()
         self.draw_status_and_messages(col)
         if installer.is_update_available:
@@ -620,9 +620,7 @@ class AssetPackUninstallationDialog(bpy.types.Operator, asset_pack_installer.Ass
             layout, header="This Asset Pack will be uninstalled:", show_install_path=True)
 
         box = layout.box()
-        col = box.column(align=True)
-        col.label(text=f"Pack Folder Name: {installer.pack_root_directory}")
-        col.label(text=f"Estimated Freed Disk Space: {installer.pack_size}")
+        self.draw_installer_info(box)
         col = box.column()
         self.draw_status_and_messages(col)
 
@@ -732,10 +730,7 @@ class AssetPackUpdateDialog(bpy.types.Operator, asset_pack_installer.AssetPackIn
             layout, header="This Asset Pack will be updated:")
 
         box = layout.box()
-        col = box.column(align=True)
-        col.label(text=f"Pack Folder Name: {installer.pack_root_directory}")
-        col.label(text=f"Estimated Extra Space Required: {installer.pack_size}")
-        col.label(text=f"Free Disk Space: {installer.free_space}")
+        self.draw_installer_info(box)
         col = box.column()
         self.draw_status_and_messages(col)
 
@@ -891,12 +886,17 @@ class SpawnOptions(bpy.types.PropertyGroup):
     ) -> hatchery.spawn.DatablockSpawnOptions:
         """Returns spawn options for given asset based on its type"""
         if asset.type_ == mapr.asset_data.AssetDataType.blender_model:
+            cursor_loc = mathutils.Vector(context.scene.cursor.location)
+            particle_spawn_location = cursor_loc - mathutils.Vector((0, 0, 10))
+            particle_spawn_rotation = mathutils.Euler((0, math.radians(90), 0), 'XYZ')
             return hatchery.spawn.ModelSpawnOptions(
                 self._get_model_parent_collection(asset, context),
                 True,
+                # Spawn the asset on Z - 10 in particle systems
+                particle_spawn_location if self.use_collection == 'PARTICLE_SYSTEM' else None,
                 # Rotate the spawned asset 90 around Y to make it straight in particle systems
                 # that use Rotation around Z Axis - which are most of our particle systems.
-                (0, 90, 0) if self.use_collection == 'PARTICLE_SYSTEM' else None
+                particle_spawn_rotation if self.use_collection == 'PARTICLE_SYSTEM' else None
             )
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_material:
             return hatchery.spawn.MaterialSpawnOptions(
@@ -1073,451 +1073,10 @@ class MaprPreferences(bpy.types.PropertyGroup):
 MODULE_CLASSES.append(MaprPreferences)
 
 
-class AquatiqPreferences(bpy.types.PropertyGroup):
-    draw_mask_factor: bpy.props.FloatProperty(
-        name="Mask Factor",
-        description="Value of 1 means visible, value of 0 means hidden",
-        update=lambda self, context: self.update_mask_factor(context),
-        soft_max=1.0,
-        soft_min=0.0
-    )
-
-    def update_mask_factor(self, context: bpy.types.Context):
-        context.tool_settings.vertex_paint.brush.color = [self.draw_mask_factor] * 3
-
-
-MODULE_CLASSES.append(AquatiqPreferences)
-
-
-class WindPreset(enum.Enum):
-    BREEZE = "Breeze"
-    WIND = "Wind"
-    STORM = "Storm"
-    UNKNOWN = "Unknown"
-
-
-class AnimationType(enum.Enum):
-    WIND_BEST_FIT = "Wind-Best-Fit"
-    WIND_TREE = "Wind-Tree"
-    WIND_PALM = "Wind-Palm"
-    WIND_LOW_VEGETATION = "Wind-Low-Vegetation"
-    WIND_LOW_VEGETATION_PLANTS = "Wind-Low-Vegetation-Plants"
-    WIND_SIMPLE = "Wind-Simple"
-    UNKNOWN = "Unknown"
-
-
-class WindStyle(enum.Enum):
-    LOOP = "Loop"
-    PROCEDURAL = "Procedural"
-    UNKNOWN = "Unknown"
-
-
-class WindAnimationProperties(bpy.types.PropertyGroup):
-    auto_make_instance: bpy.props.BoolProperty(
-        name="Automatic Make Instance",
-        description="Automatically make instance out of object when spawning animation. "
-        "Better performance, but assets share data, customization per instance",
-        default=False
-    )
-
-    animation_type: bpy.props.EnumProperty(
-        name="Wind animation type",
-        description="Select one of predefined animations types."
-        "This changes the animation and animation modifier stack",
-        items=(
-            (AnimationType.WIND_BEST_FIT.value, AnimationType.WIND_BEST_FIT.value,
-             "Different animation types based on the selection", 'SHADERFX', 0),
-            (AnimationType.WIND_TREE.value, AnimationType.WIND_TREE.value,
-             "Animation mostly suited for tree assets", 'BLANK1', 1),
-            (AnimationType.WIND_PALM.value, AnimationType.WIND_PALM.value,
-             "Animation mostly suited for palm assets", 'BLANK1', 2),
-            (AnimationType.WIND_LOW_VEGETATION.value, AnimationType.WIND_LOW_VEGETATION.value,
-             "Animation mostly suited for low vegetation assets", 'BLANK1', 3),
-            (AnimationType.WIND_LOW_VEGETATION_PLANTS.value, AnimationType.WIND_LOW_VEGETATION_PLANTS.value,
-             "Animation mostly suited for low vegetation plant assets", 'BLANK1', 4),
-            (AnimationType.WIND_SIMPLE.value, AnimationType.WIND_SIMPLE.value,
-             "Simple animation, works only on assets with Leaf_ or Grass_ materials", 'BLANK1', 5)
-        )
-    )
-
-    preset: bpy.props.EnumProperty(
-        name="Wind animation preset",
-        description="Select one of predefined animations presets."
-        "This changes detail of animation and animation modifier stack",
-        items=(
-            (WindPreset.BREEZE.value, WindPreset.BREEZE.value, "Light breeze wind", 'BOIDS', 0),
-            (WindPreset.WIND.value, WindPreset.WIND.value, "Moderate wind", 'CURVES_DATA', 1),
-            (WindPreset.STORM.value, WindPreset.STORM.value, "Strong storm wind", 'MOD_NOISE', 2)
-        )
-    )
-
-    strength: bpy.props.FloatProperty(
-        name="Wind strength",
-        description="Strength of the wind applied on the trees",
-        default=0.25,
-        min=0.0,
-        soft_max=1.0,
-    )
-
-    looping: bpy.props.IntProperty(
-        name="Loop time",
-        description="At how many frames should the animation repeat. Minimal value to ensure good "
-        "animation appearance is 80",
-        default=120,
-        min=80,
-    )
-
-    bake_folder: bpy.props.StringProperty(
-        name="Bake Folder",
-        description="Folder where baked .abc animations are saved",
-        default=os.path.realpath(os.path.expanduser("~/botaniq_animations/")),
-        subtype='DIR_PATH'
-    )
-
-    # Used to choose target of most wind animation operators but not all.
-    # It's not used in operators where it doesn't make sense,
-    # e.g. Add Animation works on selected objects.
-    operator_target: bpy.props.EnumProperty(
-        name="Target",
-        description="Choose to what objects the operator should apply",
-        items=[
-            ('SELECTED', "Selected Objects", "All selected objects"),
-            ('SCENE', "Scene Objects", "All objects in current scene"),
-            ('ALL', "All Objects", "All objects in the .blend file"),
-        ],
-        default='SCENE',
-    )
-
-
-MODULE_CLASSES.append(WindAnimationProperties)
-
-
-class BotaniqPreferences(bpy.types.PropertyGroup):
-    float_min: bpy.props.FloatProperty(
-        name="Min Value",
-        description="Miniumum float value",
-        default=0.0,
-        min=0.0,
-        max=1.0,
-        step=0.1
-    )
-
-    float_max: bpy.props.FloatProperty(
-        name="Max Value",
-        description="Maximum float value",
-        default=1.0,
-        min=0.0,
-        max=1.0,
-        step=0.1
-    )
-
-    brightness: bpy.props.FloatProperty(
-        name="Brightness",
-        description="Adjust assets brightness",
-        default=1.0,
-        min=0.0,
-        max=10.0,
-        soft_max=1.0,
-        step=0.1,
-        update=lambda self, context: polib.asset_pack_bpy.update_custom_prop(
-            context,
-            self.get_adjustment_affected_objects(context),
-            CustomPropertyNames.BQ_BRIGHTNESS,
-            self.brightness
-        ),
-    )
-
-    hue_per_branch: bpy.props.FloatProperty(
-        name="Hue Per Branch",
-        description="Randomize hue per branch",
-        default=1.0,
-        min=0.0,
-        max=1.0,
-        step=0.1,
-        update=lambda self, context: polib.asset_pack_bpy.update_custom_prop(
-            context,
-            self.get_adjustment_affected_objects(context),
-            CustomPropertyNames.BQ_RANDOM_PER_BRANCH,
-            self.hue_per_branch
-        ),
-    )
-
-    hue_per_leaf: bpy.props.FloatProperty(
-        name="Hue Per Leaf",
-        description="Randomize hue per leaf",
-        default=1.0,
-        min=0.0,
-        max=1.0,
-        step=0.1,
-        update=lambda self, context: polib.asset_pack_bpy.update_custom_prop(
-            context,
-            self.get_adjustment_affected_objects(context),
-            CustomPropertyNames.BQ_RANDOM_PER_LEAF,
-            self.hue_per_leaf
-        ),
-    )
-
-    season_offset: bpy.props.FloatProperty(
-        name="Season Offset",
-        description="Change season of asset",
-        default=1.0,
-        min=0.0,
-        max=1.0,
-        step=0.1,
-        update=lambda self, context: polib.asset_pack_bpy.update_custom_prop(
-            context,
-            self.get_adjustment_affected_objects(context),
-            CustomPropertyNames.BQ_SEASON_OFFSET,
-            self.season_offset
-        ),
-    )
-
-    wind_anim_properties: bpy.props.PointerProperty(
-        name="Animation Properties",
-        description="Wind animation related property group",
-        type=WindAnimationProperties
-    )
-
-    def get_adjustment_affected_objects(self, context: bpy.types.Context):
-        extended_objects = set(context.selected_objects)
-        if context.active_object is not None:
-            extended_objects.add(context.active_object)
-
-        return set(extended_objects).union(
-            asset_helpers.gather_instanced_objects(extended_objects))
-
-    @property
-    def animation_data_path(self) -> typing.Optional[str]:
-        # TODO: This is absolutely terrible and we need to replace it later, we assume one animation
-        #       data library existing and that being used for everything. In the future each asset
-        #       pack should be able to have its own
-        for pack in asset_registry.instance.get_packs_by_engon_feature("botaniq"):
-            library_path_candidate = \
-                os.path.join(
-                    pack.install_path,
-                    "blends",
-                    "models",
-                    "bq_Library_Animation_Data.blend"
-                )
-            if os.path.isfile(library_path_candidate):
-                return library_path_candidate
-        return None
-
-
-MODULE_CLASSES.append(BotaniqPreferences)
-
-
-class CarPaintProperties(bpy.types.PropertyGroup):
-    @staticmethod
-    def update_car_paint_color_prop(context, value: typing.Tuple[float, float, float, float]):
-        # Don't allow to accidentally set color to random
-        if all(v > 0.99 for v in value[:3]):
-            value = (0.99, 0.99, 0.99, value[3])
-
-        polib.asset_pack_bpy.update_custom_prop(
-            context, context.selected_objects, CustomPropertyNames.TQ_PRIMARY_COLOR, value)
-
-    primary_color: bpy.props.FloatVectorProperty(
-        name="Color",
-        subtype='COLOR',
-        description="Changes primary color of assets",
-        min=0.0,
-        max=1.0,
-        default=(0.8, 0.8, 0.8, 1.0),
-        size=4,
-        update=lambda self, context: CarPaintProperties.update_car_paint_color_prop(
-            context, self.primary_color),
-    )
-    flakes_amount: bpy.props.FloatProperty(
-        name="Flakes Amount",
-        description="Changes amount of flakes in the car paint",
-        default=0.0,
-        min=0.0,
-        max=1.0,
-        step=0.1,
-        update=lambda self, context: polib.asset_pack_bpy.update_custom_prop(
-            context,
-            context.selected_objects,
-            CustomPropertyNames.TQ_FLAKES_AMOUNT,
-            self.flakes_amount
-        ),
-    )
-    clearcoat: bpy.props.FloatProperty(
-        name="Clearcoat",
-        description="Changes clearcoat property of car paint",
-        default=0.2,
-        min=0.0,
-        max=1.0,
-        step=0.1,
-        update=lambda self, context: polib.asset_pack_bpy.update_custom_prop(
-            context,
-            context.selected_objects,
-            CustomPropertyNames.TQ_CLEARCOAT,
-            self.clearcoat
-        ),
-    )
-
-
-MODULE_CLASSES.append(CarPaintProperties)
-
-
-class WearProperties(bpy.types.PropertyGroup):
-    @staticmethod
-    def get_modifier_library_data_path() -> typing.Optional[str]:
-        # We don't cache this because in theory the registered packs could change
-        for pack in asset_registry.instance.get_packs_by_engon_feature("traffiq"):
-            modifier_library_path_candidate = os.path.join(
-                pack.install_path, "blends", "models", "Library_Traffiq_Modifiers.blend")
-            if os.path.isfile(modifier_library_path_candidate):
-                return modifier_library_path_candidate
-
-        return None
-
-    @staticmethod
-    def update_bumps_prop(context: bpy.types.Context, value: float):
-        prefs = get_preferences(context)
-        # Cache objects that support bumps
-        bumps_objs = [
-            obj for obj in context.selected_objects if CustomPropertyNames.TQ_BUMPS in obj]
-
-        modifier_library_path = None
-
-        # Add bumps modifier that improves bumps effect on editable objects.
-        # Bumps work for linked assets but looks better on editable ones with added modifier
-        for obj in bumps_objs:
-            # Object is not editable mesh
-            if obj.data is None or obj.type != "MESH":
-                continue
-            # If modifier is not assigned to the object, append it from library
-            if BUMPS_MODIFIER_NAME not in obj.modifiers:
-                if modifier_library_path is None:
-                    modifier_library_path = WearProperties.get_modifier_library_data_path()
-                polib.asset_pack_bpy.append_modifiers_from_library(
-                    BUMPS_MODIFIERS_CONTAINER_NAME, modifier_library_path, [obj])
-                logger.info(f"Added bumps modifier on: {obj.name}")
-
-            assert BUMPS_MODIFIER_NAME in obj.modifiers
-            obj.modifiers[BUMPS_MODIFIER_NAME].strength = value
-
-        polib.asset_pack_bpy.update_custom_prop(
-            context,
-            bumps_objs,
-            CustomPropertyNames.TQ_BUMPS,
-            value
-        )
-
-    dirt_wear_strength: bpy.props.FloatProperty(
-        name="Dirt",
-        description="Makes assets look dirty",
-        default=0.0,
-        min=0.0,
-        max=1.0,
-        step=0.1,
-        update=lambda self, context: polib.asset_pack_bpy.update_custom_prop(
-            context,
-            context.selected_objects,
-            CustomPropertyNames.TQ_DIRT,
-            self.dirt_wear_strength
-        ),
-    )
-    scratches_wear_strength: bpy.props.FloatProperty(
-        name="Scratches",
-        description="Makes assets look scratched",
-        default=0.0,
-        min=0.0,
-        max=1.0,
-        step=0.1,
-        update=lambda self, context: polib.asset_pack_bpy.update_custom_prop(
-            context,
-            context.selected_objects,
-            CustomPropertyNames.TQ_SCRATCHES,
-            self.scratches_wear_strength
-        ),
-    )
-    bumps_wear_strength: bpy.props.FloatProperty(
-        name="Bumps",
-        description="Makes assets look dented, appends displacement modifier for better effect if object is editable",
-        default=0.0,
-        min=0.0,
-        soft_max=1.0,
-        step=0.1,
-        update=lambda self, context: WearProperties.update_bumps_prop(
-            context, self.bumps_wear_strength),
-    )
-
-
-MODULE_CLASSES.append(WearProperties)
-
-
-class RigProperties(bpy.types.PropertyGroup):
-    auto_bake_steering: bpy.props.BoolProperty(
-        name="Auto Bake Steering",
-        description="If true, follow path operator will automatically try to bake steering",
-        default=True
-    )
-    auto_bake_wheels: bpy.props.BoolProperty(
-        name="Auto Bake Wheel Rotation",
-        description="If true, follow path operator will automatically try to bake wheel rotation",
-        default=True
-    )
-    auto_reset_transforms: bpy.props.BoolProperty(
-        name="Auto Reset Transforms",
-        description="If true, follow path operator will automatically reset transforms"
-        "of needed objects to give the expected results",
-        default=True
-    )
-
-
-MODULE_CLASSES.append(RigProperties)
-
-
-class LightsProperties(bpy.types.PropertyGroup):
-    main_lights_status: bpy.props.EnumProperty(
-        name="Main Lights Status",
-        items=(
-            ("0", "off", "Front and rear lights are off"),
-            ("0.25", "park", "Park lights are on"),
-            ("0.50", "low-beam", "Low-beam lights are on"),
-            ("0.75", "high-beam", "High-beam lights are on"),
-        ),
-        update=lambda self, context: polib.asset_pack_bpy.update_custom_prop(
-            context,
-            [polib.asset_pack_bpy.find_traffiq_lights_container(
-                o) for o in context.selected_objects],
-            CustomPropertyNames.TQ_LIGHTS,
-            float(self.main_lights_status)
-        ),
-    )
-
-
-MODULE_CLASSES.append(LightsProperties)
-
-
-class TraffiqPreferences(bpy.types.PropertyGroup):
-    car_paint_properties: bpy.props.PointerProperty(
-        type=CarPaintProperties
-    )
-
-    wear_properties: bpy.props.PointerProperty(
-        type=WearProperties
-    )
-
-    lights_properties: bpy.props.PointerProperty(
-        type=LightsProperties
-    )
-
-    rig_properties: bpy.props.PointerProperty(
-        type=RigProperties
-    )
-
-
-MODULE_CLASSES.append(TraffiqPreferences)
-
-
 @polib.log_helpers_bpy.logged_preferences
 @addon_updater_ops.make_annotations
 class Preferences(bpy.types.AddonPreferences):
-    bl_idname = __package__
+    bl_idname = polib.utils_bpy.get_top_level_package_name(__package__)
 
     # Addon updater preferences.
     auto_check_update: bpy.props.BoolProperty(
@@ -1557,11 +1116,6 @@ class Preferences(bpy.types.AddonPreferences):
         max=59
     )
 
-    mq_global_texture_size: bpy.props.EnumProperty(
-        items=lambda _, __: asset_helpers.get_materialiq_texture_sizes_enum_items(),
-        name="materialiq global maximum side size",
-    )
-
     general_preferences: bpy.props.PointerProperty(
         name="General Preferences",
         description="Preferences related to all asset packs",
@@ -1576,20 +1130,20 @@ class Preferences(bpy.types.AddonPreferences):
 
     aquatiq_preferences: bpy.props.PointerProperty(
         name="Aquatiq Preferences",
-        description="Preferences related to the aquatiq addon",
-        type=AquatiqPreferences
+        description="Preferences related to the aquatiq asset pack",
+        type=aquatiq_preferences.AquatiqPreferences
     )
 
     botaniq_preferences: bpy.props.PointerProperty(
         name="Botaniq Preferences",
-        description="Preferences related to the botaniq addon",
-        type=BotaniqPreferences
+        description="Preferences related to the botaniq asset pack",
+        type=botaniq_preferences.BotaniqPreferences
     )
 
     traffiq_preferences: bpy.props.PointerProperty(
         name="Traffiq Preferences",
-        description="Preferences related to the traffiq addon",
-        type=TraffiqPreferences
+        description="Preferences related to the traffiq asset pack",
+        type=traffiq_preferences.TraffiqPreferences
     )
 
     first_time_register: bpy.props.BoolProperty(
@@ -1638,7 +1192,11 @@ class Preferences(bpy.types.AddonPreferences):
                  text="",
                  emboss=False,)
         row.label(text="Asset Packs")
-        polib.ui_bpy.draw_doc_button(row, __package__, rel_url="getting_started/asset_packs")
+        polib.ui_bpy.draw_doc_button(
+            row,
+            polib.utils_bpy.get_top_level_package_name(__package__),
+            rel_url="getting_started/asset_packs"
+        )
         if self.general_preferences.show_asset_packs:
             row = box.row()
             row.alignment = 'LEFT'
@@ -1669,18 +1227,23 @@ class Preferences(bpy.types.AddonPreferences):
                 op = row.operator(UninstallAssetPack.bl_idname, text="", icon='TRASH')
                 op.current_filepath = pack.install_path
 
-                sub_col = subbox.column(align=True)
-                sub_col.enabled = False
-                sub_col.label(text=f"Version: {pack.get_version_str()}")
-                sub_row = sub_col.row(align=True)
+                split = subbox.split(factor=0.20)
+                label_col = split.column(align=True)
+                label_col.enabled = False
+                value_col = split.column(align=True)
+                value_col.enabled = False
+
+                label_col.label(text=f"Version:")
+                value_col.label(text=f"{pack.get_version_str()}")
+                label_col.label(text=f"Vendor:")
+                sub_row = value_col.row(align=True)
                 sub_row.alignment = 'LEFT'
-                sub_row.label(text=f"Vendor:")
                 vendor_icon_id = pack.get_vendor_icon_id()
                 if vendor_icon_id is not None:
                     sub_row.label(icon_value=vendor_icon_id)
                 sub_row.label(text=pack.vendor)
-
-                sub_col.label(text=f"Installation path: {pack.install_path}")
+                label_col.label(text=f"Installation path:")
+                value_col.label(text=f"{pack.install_path}")
 
             self.general_preferences.draw_pack_info_search_paths(context, box)
 
@@ -1750,10 +1313,14 @@ MODULE_CLASSES.append(PackLogs)
 
 
 def get_preferences(context: bpy.types.Context) -> Preferences:
-    return context.preferences.addons[__package__].preferences
+    engon_package = polib.utils_bpy.get_top_level_package_name(__package__)
+    return context.preferences.addons[engon_package].preferences
 
 
 def register():
+    aquatiq_preferences.register()
+    botaniq_preferences.register()
+    traffiq_preferences.register()
     for cls in MODULE_CLASSES:
         bpy.utils.register_class(cls)
 
@@ -1761,3 +1328,6 @@ def register():
 def unregister():
     for cls in reversed(MODULE_CLASSES):
         bpy.utils.unregister_class(cls)
+    traffiq_preferences.unregister()
+    botaniq_preferences.unregister()
+    aquatiq_preferences.unregister()

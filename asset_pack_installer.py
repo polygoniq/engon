@@ -709,12 +709,45 @@ class AssetPackInstallerDialogMixin:
         if header != "":
             col.box().label(text=header, icon='INFO')
 
-        col = col.box().column(align=True)
-        col.label(text=f"Name: {instance.full_name}")
-        col.label(text=f"Version: {instance.version}")
-        col.label(text=f"Vendor: {instance.vendor}")
+        row = col.box().row(align=True)
+        label_col = row.column(align=True)
+        label_col.alignment = 'LEFT'
+        row.separator(factor=2.0)
+        value_col = row.column(align=True)
+        value_col.alignment = 'LEFT'
+
+        label_col.label(text="Name:")
+        value_col.label(text=instance.full_name)
+        label_col.label(text="Version:")
+        value_col.label(text=instance.version)
+        label_col.label(text="Vendor:")
+        value_col.label(text=instance.vendor)
         if show_install_path:
-            col.label(text=f"Install Path: {instance.install_path}")
+            label_col.label(text="Install Path:")
+            value_col.label(text=instance.install_path)
+
+    def draw_installer_info(self, layout: bpy.types.UILayout) -> None:
+        row = layout.row(align=True)
+        label_col = row.column(align=True)
+        label_col.alignment = 'LEFT'
+        row.separator(factor=2.0)
+        value_col = row.column(align=True)
+        value_col.alignment = 'LEFT'
+
+        label_col.label(text=f"Pack Folder Name:")
+        value_col.label(text=instance.pack_root_directory)
+        if instance._operation == InstallerOperation.UNINSTALL:
+            label_col.label(text=f"Estimated Freed Disk Space:")
+            value_col.label(text=instance.pack_size)
+        else:
+            if instance._operation == InstallerOperation.UPDATE:
+                label_col.label(text=f"Estimated Extra Space Required:")
+                value_col.label(text=instance.pack_size)
+            else:
+                label_col.label(text=f"Estimated Pack Size:")
+                value_col.label(text=instance.pack_size)
+            label_col.label(text=f"Free Disk Space:")
+            value_col.label(text=instance.free_space)
 
     def check_should_dialog_close(self) -> bool:
         return not instance.can_installer_proceed

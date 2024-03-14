@@ -67,7 +67,7 @@ class MAPR_BrowserSpawnAsset(bpy.types.Operator):
         box.row().label(text=str(reason))
         box = layout.box()
         box.label(text=str(suggestion), icon='QUESTION')
-        box.label(text="Or adjust your spawning options.", icon='FILE_TICK')
+        box.label(text="Or adjust your spawning options.", icon='OPTIONS')
 
     @polib.utils_bpy.blender_cursor('WAIT')
     def execute(self, context: bpy.types.Context):
@@ -138,7 +138,7 @@ class SpawnOptionsPopoverPanel(bpy.types.Panel):
         spawning_options = prefs.mapr_preferences.spawn_options
         layout = self.layout
         col = layout.column()
-        col.label(text="Asset Spawn Options", icon='FILE_TICK')
+        col.label(text="Asset Spawn Options", icon='OPTIONS')
         col.prop(spawning_options, "remove_duplicates")
         col.prop(spawning_options, "make_editable")
         col.separator()

@@ -2,6 +2,7 @@
 # copyright (c) 2018- polygoniq xyz s.r.o.
 
 import abc
+import dataclasses
 import enum
 import typing
 import collections
@@ -49,7 +50,7 @@ class AssetDataType(enum.Enum):
         return ret
 
 
+@dataclasses.dataclass(frozen=True)
 class AssetData(abc.ABC):
-    def __init__(self):
-        self.id_: AssetDataID = ""
-        self.type_: AssetDataType = "unknown"
+    id_: AssetDataID = ""
+    type_: AssetDataType = AssetDataType.unknown

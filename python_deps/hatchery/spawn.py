@@ -41,7 +41,8 @@ class ModelSpawnOptions(DatablockSpawnOptions):
     parent_collection: typing.Optional[bpy.types.Collection] = None
     # If present the spawned model instancer is selected, other objects are deselected
     select_spawned: bool = False
-    rotation_euler_override: typing.Optional[mathutils.Vector] = None
+    location_override: typing.Optional[mathutils.Vector] = None
+    rotation_euler_override: typing.Optional[mathutils.Euler] = None
 
 
 class ModelSpawnedData(SpawnedData):
@@ -72,6 +73,8 @@ def spawn_model(
     root_collection = load.load_master_collection(path)
     root_empty = utils.create_instanced_object(root_collection.name)
     root_empty.location = context.scene.cursor.location
+    if options.location_override is not None:
+        root_empty.location = options.location_override
 
     if options.rotation_euler_override is not None:
         root_empty.rotation_euler = options.rotation_euler_override
@@ -135,8 +138,11 @@ def spawn_material(
         # bpy.ops.ed.lib_id_generate_preview() can be called only from blender with GUI.
         # That's also reason why we can't call it in our build pipeline. A proper solution
         # would be to force this preview rendering once in our pipeline.
-        with context.temp_override(id=material):
-            bpy.ops.ed.lib_id_generate_preview()
+        # TODO: Subsequently spawning several materials and calling this function results in
+        # Blender crashing.
+        # with context.temp_override(id=material):
+        #     bpy.ops.ed.lib_id_generate_preview()
+        pass
 
     for obj in options.target_objects:
         if not utils.can_have_materials_assigned(obj):

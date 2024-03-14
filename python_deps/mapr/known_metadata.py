@@ -2,7 +2,7 @@
 
 # Definition of tags that can be manually added to the asset in grumpy_cat. Each tag maps to a
 # dictionary where more details can be specified. Including a description that is used as a tooltip.
-# Keep in mind that in addition to these assets can have tags not on this list!
+# Keep in mind that in addition to these, assets can have tags not on this list!
 TAGS = {
     "Bathroom": {
         "description": ""
@@ -68,7 +68,7 @@ TAGS = {
 
 
 # Which numeric parameters can be added to assets in grumpy_cat. Each maps to a dictionary with more
-# info about each parameter. Keep in mind that in addition to these assets can have parameters not
+# info about each parameter. Keep in mind that in addition to these, assets can have parameters not
 # on this list!
 NUMERIC_PARAMETERS = {
     "model_year": {
@@ -96,7 +96,7 @@ NUMERIC_PARAMETERS = {
 
 
 # Which text parameters can be added to assets in grumpy_cat. Each maps to a dictionary with more
-# info about each parameter. Keep in mind that in addition to these assets can have parameters not
+# info about each parameter. Keep in mind that in addition to these, assets can have parameters not
 # on this list!
 TEXT_PARAMETERS = {
     "license": {
@@ -221,15 +221,32 @@ TEXT_PARAMETERS = {
 }
 
 
-# Which color parameters can be added to assets in grumpy_cat. Each maps to a dictionary with more
-# info about each parameter. Keep in mind that in addition to these assets can have parameters not
-# on this list!
-COLOR_PARAMETERS = {
+class VectorType:
+    FLOAT = 'FLOAT'
+    INT = 'INT'
+    COLOR = 'COLOR'
+
+
+# Which vector parameters can be added to assets in grumpy_cat. Each maps to a dictionary with more
+# info about each parameter. Keep in mind that in addition to these, assets can have parameters not
+# on this list! The type is used to determine how the vector should be shown and manipulated in the
+# interfaces - possible values are VectorType.FLOAT (default), INT or COLOR.
+# TODO: Currently only vec3 is supported. We are not able to define sizes of vectors for display
+# in the UI dynamically, so we hardcode the size of the vector in the UI. For different sizes
+# different unique properties with switching between them would be required.
+VECTOR_PARAMETERS = {
+    "introduced_in": {
+        "description": "Version of asset pack this asset was introduced in",
+        "search_weight": 0.0,
+        "type": VectorType.INT,
+    },
     "viewport_color": {
         "description": "",
         "search_weight": 0.0,
-    },
+        "type": VectorType.COLOR,
+    }
 }
+
 
 # Mapping of parameter name to unit. If the parameter is not specified here it is considered unitless.
 PARAMETER_UNITS = {param: info.get(
@@ -273,7 +290,7 @@ PARAMETER_GROUPING = {
         "text:displacement_method",
         "num:metallic",
         "num:roughness",
-        "col:viewport_color"
+        "vec:viewport_color"
     ],
     "data_count": [
         "num:triangle_count",

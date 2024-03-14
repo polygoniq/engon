@@ -102,7 +102,10 @@ class TraffiqPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
 
     def draw_header_preset(self, context: bpy.types.Context) -> None:
         polib.ui_bpy.draw_doc_button(
-            self.layout, preferences.__package__, rel_url="panels/traffiq/panel_overview")
+            self.layout,
+            polib.utils_bpy.get_top_level_package_name(__package__),
+            rel_url="panels/traffiq/panel_overview"
+        )
 
     def draw(self, context: bpy.types.Context):
         # TODO: All that was formerly here was replaced with engon universal operators,

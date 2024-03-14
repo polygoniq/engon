@@ -1,6 +1,7 @@
 # copyright (c) 2018- polygoniq xyz s.r.o.
 
 import bpy
+import numpy
 import typing
 from . import node_utils_bpy
 
@@ -70,11 +71,10 @@ def get_material_slots_used_by_mesh(obj: bpy.types.Object) -> typing.FrozenSet[i
     if not hasattr(obj.data, "polygons"):
         return frozenset()
 
-    seen_indices = set()
-    for face in obj.data.polygons:
-        seen_indices.add(face.material_index)
-
-    return frozenset(seen_indices)
+    material_indices = numpy.zeros(len(obj.data.polygons), dtype=numpy.int32)
+    obj.data.polygons.foreach_get('material_index', material_indices)
+    unique_indices = numpy.unique(material_indices)
+    return frozenset(unique_indices)
 
 
 def get_material_slots_used_by_spline(obj: bpy.types.Object) -> typing.FrozenSet[int]:

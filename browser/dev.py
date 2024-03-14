@@ -32,8 +32,7 @@ class MAPR_BrowserDeleteCache(bpy.types.Operator):
     bl_label = "Delete Cache"
 
     def execute(self, context: bpy.types.Context):
-        if filters.asset_repository.data_view_cache is not None:
-            filters.asset_repository.data_view_cache.clear()
+        filters.asset_repository.clear_cache()
         return {'FINISHED'}
 
 
@@ -58,7 +57,7 @@ class MAPR_BrowserReloadPreviews(bpy.types.Operator):
     bl_label = "Reload Previews (In Current View)"
 
     def execute(self, context: bpy.types.Context):
-        assets = filters.asset_repository.get_current_view().assets
+        assets = filters.asset_repository.current_assets
         previews.manager_instance.clear_ids({asset.id_ for asset in assets})
         previews.ensure_loaded_previews(assets)
         return {'FINISHED'}

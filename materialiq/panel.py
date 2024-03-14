@@ -105,7 +105,10 @@ class MaterialiqPanel(MaterialiqPanelMixin, bpy.types.Panel):
     def draw_header_preset(self, context: bpy.types.Context) -> None:
         self.layout.prop(get_panel_props(context), "advanced_ui", text="", icon='MENU_PANEL')
         polib.ui_bpy.draw_doc_button(
-            self.layout, preferences.__package__, rel_url="panels/materialiq/panel_overview")
+            self.layout,
+            polib.utils_bpy.get_top_level_package_name(__package__),
+            rel_url="panels/materialiq/panel_overview"
+        )
 
     def draw_material_list(self, context: bpy.types.Context) -> None:
         # We use similar code to draw material slots as blender does
@@ -158,13 +161,13 @@ class MaterialiqPanel(MaterialiqPanelMixin, bpy.types.Panel):
             row.operator("object.material_slot_deselect", text="Deselect")
 
     def draw(self, context: bpy.types.Context) -> None:
-        prefs = preferences.get_preferences(context)
+        prefs = preferences.get_preferences(context).mapr_preferences
         row = self.layout.row(align=True)
         row.label(text="Default Texture Size:")
         row = row.row()
         row.alignment = 'LEFT'
         row.scale_x = 0.9
-        row.prop(prefs, "mq_global_texture_size", text="")
+        row.prop(prefs.spawn_options, "texture_size", text="")
         self.draw_material_list(context)
 
 

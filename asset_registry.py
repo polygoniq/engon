@@ -196,7 +196,7 @@ class AssetPack:
             raise ValueError(
                 f"Given install_path {self.install_path} is not a valid directory!")
 
-        # Paths to MAPR index JSONs, this will be used by MAPR browser to browse this asset pack.
+        # Paths to MAPR index JSONs, this will be used by browser to browse this asset pack.
         # These paths should be relative to self.install_path
         for index_path in self.index_paths:
             if os.path.isabs(index_path):
@@ -324,7 +324,7 @@ class AssetRegistry:
             collections.defaultdict(list)
         self._packs_by_pack_info_path: typing.Dict[str, AssetPack] = {}
         self.master_asset_provider: mapr.asset_provider.AssetProvider = \
-            mapr.asset_provider.AssetProviderMultiplexer()
+            mapr.asset_provider.CachedAssetProviderMultiplexer()
         self.master_file_provider: mapr.file_provider.FileProvider = \
             mapr.file_provider.FileProviderMultiplexer()
         self.on_refresh: typing.List[typing.Callable[[], None]] = []

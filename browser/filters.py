@@ -18,14 +18,19 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
+# This module provides UI implementation for the 'mapr.filters'. This adds state to the filters
+# and the ability to draw them in the Blender UI based on what assets are present in current view.
+# The core class is DynamicFilters - it holds all the filters and has the ability to reconstruct
+# them. Individual filters are implemented as PropertyGroups and their properties OVERRIDE the
+# properties of the base `mapr.filters` counterparts.
+
 import bpy
-import json
 import typing
 import logging
 import mapr
 import math
+import mathutils
 import polib
-import re
 import threading
 from .. import asset_registry
 from .. import preferences
@@ -38,14 +43,83 @@ MODULE_CLASSES = []
 USE_THREADED_QUERY = True
 
 
-class SortMode:
-    ALPHABETICAL_ASC = "ABC (A)"
-    ALPHABETICAL_DESC = "ABC (D)"
+class DataRepository:
+    """Data repository encapsulates querying access providers for the browser.
 
-# We cannot use abc.ABC here, as it interferes with bpy.types.PropertyGroup
+    Queries are executed in a separate thread if `USE_THREADED_QUERY` is True,
+    query being performed is indicated by `is_loading` member variable.
+    """
+
+    def __init__(self, asset_provider: mapr.asset_provider.AssetProvider):
+        self.asset_provider = asset_provider
+        self.is_loading = False
+        self.last_view: typing.Optional[mapr.asset_provider.DataView] = None
+
+    def query(
+        self,
+        query: mapr.query.Query,
+        on_complete: typing.Optional[typing.Callable[[mapr.asset_provider.DataView], None]] = None
+    ) -> None:
+        def _query():
+            logger.debug(f"Performing query against category {query.category_id}")
+            # We are fine here in a separate thread if we don't access any Blender data, the only
+            # thing how we touch blender is loading previews and tagging redraw
+            self.last_view = self.asset_provider.query(query)
+            previews.ensure_loaded_previews(self.last_view.assets)
+            self.is_loading = False
+            utils.tag_prefs_redraw(bpy.context)
+            if on_complete is not None:
+                on_complete(self.last_view)
+
+        self.is_loading = True
+        utils.tag_prefs_redraw(bpy.context)
+        if USE_THREADED_QUERY:
+            thread = threading.Thread(target=_query)
+            thread.start()
+        else:
+            _query()
+
+    def update_provider(self, asset_provider: mapr.asset_provider.AssetProvider) -> None:
+        """Updates the provider used for the repository, clears caches and reconstructs filters
+
+        If there is a DataView saved from previous queries, it is queried again with the new
+        provider.
+        We don't query if there wasn't any DataView saved, as we don't want to query assets
+        if we know that the browser wasn't opened yet - this wastes resources and start-up time.
+        """
+        self.asset_provider = asset_provider
+        self.clear_cache()
+
+        if self.last_view is not None:
+            self.query(self.last_view.used_query, lambda _: get_filters(
+                bpy.context).clear_and_reconstruct())
+
+    def clear_cache(self) -> None:
+        if isinstance(self.asset_provider, mapr.asset_provider.CachedAssetProviderMultiplexer):
+            self.asset_provider.clear_cache()
+
+    @property
+    def current_category_id(self) -> mapr.category.CategoryID:
+        return self.last_view.used_query.category_id if self.last_view is not None \
+            else mapr.category.DEFAULT_ROOT_CATEGORY.id_
+
+    @property
+    def current_view(self) -> mapr.asset_provider.DataView:
+        return self.last_view if self.last_view is not None else mapr.asset_provider.EmptyDataView()
+
+    @property
+    def current_assets(self) -> typing.List[mapr.asset.Asset]:
+        return self.last_view.assets if self.last_view is not None else []
 
 
-class Filter:
+asset_repository = DataRepository(asset_registry.instance.master_asset_provider)
+
+
+class BrowserFilter:
+    """Mixin adding frontend functionality and controls for mapr filters"""
+    # Filter is enabled when it is relevant for the filtering - when the matching tags or
+    # parameters are in the current view, or all the time - special case like SearchFilter or
+    # AssetTypesFilter.
     enabled: bpy.props.BoolProperty(options={'HIDDEN'})
     name_without_type: bpy.props.StringProperty(options={'HIDDEN'})
 
@@ -54,18 +128,6 @@ class Filter:
         raise NotImplementedError()
 
     def draw(self, context: bpy.types.Context, layout: bpy.types.UILayout) -> None:
-        raise NotImplementedError()
-
-    def filter_(self, asset: mapr.asset.Asset) -> bool:
-        """Decides if the 'asset' should be filtered.
-
-        Returns True if asset passes the filter, False otherwise.
-        NOTE: This should consider things in following order:
-        1. If the filter is default, do not filter the asset -> to display all assets and filters
-        if user didn't ask for filtering yet. We narrow the selection only if user filters.
-        2. Is the parameter present on the asset
-        3. Lastly - does the asset parameter pass the filter
-        """
         raise NotImplementedError()
 
     def reset(self) -> None:
@@ -83,203 +145,22 @@ class Filter:
         return not self.is_default()
 
     def is_drawn(self):
-        # The filter should be displayed if it is enabled or if the value is different from default
+        """Returns True if the filter is drawn in the UI, False otherwise."""
+        # The filter is drawn if it is enabled - it is relevant for the current view or if the
+        # filter values were changed from default - user needs to have ability to reset  the filter
+        # in any view.
         return self.enabled or not self.is_default()
-
-    def as_dict(self) -> typing.Dict[str, typing.Any]:
-        """Returns a dict entry representing this filter - {key: filter-parameters}.
-
-        The 'key' has to be unique across all the filters!
-        """
-        raise NotImplementedError()
 
     def get_nice_name(self) -> str:
         return mapr.known_metadata.format_parameter_name(self.name_without_type)
-
-
-class Query:
-    def __init__(
-        self,
-        category_id: mapr.category.CategoryID,
-        filters: typing.Iterable[Filter],
-        sort_mode: SortMode | str,
-        recursive: bool = True,
-    ):
-        self.category_id = category_id
-        self.filters = list(filters)
-        self.sort_mode = sort_mode
-        self.recursive = recursive
-        # We need to construct the dict representation of the query when it is initialized
-        # because we reference the filters and those can change (mutate) after the Query is
-        # constructed. Resulting in values provided by the filters being always equal to the filters
-        # dict representation when the query would be converted to dict.
-        self._dict = self._as_dict()
-
-    def _as_dict(self) -> typing.Dict:
-        ret = {}
-        ret["category_id"] = self.category_id
-        ret["recursive"] = self.recursive
-        ret["sort_mode"] = self.sort_mode
-        for filter_ in self.filters:
-            ret.update(filter_.as_dict())
-
-        return ret
-
-    def __hash__(self) -> int:
-        return hash(json.dumps(self._dict))
-
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, Query):
-            return self._dict == other._dict
-
-        return False
-
-    def __repr__(self) -> str:
-        return str(self._dict)
-
-
-class DataView:
-    """One view of data - lists of assets based on provided Query and AssetProvider."""
-
-    def __init__(self, asset_provider: mapr.asset_provider.AssetProvider, query: Query):
-        self.assets = []
-        for asset in asset_provider.list_assets(query.category_id, query.recursive):
-            if all(f.filter_(asset) for f in query.filters):
-                self.assets.append(asset)
-
-        sort_lambda, reverse = self._get_sort_parameters(query.sort_mode)
-        self.assets.sort(key=lambda x: sort_lambda(x), reverse=reverse)
-
-        self.parameters_meta = mapr.parameter_meta.AssetParametersMeta(self.assets)
-        self.used_query = query
-        logger.debug(f"Created DataView {self}")
-
-    def _get_sort_parameters(
-        self,
-        sort_mode: SortMode | str
-    ) -> typing.Tuple[typing.Callable[[mapr.asset.Asset], bool], bool]:
-        """Return lambda and reverse boolean that should be passed into sort based on sort mode
-
-        Returns tuple of (lambda, reverse)
-        """
-        if sort_mode == SortMode.ALPHABETICAL_ASC:
-            return (lambda x: x.title, False)
-        elif sort_mode == SortMode.ALPHABETICAL_DESC:
-            return (lambda x: x.title, True)
-        else:
-            raise NotImplementedError(f"Unknown sort mode {sort_mode}")
-
-    def __repr__(self) -> str:
-        return f"DataView at {id(self)} based on query:\n {self.used_query}"
-
-
-class DataViewCache:
-    """Caches data based on LRU queries, using one data provider"""
-
-    def __init__(self, asset_provider: mapr.asset_provider.AssetProvider, max_size: int = 128):
-        self.asset_provider = asset_provider
-        self.max_size = max_size
-        # The most recently used element is always the last element in the `self.cache` dictionary.
-        # We use our implementation, as `functools.lru_cache` doesn't work as expected with the
-        # Query object.
-        self.cache: typing.Dict[Query, DataView] = {}
-        self.current_view: DataView = self.query(
-            Query(asset_provider.get_root_category_id(), [], SortMode.ALPHABETICAL_ASC))
-
-    def query(self, query: Query) -> DataView:
-        cached_data = self.cache.get(query)
-        if cached_data is not None:
-            logger.debug(f"Repurposed {cached_data}")
-            self.current_view = cached_data
-            # Pop the item and enter it at the end again
-            self.cache.pop(query)
-            self.cache[query] = cached_data
-            return cached_data
-
-        new_view = DataView(self.asset_provider, query)
-        self.cache[query] = new_view
-        self.current_view = new_view
-
-        if len(self.cache) > self.max_size:
-            # Retrieve first key from the cache dict and pop it
-            least_used_query = next(iter(self.cache))
-            self.cache.pop(least_used_query)
-            logger.debug(f"Cache was at its max size, removed {least_used_query}")
-
-        return new_view
-
-    def clear(self) -> None:
-        self.cache.clear()
-
-
-class DataRepository:
-    """Data repository encapsulates querying access providers and caching those queries.
-
-    This is the main access point to access metadata and all polygoniq browsers should use this
-    as a central point of truth.
-
-    Queries are executed in a separate thread if `USE_THREADED_QUERY` is True,
-    query being performed is indicated by `is_loading` member variable.
-
-    Queries are cached to increase performance, for more details check `DataViewCache`.
-    """
-
-    def __init__(self, asset_provider: mapr.asset_provider.AssetProvider):
-        self.data_view_cache = DataViewCache(asset_provider)
-        self.is_loading = False
-        self.last_query: typing.Optional[Query] = None
-
-    def query(
-        self,
-        query: Query,
-        on_complete: typing.Optional[typing.Callable[[DataView], None]] = None
-    ) -> None:
-        def _query():
-            # We are fine here in a separate thread if we don't access any Blender data, the only
-            # thing how we touch blender is loading previews and tagging redraw
-            data_view = self.data_view_cache.query(query)
-            previews.ensure_loaded_previews(data_view.assets)
-            self.is_loading = False
-            utils.tag_prefs_redraw(bpy.context)
-            if on_complete is not None:
-                on_complete(data_view)
-
-        self.is_loading = True
-        self.last_query = query
-        utils.tag_prefs_redraw(bpy.context)
-        if USE_THREADED_QUERY:
-            thread = threading.Thread(target=_query)
-            thread.start()
-        else:
-            _query()
-
-    def update_provider(self, asset_provider: mapr.asset_provider.AssetProvider) -> None:
-        self.data_view_cache = DataViewCache(asset_provider)
-        if self.last_query is not None:
-            self.query(self.last_query)
-
-        get_filters(bpy.context).clear()
-        get_filters(bpy.context).reconstruct()
-
-    def get_current_category_id(self) -> mapr.category.CategoryID:
-        return self.data_view_cache.current_view.used_query.category_id
-
-    def get_current_view(self) -> DataView:
-        return self.data_view_cache.current_view
-
-    def get_current_assets(self) -> typing.List[mapr.asset.Asset]:
-        return self.data_view_cache.current_view.assets
-
-
-asset_repository = DataRepository(asset_registry.instance.master_asset_provider)
 
 
 def filters_updated_bulk_query() -> None:
     filters_properties = get_filters()
     # Repurpose existing view category_id, as we know it didn't change
     asset_repository.query(
-        Query(
-            asset_repository.get_current_category_id(),
+        mapr.query.Query(
+            asset_repository.current_category_id,
             filters_properties.filters.values(),
             filters_properties.sort_mode
         ),
@@ -296,27 +177,30 @@ def _any_filter_updated_event():
     bpy.app.timers.register(filters_updated_bulk_query, first_interval=0.3)
 
 
-class NumericParameterFilter(bpy.types.PropertyGroup, Filter):
+class BrowserNumericParameterFilter(
+    bpy.types.PropertyGroup,
+    mapr.filters.NumericParameterFilter,
+    BrowserFilter
+):
     is_int: bpy.props.BoolProperty()
-
     range_start_float: bpy.props.FloatProperty(
-        get=lambda self: self._range_start_get(),
+        get=lambda self: self.range_start,
         set=lambda self, value: self._range_start_set(value),
         default=-1.0
     )
     range_end_float: bpy.props.FloatProperty(
-        get=lambda self: self._range_end_get(),
+        get=lambda self: self.range_end,
         set=lambda self, value: self._range_end_set(value),
         default=1.0
     )
 
     range_start_int: bpy.props.IntProperty(
-        get=lambda self: self._range_start_get(),
+        get=lambda self: self.range_start,
         set=lambda self, value: self._range_start_set(value),
         default=-1
     )
     range_end_int: bpy.props.IntProperty(
-        get=lambda self: self._range_end_get(),
+        get=lambda self: self.range_end,
         set=lambda self, value: self._range_end_set(value),
         default=1
     )
@@ -362,8 +246,8 @@ class NumericParameterFilter(bpy.types.PropertyGroup, Filter):
         row.prop(self, self._range_end_name(), text="Max")
 
     def is_default(self):
-        return math.isclose(self._range_start_get(), self.range_min) and \
-            math.isclose(self._range_end_get(), self.range_max)
+        return math.isclose(self.range_start, self.range_min) and \
+            math.isclose(self.range_end, self.range_max)
 
     def reset(self):
         super().reset()
@@ -371,19 +255,11 @@ class NumericParameterFilter(bpy.types.PropertyGroup, Filter):
         self._range_end_set(self.range_max)
 
     def filter_(self, asset: mapr.asset.Asset) -> bool:
-        # Include asset if the values for this filter are close to default
+        # Include asset if the values for this filter are default
         if self.is_default():
             return True
 
-        # If the asset doesn't contain this parameter and the value is different than default, then
-        # filter out the asset
-        if self.name_without_type not in asset.numeric_parameters:
-            return False
-
-        return self._range_start_get() < asset.numeric_parameters[self.name_without_type] < self._range_end_get()
-
-    def as_dict(self) -> typing.Dict:
-        return {self.name: {"min": self._range_start_get(), "max": self._range_end_get()}}
+        return super().filter_(asset)
 
     def _convert_to_num_type(self, value: typing.Union[int, float]) -> typing.Union[int, float]:
         return int(value) if self.is_int else float(value)
@@ -406,9 +282,6 @@ class NumericParameterFilter(bpy.types.PropertyGroup, Filter):
         self[self._range_start_name()] = self._convert_to_num_type(value)
         _any_filter_updated_event()
 
-    def _range_start_get(self):
-        return self._convert_to_num_type(self.get(self._range_start_name(), -1.0))
-
     def _range_end_set(self, value: float):
         if value > self.range_max:
             value = self.range_max
@@ -418,14 +291,26 @@ class NumericParameterFilter(bpy.types.PropertyGroup, Filter):
         self[self._range_end_name()] = self._convert_to_num_type(value)
         _any_filter_updated_event()
 
-    def _range_end_get(self):
+    @property
+    def range_start(self):
+        # OVERRIDES 'range_start' from 'mapr.filters.NumericParameterFilter'
+        return self._convert_to_num_type(self.get(self._range_start_name(), -1.0))
+
+    @property
+    def range_end(self):
+        # OVERRIDES 'range_end' from 'mapr.filters.NumericParameterFilter'
         return self._convert_to_num_type(self.get(self._range_end_name(), 1.0))
 
 
-MODULE_CLASSES.append(NumericParameterFilter)
+MODULE_CLASSES.append(BrowserNumericParameterFilter)
 
 
-class TagFilter(bpy.types.PropertyGroup, Filter):
+class BrowserTagFilter(
+    bpy.types.PropertyGroup,
+    mapr.filters.TagFilter,
+    BrowserFilter
+):
+    # OVERRIDES 'include' from 'mapr.filters.TagFilter'
     include: bpy.props.BoolProperty(
         update=lambda self, context: _any_filter_updated_event()
     )
@@ -448,17 +333,14 @@ class TagFilter(bpy.types.PropertyGroup, Filter):
         self.include = False
 
     def filter_(self, asset: mapr.asset.Asset) -> bool:
-        # Include asset if the values for this filter are close to default
+        # Include asset if the values for this filter are default
         if self.is_default():
             return True
 
-        return self.name_without_type in asset.tags
-
-    def as_dict(self) -> typing.Dict:
-        return {self.name: self.include}
+        return super().filter_(asset)
 
 
-MODULE_CLASSES.append(TagFilter)
+MODULE_CLASSES.append(BrowserTagFilter)
 
 
 class TextParameterValue(bpy.types.PropertyGroup):
@@ -472,7 +354,11 @@ class TextParameterValue(bpy.types.PropertyGroup):
 MODULE_CLASSES.append(TextParameterValue)
 
 
-class TextParameterFilter(bpy.types.PropertyGroup, Filter):
+class BrowserTextParameterFilter(
+    bpy.types.PropertyGroup,
+    mapr.filters.TextParameterFilter,
+    BrowserFilter
+):
     # Number of items when the text parameter filter becomes collapsible
     COLLAPSIBLE_DISPLAY_MIN_COUNT = 5
     # Max number of items before drawing is switched to column format
@@ -511,11 +397,11 @@ class TextParameterFilter(bpy.types.PropertyGroup, Filter):
             ).filter_name = self.name
 
         drawn_text_parameters = len(self.param_values) if not self.collapse else \
-            TextParameterFilter.COLLAPSIBLE_DISPLAY_MIN_COUNT
+            BrowserTextParameterFilter.COLLAPSIBLE_DISPLAY_MIN_COUNT
         not_shown_text_parameters_count = len(self.param_values) - drawn_text_parameters
 
         # Switch between row and column for small number of items
-        if len(self.param_values) <= TextParameterFilter.ROW_DISPLAY_MAX_COUNT:
+        if len(self.param_values) <= BrowserTextParameterFilter.ROW_DISPLAY_MAX_COUNT:
             items_layout = col.row(align=True)
         else:
             items_layout = col.column(align=True)
@@ -548,30 +434,52 @@ class TextParameterFilter(bpy.types.PropertyGroup, Filter):
         if self.is_default():
             return True
 
-        value = asset.text_parameters.get(self.name_without_type, None)
-        if value is None:
-            return False
+        return super().filter_(asset)
 
-        included_values = {v.name for v in self.param_values.values() if v.include}
-        return value in included_values
-
-    def as_dict(self) -> typing.Dict:
-        return {self.name: {name: param.include for name, param in self.param_values.items()}}
+    @property
+    def values(self):
+        # OVERRIDES the 'mapr.filters.TextParameterFilter.values' based on the current state
+        return {v.name for v in self.param_values.values() if v.include}
 
 
-MODULE_CLASSES.append(TextParameterFilter)
+MODULE_CLASSES.append(BrowserTextParameterFilter)
 
 
-class ColorParameterFilter(bpy.types.PropertyGroup, Filter):
-    DEFAULT_COLOR = (1.0, 1.0, 1.0)
+class BrowserVectorParameterFilter(
+    bpy.types.PropertyGroup,
+    mapr.filters.VectorParameterFilter,
+    BrowserFilter
+):
+    """Filters vector parameters. Provides user interface for various vector parameter types.
+
+    Vectors are filtered differently based on the vector type:
+    - Color - filtered based on perceptual color distance from the desired color
+    - Float - individual components filtered separately
+    - Int - filtered lexicographically
+
+    As bpy doesn't allow to dynamically change size of defined vector property this parameter filter
+    is limited to Vec3 parameters only. To support other vector sizes this has to be extended with
+    properties matching the desired size and logic switching between them based on the actual
+    parameter size.
+    """
+    DEFAULT_VALUE = (1.0, 1.0, 1.0)
     DEFAULT_DISTANCE = 0.2
 
-    color: bpy.props.FloatVectorProperty(
+    # one of mapr.known_metadata.VectorType
+    type_: bpy.props.EnumProperty(
+        items=[
+            (mapr.known_metadata.VectorType.FLOAT, "Float", "Float"),
+            (mapr.known_metadata.VectorType.INT, "Integer", "Integer"),
+            (mapr.known_metadata.VectorType.COLOR, "Color", "Color"),
+        ],
+        options={'HIDDEN'}
+    )
+    color_value: bpy.props.FloatVectorProperty(
         name="Color",
         subtype='COLOR',
         min=0.0,
         max=1.0,
-        default=DEFAULT_COLOR,
+        default=DEFAULT_VALUE,
         update=lambda self, context: _any_filter_updated_event()
     )
     distance: bpy.props.FloatProperty(
@@ -583,9 +491,31 @@ class ColorParameterFilter(bpy.types.PropertyGroup, Filter):
         description="Distance from desired to compared color as computed by CIEDE2000 formula.",
     )
 
+    range_start: bpy.props.FloatVectorProperty(
+        get=lambda self: self._range_start_get(),
+        set=lambda self, value: self._range_start_set(value)
+    )
+    range_end: bpy.props.FloatVectorProperty(
+        get=lambda self: self._range_end_get(),
+        set=lambda self, value: self._range_end_set(value),
+    )
+
+    range_min: bpy.props.FloatVectorProperty(options={'HIDDEN'})
+    range_max: bpy.props.FloatVectorProperty(options={'HIDDEN'})
+
     def init(self, parameter_meta: mapr.parameter_meta.VectorParameterMeta):
         self.name = parameter_meta.name
         self.name_without_type = mapr.parameter_meta.remove_type_from_name(self.name)
+        known_parameter = mapr.known_metadata.VECTOR_PARAMETERS.get(self.name_without_type, None)
+        if known_parameter is not None:
+            self.type_ = known_parameter.get("type", mapr.known_metadata.VectorType.FLOAT)
+        else:
+            self.type_ = mapr.known_metadata.VectorType.FLOAT
+
+        self.range_min = parameter_meta.min_
+        self.range_max = parameter_meta.max_
+        self._range_start_set(self.range_min)
+        self._range_end_set(self.range_max)
 
     def draw(self, context: bpy.types.Context, layout: bpy.types.UILayout) -> None:
         col = layout.column()
@@ -603,69 +533,129 @@ class ColorParameterFilter(bpy.types.PropertyGroup, Filter):
                 emboss=False
             ).filter_name = self.name
 
-        col.prop(self, "color", text="")
-        col.prop(self, "distance")
+        if self.type_ == mapr.known_metadata.VectorType.COLOR:
+            col.prop(self, "color_value", text="")
+            col.prop(self, "distance")
+        elif self.type_ in {mapr.known_metadata.VectorType.FLOAT, mapr.known_metadata.VectorType.INT}:
+            col.prop(self, "range_start", text="Min")
+            col.prop(self, "range_end", text="Max")
 
     def is_default(self) -> bool:
         # For some reason I had to lower the 'rel_tol' for the self.distance 'isclose' check to pass
-        return tuple(self.color) == ColorParameterFilter.DEFAULT_COLOR and \
-            math.isclose(self.distance, ColorParameterFilter.DEFAULT_DISTANCE, rel_tol=1e-6)
+        if self.type_ == mapr.known_metadata.VectorType.COLOR:
+            return tuple(self.color_value) == BrowserVectorParameterFilter.DEFAULT_VALUE and \
+                math.isclose(
+                    self.distance, BrowserVectorParameterFilter.DEFAULT_DISTANCE, rel_tol=1e-6)
+        elif self.type_ in {mapr.known_metadata.VectorType.FLOAT, mapr.known_metadata.VectorType.INT}:
+            return math.isclose(self.range_start[0], self.range_min[0]) and \
+                math.isclose(self.range_start[1], self.range_min[1]) and \
+                math.isclose(self.range_start[2], self.range_min[2]) and \
+                math.isclose(self.range_end[0], self.range_max[0]) and \
+                math.isclose(self.range_end[1], self.range_max[1]) and \
+                math.isclose(self.range_end[2], self.range_max[2])
+        else:
+            raise ValueError(f"Unknown vector type {self.type_}")
 
     def reset(self) -> None:
         super().reset()
-        self.color = ColorParameterFilter.DEFAULT_COLOR
-        self.distance = ColorParameterFilter.DEFAULT_DISTANCE
+        self.color_value = BrowserVectorParameterFilter.DEFAULT_VALUE
+        self.distance = BrowserVectorParameterFilter.DEFAULT_DISTANCE
+        self._range_start_set(self.range_min)
+        self._range_end_set(self.range_max)
 
     def filter_(self, asset: mapr.asset.Asset) -> bool:
         # Include asset if the values for this filter are close to default
         if self.is_default():
             return True
 
-        asset_color = asset.color_parameters.get(self.name_without_type, None)
-        if asset_color is None:
-            return False
+        return super().filter_(asset)
 
-        return polib.color_utils.perceptual_color_distance(self.color, asset_color) <= self.distance
+    def _clamp_value(self, value: mathutils.Vector) -> mathutils.Vector:
+        # Clamp values to range min, max
+        for i in range(len(value)):
+            if value[i] < self.range_min[i]:
+                value[i] = self.range_min[i]
 
-    def as_dict(self) -> typing.Dict:
-        return {self.name: (tuple(self.color), self.distance)}
+            if value[i] > self.range_max[i]:
+                value[i] = self.range_max[i]
+
+        return value
+
+    def _range_start_get(self):
+        return self.get("range_start", mathutils.Vector((-1.0, -1.0, -1.0)))
+
+    def _range_end_get(self):
+        return self.get("range_end", mathutils.Vector((1.0, 1.0, 1.0)))
+
+    def _range_start_set(self, value: typing.Tuple):
+        self["range_start"] = self._clamp_value(mathutils.Vector(value))
+        _any_filter_updated_event()
+
+    def _range_end_set(self, value: typing.Tuple):
+        self["range_end"] = self._clamp_value(mathutils.Vector(value))
+        _any_filter_updated_event()
+
+    @property
+    def comparator(self) -> mapr.filters.VectorComparator:
+        # OVERRIDES 'comparator' from 'mapr.filters.VectorParameterFilter'
+        if self.type_ == mapr.known_metadata.VectorType.COLOR:
+            return mapr.filters.VectorDistanceComparator(
+                self.color_value,
+                self.distance,
+                (polib.color_utils.perceptual_color_distance, "perceptual_color")
+            )
+        elif self.type_ == mapr.known_metadata.VectorType.INT:
+            return mapr.filters.VectorLexicographicComparator(self.range_start, self.range_end)
+        elif self.type_ == mapr.known_metadata.VectorType.FLOAT:
+            return mapr.filters.VectorComponentWiseComparator(self.range_start, self.range_end)
+        else:
+            raise ValueError(f"Unsupported vector type {self.type_}")
 
 
-MODULE_CLASSES.append(ColorParameterFilter)
+MODULE_CLASSES.append(BrowserVectorParameterFilter)
 
 
-class AssetTypesFilter(bpy.types.PropertyGroup, Filter):
+class BrowserAssetTypesFilter(
+    bpy.types.PropertyGroup,
+    mapr.filters.AssetTypesFilter,
+    BrowserFilter
+):
     enabled: bpy.props.BoolProperty(
         get=lambda _: True,
         set=lambda _, __: None
     )
+
+    # OVERRIDES 'model' from 'mapr.filters.AssetTypesFilter'
     model: bpy.props.BoolProperty(
         name="Model",
         default=False,
         update=lambda self, context: _any_filter_updated_event()
     )
+    # OVERRIDES 'material' from 'mapr.filters.AssetTypesFilter'
     material: bpy.props.BoolProperty(
         name="Material",
         default=False,
         update=lambda self, context: _any_filter_updated_event()
     )
+    # OVERRIDES 'particle_system' from 'mapr.filters.AssetTypesFilter'
     particle_system: bpy.props.BoolProperty(
         name="Particle System",
         default=False,
         update=lambda self, context: _any_filter_updated_event()
     )
+    # OVERRIDES 'scene' from 'mapr.filters.AssetTypesFilter'
     scene: bpy.props.BoolProperty(
         name="Scene",
         default=False,
         update=lambda self, context: _any_filter_updated_event()
     )
-
+    # OVERRIDES 'world' from 'mapr.filters.AssetTypesFilter'
     world: bpy.props.BoolProperty(
         name="World",
         default=False,
         update=lambda self, context: _any_filter_updated_event()
     )
-
+    # OVERRIDES 'geometry_nodes' from 'mapr.filters.AssetTypesFilter'
     geometry_nodes: bpy.props.BoolProperty(
         name="Geometry Nodes",
         default=False,
@@ -673,9 +663,8 @@ class AssetTypesFilter(bpy.types.PropertyGroup, Filter):
     )
 
     def init(self):
-        self.name = "builtin:asset_types"
-        self.name_without_type = "asset_types"
         self.enabled = True
+        self.name = "builtin:asset_types"
 
     def draw(self, context: bpy.types.Context, layout: bpy.types.UILayout) -> None:
         layout.prop(self, "model", icon_only=True, icon='OBJECT_DATA')
@@ -696,15 +685,7 @@ class AssetTypesFilter(bpy.types.PropertyGroup, Filter):
         if self.is_default():
             return True
 
-        type_ = asset.type_
-        return any([
-            type_ == mapr.asset_data.AssetDataType.blender_model and self.model,
-            type_ == mapr.asset_data.AssetDataType.blender_material and self.material,
-            type_ == mapr.asset_data.AssetDataType.blender_particle_system and self.particle_system,
-            type_ == mapr.asset_data.AssetDataType.blender_scene and self.scene,
-            type_ == mapr.asset_data.AssetDataType.blender_world and self.world,
-            type_ == mapr.asset_data.AssetDataType.blender_geometry_nodes and self.geometry_nodes,
-        ])
+        return super().filter_(asset)
 
     def reset(self):
         super().reset()
@@ -718,30 +699,22 @@ class AssetTypesFilter(bpy.types.PropertyGroup, Filter):
     def is_default(self) -> bool:
         return not any(self._all)
 
-    def as_dict(self) -> typing.Dict:
-        return {self.name: self._all}
 
-    @property
-    def _all(self) -> typing.Tuple:
-        return (
-            self.model,
-            self.material,
-            self.particle_system,
-            self.scene,
-            self.world,
-            self.geometry_nodes
-        )
+MODULE_CLASSES.append(BrowserAssetTypesFilter)
 
 
-MODULE_CLASSES.append(AssetTypesFilter)
-
-
-class SearchFilter(bpy.types.PropertyGroup, Filter):
+class BrowserSearchFilter(
+    bpy.types.PropertyGroup,
+    mapr.filters.SearchFilter,
+    BrowserFilter
+):
     """Filters out items based on text input from user"""
     enabled: bpy.props.BoolProperty(
         get=lambda _: True,
         set=lambda _, __: None
     )
+
+    # OVERRIDES 'search' from 'mapr.filters.SearchFilter'
     search: bpy.props.StringProperty(
         name="Search",
         description="Space separated keywords to search for",
@@ -756,9 +729,8 @@ class SearchFilter(bpy.types.PropertyGroup, Filter):
     )
 
     def init(self):
-        self.name = "builtin:search"
-        self.name_without_type = "search"
         self.enabled = True
+        self.name = "builtin:search"
 
     def draw(self, context: bpy.types.Context, layout: bpy.types.UILayout) -> None:
         layout.prop_menu_enum(self, "recent_search", text="", icon='DOWNARROW_HLT')
@@ -775,32 +747,6 @@ class SearchFilter(bpy.types.PropertyGroup, Filter):
                 emboss=False
             ).filter_name = self.name
 
-    def filter_(self, asset: mapr.asset.Asset) -> bool:
-        # we make sure all needle keywords are present in given haystack for the haystack not to be
-        # filtered
-
-        needle_keywords: typing.Set[str] = getattr(type(self), "keywords", set())
-        if len(needle_keywords) == 0:
-            return True
-
-        match_found = False
-        for needle_keyword in needle_keywords:
-            for haystack_keyword, haystack_keyword_weight in asset.search_matter.items():
-                # TODO: We want to do relevancy scoring in the future but for that the entire
-                #       mechanism has be moved into MAPR API
-
-                # this is guaranteed by the API
-                assert haystack_keyword_weight > 0.0
-
-                if haystack_keyword.find(needle_keyword) >= 0:
-                    match_found = True
-                    break
-
-            if match_found:
-                break
-
-        return match_found
-
     def reset(self):
         super().reset()
         self.search = ""
@@ -809,20 +755,6 @@ class SearchFilter(bpy.types.PropertyGroup, Filter):
         return self.search == ""
 
     def search_updated(self, context: bpy.types.Context) -> None:
-        def translate_keywords(keywords: typing.Set[str]) -> typing.Set[str]:
-            # Be careful when adding new keywords as it will make impossible to find anything using the original keyword.
-            # E.g. if we'd have tag `hdr` it would not be possible to find it now. Or anything named `hdr_something` cannot be find by `hdr`
-            translator = {
-                "hdri": "world",
-                "hdr": "world"
-            }
-
-            ret: typing.Set[str] = set()
-            for kw in keywords:
-                ret.add(translator.get(kw, kw))
-
-            return ret
-
         # We store search history as class variable, we assume one instance of this class existing
         # at any point.
         cls = type(self)
@@ -838,10 +770,6 @@ class SearchFilter(bpy.types.PropertyGroup, Filter):
         while len(type(self).search_history) > history_count:
             cls.search_history.pop(0)
 
-        # Build keywords when search is updated and store for filtering afterwards
-        cls.keywords = translate_keywords(
-            {kw.lower() for kw in re.split(r"[ ,_\-]+", self.search) if kw != ""}
-        )
         _any_filter_updated_event()
 
     def get_recent_search_enum_items(
@@ -861,11 +789,13 @@ class SearchFilter(bpy.types.PropertyGroup, Filter):
         if self.recent_search != "":
             self.search = self.recent_search
 
-    def as_dict(self) -> typing.Dict:
-        return {self.name: self.search}
+    @property
+    def needle_keywords(self):
+        # OVERRIDES 'needle_keywords' from 'mapr.filters.SearchFilter'
+        return mapr.filters.SearchFilter.keywords_from_search(self.search)
 
 
-MODULE_CLASSES.append(SearchFilter)
+MODULE_CLASSES.append(BrowserSearchFilter)
 
 
 class FilterGroup(bpy.types.PropertyGroup):
@@ -875,7 +805,7 @@ class FilterGroup(bpy.types.PropertyGroup):
     group meta information and knows how to draw filter group given the filters.
     """
     # name is a default parameter of PropertyGroup, so we don't define it
-    collapsed: bpy.props.BoolProperty(name="Collapsed", default=False)
+    collapsed: bpy.props.BoolProperty(name="Collapsed", default=True)
 
     def get_nice_name(self) -> str:
         return mapr.known_metadata.format_parameter_name(self.name)
@@ -884,7 +814,7 @@ class FilterGroup(bpy.types.PropertyGroup):
         self,
         context: bpy.types.Context,
         layout: bpy.types.UILayout,
-        filters_: typing.List[Filter]
+        filters_: typing.List[BrowserFilter]
     ) -> None:
         box = layout.box()
         row = box.row()
@@ -915,8 +845,8 @@ class GroupedParametrizationFilters:
     """
 
     def __init__(self):
-        self.groups: typing.Dict[FilterGroup, Filter] = {}
-        self.ungrouped_filters: typing.List[Filter] = []
+        self.groups: typing.Dict[FilterGroup, BrowserFilter] = {}
+        self.ungrouped_filters: typing.List[BrowserFilter] = []
 
     def draw(self, context: bpy.types.Context, layout: bpy.types.UILayout) -> None:
         if len(self.filters) == 0:
@@ -934,17 +864,17 @@ class GroupedParametrizationFilters:
                 filter_.draw(context, col.box())
 
     @property
-    def filters(self) -> typing.List[Filter]:
+    def filters(self) -> typing.List[BrowserFilter]:
         return list(self.groups.values()) + self.ungrouped_filters
 
 
 class DynamicFilters(bpy.types.PropertyGroup):
-    numeric_filters: bpy.props.CollectionProperty(type=NumericParameterFilter)
-    tag_filters: bpy.props.CollectionProperty(type=TagFilter)
-    text_filters: bpy.props.CollectionProperty(type=TextParameterFilter)
-    color_filters: bpy.props.CollectionProperty(type=ColorParameterFilter)
-    search: bpy.props.PointerProperty(type=SearchFilter)
-    asset_types: bpy.props.PointerProperty(type=AssetTypesFilter)
+    numeric_filters: bpy.props.CollectionProperty(type=BrowserNumericParameterFilter)
+    tag_filters: bpy.props.CollectionProperty(type=BrowserTagFilter)
+    text_filters: bpy.props.CollectionProperty(type=BrowserTextParameterFilter)
+    vector_filters: bpy.props.CollectionProperty(type=BrowserVectorParameterFilter)
+    search: bpy.props.PointerProperty(type=BrowserSearchFilter)
+    asset_types: bpy.props.PointerProperty(type=BrowserAssetTypesFilter)
 
     filter_groups: bpy.props.CollectionProperty(type=FilterGroup)
 
@@ -955,21 +885,21 @@ class DynamicFilters(bpy.types.PropertyGroup):
         name="Sort Mode",
         description="Select mode by which to sort the result",
         items=[
-            (SortMode.ALPHABETICAL_ASC, "Name (A to Z)",
+            (mapr.query.SortMode.ALPHABETICAL_ASC, "Name (A to Z)",
              "Alphabetical order from A to Z", 'SORT_ASC', 0),
-            (SortMode.ALPHABETICAL_DESC, "Name (Z to A)",
+            (mapr.query.SortMode.ALPHABETICAL_DESC, "Name (Z to A)",
              "Reversed alphabetical order from Z to A", 'SORT_DESC', 1),
         ],
         update=lambda self, _: self._sort_mode_updated()
     )
 
     def query_and_reconstruct(self, category_id: mapr.category.CategoryID) -> None:
-        def _on_complete(view: DataView):
+        def _on_complete(view: mapr.asset_provider.DataView):
             self.reconstruct()
             self.reenable()
 
         asset_repository.query(
-            Query(
+            mapr.query.Query(
                 category_id,
                 self.filters.values(),
                 self.sort_mode
@@ -988,11 +918,11 @@ class DynamicFilters(bpy.types.PropertyGroup):
         self.search.init()
         self.asset_types.init()
 
-        current_view = asset_repository.get_current_view()
+        current_view = asset_repository.current_view
         filters_def = [
             (current_view.parameters_meta.numeric, self.numeric_filters, "NUMERIC_PARAMETERS"),
             (current_view.parameters_meta.text, self.text_filters, "TEXT_PARAMETERS"),
-            (current_view.parameters_meta.color, self.color_filters, "COLOR_PARAMETERS"),
+            (current_view.parameters_meta.vector, self.vector_filters, "VECTOR_PARAMETERS"),
             # Convert set of tags to mapping tag: tag, so we can use the same API
             ({tag: tag for tag in current_view.parameters_meta.unique_tags}, self.tag_filters, "TAGS")
         ]
@@ -1010,7 +940,7 @@ class DynamicFilters(bpy.types.PropertyGroup):
                     filter_.init(param_meta)
 
     def reenable(self):
-        current_view = asset_repository.get_current_view()
+        current_view = asset_repository.current_view
         for filter_ in self.filters.values():
             filter_.enabled = filter_.name in current_view.parameters_meta.unique_parameter_names
 
@@ -1019,14 +949,19 @@ class DynamicFilters(bpy.types.PropertyGroup):
         self.numeric_filters.clear()
         self.tag_filters.clear()
         self.text_filters.clear()
-        self.color_filters.clear()
+        self.vector_filters.clear()
+
+    def clear_and_reconstruct(self):
+        """Clears the parametrization filters and reconstructs based on last view in repository"""
+        self.clear()
+        self.reconstruct()
 
     def reset(self):
         """Resets all filters into the default state"""
         for filter_ in self.filters.values():
             filter_.reset()
 
-    def get_param_filter(self, filter_name: str) -> typing.Optional[Filter]:
+    def get_param_filter(self, filter_name: str) -> typing.Optional[BrowserFilter]:
         return self.filters.get(filter_name, None)
 
     def get_grouped_parametrization_filters(self) -> GroupedParametrizationFilters:
@@ -1068,8 +1003,7 @@ class DynamicFilters(bpy.types.PropertyGroup):
         return grouped_filters
 
     @property
-    def filters(self) -> typing.Dict[str, Filter]:
-        # TODO: Use collections.ChainMap?
+    def filters(self) -> typing.Dict[str, BrowserFilter]:
         return {
             self.asset_types.name: self.asset_types,
             self.search.name: self.search,
@@ -1078,11 +1012,11 @@ class DynamicFilters(bpy.types.PropertyGroup):
         }
 
     @property
-    def parametrization_filters(self) -> typing.Dict[str, Filter]:
+    def parametrization_filters(self) -> typing.Dict[str, BrowserFilter]:
         return {
             **self.numeric_filters,
             **self.text_filters,
-            **self.color_filters
+            **self.vector_filters
         }
 
     def _sort_mode_updated(self) -> None:
@@ -1094,7 +1028,7 @@ class DynamicFilters(bpy.types.PropertyGroup):
             return
 
         # Replicate last query with a different sorting method
-        asset_repository.query(Query(
+        asset_repository.query(mapr.query.Query(
             last_query.category_id,
             last_query.filters,
             sort_mode=self.sort_mode,
@@ -1134,7 +1068,8 @@ MODULE_CLASSES.append(MAPR_BrowserResetFilter)
 def _draw_tags(context: bpy.types.Context, layout: bpy.types.UILayout):
     """Draws dynamic filter tags to 'layout' as pills that adjust width based on the region size"""
     dyn_filters = get_filters(context)
-    tag_filters: typing.List[TagFilter] = [x for x in dyn_filters.tag_filters if x.is_drawn()]
+    tag_filters: typing.List[BrowserTagFilter] = [
+        x for x in dyn_filters.tag_filters if x.is_drawn()]
 
     if len(tag_filters) == 0:
         row = layout.row()
@@ -1200,11 +1135,10 @@ def on_load_post(_):
     # to the browser state.
     filters_ = get_filters()
     filters_.reset()
-    filters_.query_and_reconstruct(asset_repository.get_current_category_id())
+    filters_.query_and_reconstruct(asset_repository.current_category_id)
 
 
 def register():
-
     for cls in MODULE_CLASSES:
         bpy.utils.register_class(cls)
 
@@ -1219,6 +1153,5 @@ def unregister():
     for cls in reversed(MODULE_CLASSES):
         bpy.utils.unregister_class(cls)
 
-    # TODO: Should we really clear here?
     asset_registry.instance.on_refresh.remove(on_registry_update)
     bpy.app.handlers.load_post.remove(on_load_post)

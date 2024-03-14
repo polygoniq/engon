@@ -1,9 +1,9 @@
 #!/usr/bin/python3
 # copyright (c) 2018- polygoniq xyz s.r.o.
 
+import dataclasses
 import typing
 import functools
-import collections
 from . import file_provider
 from . import asset_data
 from . import known_metadata
@@ -18,15 +18,18 @@ Tag = str
 # numeric parameters have values that can be sorted and compared - e.g. "Car Length" of 4.6 meters
 # then you can query all cars where a parameter is equal to something, in a certain range, lower
 # or higher than something, etc... For example I want a car with "Car Length" < 5 meters.
-NumericParameters = typing.Dict[str, float]
-# color parameters represent RGB (no alpha!) color. they cannot be sorted but can be queried for
-# proximity to another color (give me all assets where color is close to red)
-ColorParameters = typing.Dict[str, typing.Tuple[float, float, float]]
+NumericParameters = typing.Dict[str, typing.Union[float, int]]
+# vector parameters consist of same-length vector values for each parameter. Can be compared and
+# sorted. For example "released_in" > (5, 4, 0). The vector parameters can also contain
+# color parameters (RGB), sorting for those doesn't make sense, but proximity querying like (give
+# me all assets where color is close to red) does.
+VectorParameters = typing.Dict[str, typing.Union[typing.Tuple[float, ...], typing.Tuple[int, ...]]]
 # text parameters can have values that can only be compared for equality. for example
 # "Genus" = "Abies concolor", then you can query all assets where Genus = "Abies concolor".
 TextParameters = typing.Dict[str, str]
 
 
+@dataclasses.dataclass(frozen=True)
 class Asset:
     """Asset represents metadata of one separated, reusable piece that can be spawned into a scene
 
@@ -39,25 +42,24 @@ class Asset:
     Both Asset and AssetData instances are provided by the AssetProvider.
     """
 
-    def __init__(self):
-        self.id_: AssetID = ""
-        self.title: str = ""
-        # TODO: type_ is here as well as in asset_data that's referencing this
-        self.type_: asset_data.AssetDataType = asset_data.AssetDataType.unknown
-        self.preview_file: typing.Optional[file_provider.FileID] = None
+    id_: AssetID = ""
+    title: str = ""
+    # TODO: type_ is here as well as in asset_data that's referencing this
+    type_: asset_data.AssetDataType = asset_data.AssetDataType.unknown
+    preview_file: typing.Optional[file_provider.FileID] = None
 
-        self.tags: typing.Set[Tag] = set()
-        self.numeric_parameters: NumericParameters = dict()
-        self.color_parameters: ColorParameters = dict()
-        self.text_parameters: TextParameters = dict()
+    tags: typing.Set[Tag] = dataclasses.field(default_factory=set)
+    numeric_parameters: NumericParameters = dataclasses.field(default_factory=dict)
+    vector_parameters: VectorParameters = dataclasses.field(default_factory=dict)
+    text_parameters: TextParameters = dataclasses.field(default_factory=dict)
 
-    @property
+    @functools.cached_property
     def parameters(self) -> typing.Dict[str, typing.Any]:
-        """Numeric, color and text parameters combined in one dictionary."""
+        """Numeric, text and vector parameters combined in one dictionary."""
         return {
             **self.numeric_parameters,
-            **self.color_parameters,
-            **self.text_parameters
+            **self.text_parameters,
+            **self.vector_parameters
         }
 
     @functools.cached_property
@@ -96,9 +98,9 @@ class Asset:
             token = str(value).lower()
             ret[token] = max(search_weight, ret[token])
 
-        for name, value in self.color_parameters.items():
+        for name, value in self.vector_parameters.items():
             search_weight = \
-                float(known_metadata.COLOR_PARAMETERS.get(name, {}).get("search_weight", 1.0))
+                float(known_metadata.VECTOR_PARAMETERS.get(name, {}).get("search_weight", 1.0))
             if search_weight <= 0.0:
                 continue
             token = str(value).lower()

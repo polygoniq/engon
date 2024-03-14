@@ -67,7 +67,8 @@ def install_addon_zip(zip_file_path: str, module_name: str) -> None:
 
     # we do the actual update in the blender event loop to avoid crashes in case
     # grumpy_cat is updating itself
-    bpy.app.timers.register(lambda: refresh_and_enable(module_name), first_interval=0)
+    bpy.app.timers.register(
+        lambda: refresh_and_enable(module_name), first_interval=0, persistent=True)
 
 
 def uninstall_addon_module_name(module_name: str) -> None:

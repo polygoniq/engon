@@ -150,7 +150,10 @@ class BotaniqPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
 
     def draw_header_preset(self, context: bpy.types.Context) -> None:
         polib.ui_bpy.draw_doc_button(
-            self.layout, preferences.__package__, rel_url="panels/botaniq/panel_overview")
+            self.layout,
+            polib.utils_bpy.get_top_level_package_name(__package__),
+            rel_url="panels/botaniq/panel_overview"
+        )
 
     def draw(self, context: bpy.types.Context):
         pass
@@ -405,7 +408,7 @@ class AnimationsPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
             split.label(text="Strength:")
             split.label(text=f"{wind_strength:.3f}x")
 
-        if animation_style == preferences.WindStyle.LOOP:
+        if animation_style == preferences.botaniq_preferences.WindStyle.LOOP:
             frame_range = animations.get_frame_range(action)
             if frame_range is not None:
                 # Loop Interval

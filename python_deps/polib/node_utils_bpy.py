@@ -189,7 +189,8 @@ def find_incoming_nodes(node: bpy.types.Node) -> typing.Set[bpy.types.Node]:
 def find_link_connected_to(
     links: typing.Iterable[bpy.types.NodeLink],
     to_node: bpy.types.Node,
-    to_socket_name: str
+    to_socket_name: str,
+    skip_reroutes: bool = False
 ) -> typing.Optional[bpy.types.NodeLink]:
     """Find the link connected to given target node (to_node) to given socket name (to_socket_name)
 
@@ -203,6 +204,9 @@ def find_link_connected_to(
             continue
         if to_socket_name != link.to_socket.name:
             continue
+
+        if skip_reroutes and isinstance(link.from_node, bpy.types.NodeReroute):
+            return find_link_connected_to(links, link.from_node, link.from_node.inputs[0].name)
 
         ret.append(link)
 
@@ -435,9 +439,9 @@ class NodeSocketsDrawTemplate:
             if i >= draw_max_first_occurrences:
                 break
 
-            inputs_set = set(filter(is_drawable_node_input, group.inputs))
+            inputs = list(filter(is_drawable_node_input, group.inputs))
             self._draw_template(
-                inputs_set,
+                inputs,
                 lambda input_: layout.row().prop(input_, "default_value", text=input_.name)
             )
 
@@ -451,20 +455,20 @@ class NodeSocketsDrawTemplate:
             layout.label(text=f"No '{self.name}' nodegroup found", icon='INFO')
             return
 
-        inputs_set = set(filter(is_drawable_node_tree_input, get_node_tree_inputs(mod.node_group)))
+        inputs = list(filter(is_drawable_node_tree_input, get_node_tree_inputs(mod.node_group)))
         self._draw_template(
-            inputs_set,
+            inputs,
             lambda input_: draw_modifier_input(layout, mod, input_)
         )
 
     def _draw_template(
         self,
-        inputs_set: typing.Set[NodeSocketInterfaceCompat] | typing.Set[bpy.types.NodeSocket],
+        inputs: typing.List[NodeSocketInterfaceCompat] | typing.List[bpy.types.NodeSocket],
         draw_function: typing.Callable[[NodeSocketInterfaceCompat | bpy.types.NodeSocket], None]
     ) -> None:
         already_drawn = set()
         if self.socket_names_drawn_first is not None:
-            socket_name_to_input_map = {input_.name.lower(): input_ for input_ in inputs_set}
+            socket_name_to_input_map = {input_.name.lower(): input_ for input_ in inputs}
             for name in self.socket_names_drawn_first:
                 input_ = socket_name_to_input_map.get(name.lower(), None)
                 if input_ is None:
@@ -472,9 +476,8 @@ class NodeSocketsDrawTemplate:
                 already_drawn.add(input_)
                 draw_function(input_)
 
-        to_be_drawn = inputs_set - already_drawn
-        for input_ in to_be_drawn:
-            if self.filter_(input_):
+        for input_ in inputs:
+            if input_ not in already_drawn and self.filter_(input_):
                 draw_function(input_)
 
 

@@ -1,25 +1,24 @@
 #!/usr/bin/python3
 # copyright (c) 2018- polygoniq xyz s.r.o.
 
+import dataclasses
 import typing
-from . import file_provider
 import logging
+from . import file_provider
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
 CategoryID = str
 
 
+@dataclasses.dataclass(frozen=True)
 class Category:
-    def __init__(self):
-        self.id_: CategoryID = ""
-        self.title: str = ""
-        self.preview_file: typing.Optional[file_provider.FileID] = None
+    id_: CategoryID = ""
+    title: str = ""
+    preview_file: typing.Optional[file_provider.FileID] = None
 
 
-DEFAULT_ROOT_CATEGORY = Category()
-DEFAULT_ROOT_CATEGORY.id_ = "/"
-DEFAULT_ROOT_CATEGORY.title = "All"
+DEFAULT_ROOT_CATEGORY = Category(id_="/", title="All")
 
 
 def infer_parent_category_id(
