@@ -104,12 +104,12 @@ finally:
 bl_info = {
     "name": "engon",
     "author": "polygoniq xyz s.r.o.",
-    "version": (1, 0, 2),  # bump doc_url as well!
+    "version": (1, 0, 3),  # bump doc_url as well!
     "blender": (3, 3, 0),
     "location": "polygoniq tab in the sidebar of the 3D View window",
     "description": "",
     "category": "Object",
-    "doc_url": "https://docs.polygoniq.com/engon/1.0.2/",
+    "doc_url": "https://docs.polygoniq.com/engon/1.0.3/",
     "tracker_url": "https://polygoniq.com/discord/"
 }
 
@@ -136,7 +136,7 @@ def register():
 
     # We need to call the first pack refresh manually, then it's called when paths change
     bpy.app.timers.register(
-        lambda: preferences.get_preferences(bpy.context).refresh_packs(),
+        lambda: preferences.prefs_utils.get_preferences(bpy.context).refresh_packs(),
         first_interval=0,
         # This is important. If an existing blend file is opened with double-click or on command
         # line with e.g. "blender.exe path/to/blend", this register() is called in the startup blend
@@ -146,7 +146,7 @@ def register():
     )
 
     # Make engon preferences open after first registration
-    prefs = preferences.get_preferences(bpy.context)
+    prefs = preferences.prefs_utils.get_preferences(bpy.context)
     if prefs.first_time_register:
         polib.ui_bpy.expand_addon_prefs(__package__)
         prefs.first_time_register = False
@@ -173,3 +173,7 @@ def unregister():
             del sys.modules[module_name]
 
     addon_updater_ops.unregister()
+
+    # We clear the master 'polib' icon manager to prevent ResourceWarning and leaks.
+    # If other addons uses the icon_manager, the previews will be reloaded on demand.
+    polib.ui_bpy.icon_manager.clear()

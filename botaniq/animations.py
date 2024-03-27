@@ -55,25 +55,25 @@ LOOPING_STACK_STATUS = [('CYCLES', True), ('GENERATOR', False), ('NOISE', False)
 WIND_ANIMATION_FCURVE_UI_MODS = ['ENVELOPE', 'LIMITS']
 
 
-def load_helper_object_names() -> typing.Set[str]:
-    path = preferences.get_preferences(bpy.context).botaniq_preferences.animation_data_path
-    if path is None:
-        return set()
+def get_animation_library_path() -> str:
+    animation_library_path = asset_helpers.get_asset_pack_library_path(
+        "botaniq",  asset_helpers.BQ_ANIM_LIBRARY_BLEND)
+    if animation_library_path is None:
+        raise RuntimeError("Animation library of botaniq not found!")
+    return animation_library_path
 
-    with bpy.data.libraries.load(path) as (data_from, _):
+
+def load_helper_object_names(animation_library_path: str) -> typing.Set[str]:
+    with bpy.data.libraries.load(animation_library_path) as (data_from, _):
         return set(data_from.objects)
 
 
 def link_animation_data(
-    animation_type: str
+    animation_type: str,
+    animation_library_path: str
 ) -> typing.Tuple[bpy.types.Library, bpy.types.Collection, typing.List[bpy.types.Action]]:
     anim_data_collection_name = f"bq_Animation-Data_{animation_type}"
-    anim_lib_path = preferences.get_preferences(bpy.context).botaniq_preferences.animation_data_path
-    if anim_lib_path is None:
-        raise RuntimeError(
-            "Can't link animation data, couldn't find any asset pack with botaniq engon feature "
-            "that has a bq_Library_Animation_Data.blend file in blends/model folder.")
-    anim_lib_basename = os.path.basename(anim_lib_path)
+    anim_lib_basename = os.path.basename(animation_library_path)
     old_anim_lib = bpy.data.libraries.get(anim_lib_basename, None)
 
     # We reload the library every time to get the latest data and prevent ReferenceError if the
@@ -81,7 +81,7 @@ def link_animation_data(
     if old_anim_lib is not None:
         old_anim_lib.reload()
 
-    with bpy.data.libraries.load(anim_lib_path, link=True) as (data_from, data_to):
+    with bpy.data.libraries.load(animation_library_path, link=True) as (data_from, data_to):
         assert anim_data_collection_name in data_from.collections
         data_to.collections = [anim_data_collection_name]
         data_to.actions = [x for x in data_from.actions if x.startswith(
@@ -581,15 +581,18 @@ def change_anim_style(
             change_anim_style_of_action(helper_obj.animation_data.action, style)
 
 
-def change_preset(obj: bpy.types.Object, preset: str, strength: float) -> int:
+def change_preset(
+    obj: bpy.types.Object,
+    preset: str,
+    strength: float,
+    animation_library_path: str
+) -> int:
     """Changes preset of 'obj' by switching the action of the same animation type to 'preset'
     """
     anim_type, _ = parse_action_name(obj.animation_data.action)
-    anim_library_path = preferences.get_preferences(
-        bpy.context).botaniq_preferences.animation_data_path
-    anim_library = bpy.data.libraries.get(os.path.basename(anim_library_path), None)
+    anim_library = bpy.data.libraries.get(os.path.basename(animation_library_path), None)
     if anim_library is None:
-        anim_library, _, _ = link_animation_data(anim_type)
+        anim_library, _, _ = link_animation_data(anim_type, animation_library_path)
 
     assert anim_library is not None
 
@@ -610,7 +613,8 @@ def change_preset(obj: bpy.types.Object, preset: str, strength: float) -> int:
             old_frame_interval = int(old_frame_range[1] - old_frame_range[0])
 
     # Reset the helper objects, as the main animated objects is reset to default by changing its action
-    helper_objs = list(get_animated_objects_hierarchy(obj, load_helper_object_names()))
+    helper_objs = list(
+        get_animated_objects_hierarchy(obj, load_helper_object_names(animation_library_path)))
     for helper_obj in helper_objs:
         if helper_obj.animation_data is not None and helper_obj.animation_data.action is not None:
             set_animation_frame_range(helper_obj, ANIMATION_DEFAULT_FPS, ANIMATION_DEFAULT_INTERVAL)
@@ -632,7 +636,7 @@ def change_preset(obj: bpy.types.Object, preset: str, strength: float) -> int:
 class AnimationOperatorBase(bpy.types.Operator):
     @staticmethod
     def get_target_objects(context: bpy.types.Context) -> typing.Iterable[bpy.types.Object]:
-        wind_properties = preferences.get_preferences(
+        wind_properties = preferences.prefs_utils.get_preferences(
             context).botaniq_preferences.wind_anim_properties
 
         if wind_properties.operator_target == 'SELECTED':
@@ -649,7 +653,7 @@ class AnimationOperatorBase(bpy.types.Operator):
         return context.window_manager.invoke_props_dialog(self)
 
     def draw(self, context: bpy.types.Context) -> None:
-        wind_properties = preferences.get_preferences(
+        wind_properties = preferences.prefs_utils.get_preferences(
             context).botaniq_preferences.wind_anim_properties
         self.layout.prop(wind_properties, "operator_target", text="")
 
@@ -674,7 +678,8 @@ class AnimationAddWind(bpy.types.Operator):
     def draw(self, context: bpy.types.Context):
         layout = self.layout
         layout.use_property_split = True
-        props = preferences.get_preferences(context).botaniq_preferences.wind_anim_properties
+        props = preferences.prefs_utils.get_preferences(
+            context).botaniq_preferences.wind_anim_properties
         layout.prop(props, "animation_type", text="Animation Type")
         layout.prop(props, "auto_make_instance")
 
@@ -766,6 +771,7 @@ class AnimationAddWind(bpy.types.Operator):
     def prepare_animation_data(
         self,
         unique_animation_types: typing.Set[str],
+        animation_library_path: str
     ) -> typing.Dict[str, str]:
         """Loads animation data for 'unique_animation_types' and returns map to modifier stack names.
 
@@ -774,7 +780,7 @@ class AnimationAddWind(bpy.types.Operator):
         animation_type_data_map = {}
         modifier_container = None
         for animation_type in unique_animation_types:
-            _, anim_collection, _ = link_animation_data(animation_type)
+            _, anim_collection, _ = link_animation_data(animation_type, animation_library_path)
             for obj in anim_collection.objects:
                 if obj.name.startswith(MODIFIER_STACK_NAME_PREFIX):
                     modifier_container = obj
@@ -847,7 +853,8 @@ class AnimationAddWind(bpy.types.Operator):
         objs: typing.Iterable[bpy.types.Object],
         obj_source_map: asset_helpers.ObjectSourceMap,
         modifier_container_name: str,
-        make_instance: bool
+        make_instance: bool,
+        animation_library_path: str
     ) -> typing.List[str]:
         animated_object_names: typing.List[str] = []
 
@@ -874,10 +881,11 @@ class AnimationAddWind(bpy.types.Operator):
                 empties_coll = obj.users_collection[0]
 
             copy_driving_empties(modifier_container, obj, empties_coll)
-            change_preset(obj, DEFAULT_PRESET.value, DEFAULT_WIND_STRENGTH)
+            change_preset(obj, DEFAULT_PRESET.value, DEFAULT_WIND_STRENGTH, animation_library_path)
             # Adjust the frame interval to scene fps to maintain default speed
             set_animation_frame_range(obj, fps, fps_adjusted_interval)
-            helper_objs = get_animated_objects_hierarchy(obj, load_helper_object_names())
+            helper_objs = get_animated_objects_hierarchy(
+                obj, load_helper_object_names(animation_library_path))
             change_anim_style(obj, helper_objs,
                               preferences.botaniq_preferences.WindStyle.PROCEDURAL)
 
@@ -914,7 +922,7 @@ class AnimationAddWind(bpy.types.Operator):
         )
 
     def execute(self, context: bpy.types.Context):
-        prefs = preferences.get_preferences(context).botaniq_preferences
+        prefs = preferences.prefs_utils.get_preferences(context).botaniq_preferences
         props = prefs.wind_anim_properties
         selected_objects = context.selected_objects
         auto_make_instance: bool = prefs.wind_anim_properties.auto_make_instance
@@ -922,6 +930,8 @@ class AnimationAddWind(bpy.types.Operator):
         logger.info(
             f"Working on {[obj.name for obj in selected_objects]}, "
             f"auto make instance set to {auto_make_instance}")
+
+        animation_library_path = get_animation_library_path()
 
         for obj in selected_objects:
             if any(polib.asset_pack_bpy.is_pps(ps.name) for ps in obj.particle_systems) and auto_make_instance:
@@ -967,7 +977,7 @@ class AnimationAddWind(bpy.types.Operator):
                 props.animation_type
             )
             animation_type_mod_container_name_map = self.prepare_animation_data(
-                set(animation_type_objs_map))
+                set(animation_type_objs_map), animation_library_path)
 
             # Firstly deselect all
             polib.asset_pack_bpy.clear_selection(context)
@@ -980,7 +990,8 @@ class AnimationAddWind(bpy.types.Operator):
                     objs,
                     objs_source_map,
                     mod_container_name,
-                    auto_make_instance
+                    auto_make_instance,
+                    animation_library_path
                 ))
 
         finally:
@@ -1065,8 +1076,10 @@ class AnimationRemoveWind(bpy.types.Operator):
             root_obj.animation_data_clear()
 
     def execute(self, context: bpy.types.Context):
+        animation_library_path = get_animation_library_path()
+
         removed_animation_object_names = []
-        helper_object_names = load_helper_object_names()
+        helper_object_names = load_helper_object_names(animation_library_path)
 
         logger.info(f"Working on {[obj.name for obj in context.selected_objects]}")
 
@@ -1115,10 +1128,12 @@ class AnimationMute(AnimationOperatorBase):
         super().draw(context)
 
     def execute(self, context: bpy.types.Context):
+        animation_library_path = get_animation_library_path()
+
         target_objects = AnimationMute.get_target_objects(context)
         botaniq_animated_objs = list(get_animated_objects(target_objects, include_muted=True))
         logger.info(f"Working on objects {[obj.name for obj in botaniq_animated_objs]}")
-        helper_object_names = load_helper_object_names()
+        helper_object_names = load_helper_object_names(animation_library_path)
         for obj in botaniq_animated_objs:
             obj_anim_hierarchy = get_animated_objects_hierarchy(
                 obj, helper_object_names, include_root=True)
@@ -1170,7 +1185,7 @@ class AnimationApplyStrength(AnimationOperatorBase):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context: bpy.types.Context):
-        wind_properties = preferences.get_preferences(
+        wind_properties = preferences.prefs_utils.get_preferences(
             context).botaniq_preferences.wind_anim_properties
         target_objects = AnimationOperatorBase.get_target_objects(context)
         animated_objects = list(get_animated_objects(target_objects))
@@ -1199,7 +1214,7 @@ class AnimationApplyPreset(AnimationOperatorBase):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context: bpy.types.Context):
-        wind_properties = preferences.get_preferences(
+        wind_properties = preferences.prefs_utils.get_preferences(
             context).botaniq_preferences.wind_anim_properties
         target_objects = AnimationOperatorBase.get_target_objects(context)
         animated_objects = list(get_animated_objects(target_objects))
@@ -1209,9 +1224,11 @@ class AnimationApplyPreset(AnimationOperatorBase):
         )
         fps = get_scene_fps(context.scene.render.fps, context.scene.render.fps_base)
 
+        animation_library_path = get_animation_library_path()
+
         for obj in animated_objects:
             old_frame_interval = change_preset(
-                obj, wind_properties.preset, wind_properties.strength)
+                obj, wind_properties.preset, wind_properties.strength, animation_library_path)
             set_animation_frame_range(obj, fps, old_frame_interval)
 
         return {'FINISHED'}
@@ -1228,7 +1245,7 @@ class AnimationApplyLoop(AnimationOperatorBase):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context: bpy.types.Context):
-        wind_properties = preferences.get_preferences(
+        wind_properties = preferences.prefs_utils.get_preferences(
             context).botaniq_preferences.wind_anim_properties
         loop_value = wind_properties.looping
 
@@ -1280,6 +1297,8 @@ class AnimationSetAnimStyle(AnimationOperatorBase):
         super().draw(context)
 
     def execute(self, context: bpy.types.Context):
+        animation_library_path = get_animation_library_path()
+
         if self.style == preferences.botaniq_preferences.WindStyle.PROCEDURAL.name:
             style_enum = preferences.botaniq_preferences.WindStyle.PROCEDURAL
         elif self.style == preferences.botaniq_preferences.WindStyle.LOOP.name:
@@ -1291,7 +1310,8 @@ class AnimationSetAnimStyle(AnimationOperatorBase):
         animated_objects = list(get_animated_objects(target_objects))
         logger.info(f"Working with objects {[obj.name for obj in animated_objects]}")
         for obj in animated_objects:
-            helper_objs = get_animated_objects_hierarchy(obj, load_helper_object_names())
+            helper_objs = get_animated_objects_hierarchy(
+                obj, load_helper_object_names(animation_library_path))
             change_anim_style(obj, helper_objs, style_enum)
 
         return {'FINISHED'}
@@ -1308,7 +1328,7 @@ class AnimationSetFrames(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context: bpy.types.Context):
-        wind_properties = preferences.get_preferences(
+        wind_properties = preferences.prefs_utils.get_preferences(
             context).botaniq_preferences.wind_anim_properties
         loop_value = wind_properties.looping
 
@@ -1541,7 +1561,9 @@ class AnimationBake(bpy.types.Operator):
         return context.window_manager.invoke_props_dialog(self, width=600)
 
     def execute(self, context: bpy.types.Context):
-        wind_properties = preferences.get_preferences(
+        animation_library_path = get_animation_library_path()
+
+        wind_properties = preferences.prefs_utils.get_preferences(
             context).botaniq_preferences.wind_anim_properties
         bake_folder = wind_properties.bake_folder
         if not os.path.isdir(bake_folder):
@@ -1560,7 +1582,8 @@ class AnimationBake(bpy.types.Operator):
             )
 
         # Remove modifiers animation, because the new object is going to be using the .abc data
-        AnimationRemoveWind.remove_animation(bake_obj, load_helper_object_names())
+        AnimationRemoveWind.remove_animation(
+            bake_obj, load_helper_object_names(animation_library_path))
         mod = bake_obj.modifiers.new("bq_Baked", 'MESH_SEQUENCE_CACHE')
         mod.read_data = {'VERT'}
 

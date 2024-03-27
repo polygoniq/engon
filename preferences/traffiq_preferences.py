@@ -20,10 +20,9 @@
 
 import bpy
 import typing
-import os
 import logging
 import polib
-from .. import asset_registry
+from .. import asset_helpers
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -94,17 +93,6 @@ MODULE_CLASSES.append(CarPaintProperties)
 
 class WearProperties(bpy.types.PropertyGroup):
     @staticmethod
-    def get_modifier_library_data_path() -> typing.Optional[str]:
-        # We don't cache this because in theory the registered packs could change
-        for pack in asset_registry.instance.get_packs_by_engon_feature("traffiq"):
-            modifier_library_path_candidate = os.path.join(
-                pack.install_path, "blends", "models", "tq_Library_Modifiers.blend")
-            if os.path.isfile(modifier_library_path_candidate):
-                return modifier_library_path_candidate
-
-        return None
-
-    @staticmethod
     def update_bumps_prop(context: bpy.types.Context, value: float):
         # Cache objects that support bumps
         bumps_objs = [
@@ -121,7 +109,10 @@ class WearProperties(bpy.types.PropertyGroup):
             # If modifier is not assigned to the object, append it from library
             if BUMPS_MODIFIER_NAME not in obj.modifiers:
                 if modifier_library_path is None:
-                    modifier_library_path = WearProperties.get_modifier_library_data_path()
+                    modifier_library_path = asset_helpers.get_asset_pack_library_path(
+                        "traffiq", asset_helpers.TQ_MODIFIER_LIBRARY_BLEND)
+                    if modifier_library_path is None:
+                        raise RuntimeError("Modifier library of traffiq not found!")
                 polib.asset_pack_bpy.append_modifiers_from_library(
                     BUMPS_MODIFIERS_CONTAINER_NAME, modifier_library_path, [obj])
                 logger.info(f"Added bumps modifier on: {obj.name}")

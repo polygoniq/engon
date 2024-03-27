@@ -161,7 +161,7 @@ class MaterialiqPanel(MaterialiqPanelMixin, bpy.types.Panel):
             row.operator("object.material_slot_deselect", text="Deselect")
 
     def draw(self, context: bpy.types.Context) -> None:
-        prefs = preferences.get_preferences(context).mapr_preferences
+        prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
         row = self.layout.row(align=True)
         row.label(text="Default Texture Size:")
         row = row.row()
@@ -194,7 +194,8 @@ class ToolsPanel(MaterialiqPanelMixin, bpy.types.Panel):
             textures.ChangeTextureSizeGlobal.bl_idname,
             property="max_size",
             text="All Materials",
-            icon='LIGHTPROBE_GRID')
+            icon='LIGHTPROBE_GRID' if bpy.app.version < (4, 1, 0) else 'LIGHTPROBE_VOLUME'
+        )
 
         row = box.column()
         row.enabled = textures.ChangeTextureSizeActiveMaterial.poll(context)
@@ -838,14 +839,20 @@ class DisplaySettingsPanel(MaterialiqPanelMixin, bpy.types.Panel):
             row = layout.row()
             row.enabled = False
             row.label(text="Cycles")
-            layout.prop(mat.cycles, "displacement_method", text="Displacement")
+            if bpy.app.version < (4, 1, 0):
+                layout.prop(mat.cycles, "displacement_method", text="Displacement")
+            else:
+                layout.prop(mat, "displacement_method", text="Displacement")
             return
 
         row = layout.row()
         row.enabled = False
         row.label(text="Cycles Surface")
         layout.prop(mat.cycles, "use_transparent_shadow")
-        layout.prop(mat.cycles, "displacement_method", text="Displacement")
+        if bpy.app.version < (4, 1, 0):
+            layout.prop(mat.cycles, "displacement_method", text="Displacement")
+        else:
+            layout.prop(mat, "displacement_method", text="Displacement")
         layout.separator()
         row = layout.row()
         row.enabled = False

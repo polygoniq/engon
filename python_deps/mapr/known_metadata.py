@@ -218,6 +218,15 @@ TEXT_PARAMETERS = {
         "description": "Conservation status of the species according to the IUCN",
         "search_weight": 0.0,
     },
+    "model_detail": {
+        "choices": [
+            "Low-poly",
+            "Mid-poly",
+            "High-poly",
+        ],
+        "description": "Polygonal resolution of model",
+        "search_weight": 0.0,
+    },
 }
 
 

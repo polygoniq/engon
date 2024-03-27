@@ -45,10 +45,13 @@ class InstallerOperation(enum.Enum):
 class InstallerStatus(enum.Enum):
     READY = "Ready"
     NOT_FOUND = "Not Found"
-    CANCELED = "Canceled"
     ABORTED = "Aborted"
     FINISHED = "Finished"
     NOT_READY = "Not Ready"
+    EXIT = "Exit"
+    # This status serves for our custom cancel button in versions before 4.1.0
+    # TODO: Remove this status when we drop support for Blender versions before 4.1.0
+    CANCELED = "Canceled"
 
 
 INSTALLER_OPERATION_DESCRIPTIONS: typing.Dict[InstallerStatus, str] = {
@@ -57,7 +60,8 @@ INSTALLER_OPERATION_DESCRIPTIONS: typing.Dict[InstallerStatus, str] = {
     InstallerStatus.CANCELED: "_ACTION_ was canceled.",
     InstallerStatus.ABORTED: "_ACTION_ was unsuccessful.",
     InstallerStatus.FINISHED: "_ACTION_ was successful.",
-    InstallerStatus.NOT_READY: "_ACTION_ is not ready to proceed. Resolve the issue(s) below."
+    InstallerStatus.NOT_READY: "_ACTION_ is not ready to proceed. Resolve the issue(s) below.",
+    InstallerStatus.EXIT: "Exited _ACTION_."
 }
 
 
@@ -290,6 +294,11 @@ class AssetPackInstaller:
         self._warning_messages.clear()
         self._error_messages.clear()
         self.status = InstallerStatus.CANCELED
+
+    def exit_installer_operation(self) -> None:
+        self._warning_messages.clear()
+        self._error_messages.clear()
+        self.status = InstallerStatus.EXIT
 
     def get_installer_status_description(self) -> str:
         """Return the status description containing the current operation name."""
@@ -754,4 +763,13 @@ class AssetPackInstallerDialogMixin:
 
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
         polib.ui_bpy.center_mouse(context)
+        # When the dialog is supposed to close, we don't want to show the OK and Cancel buttons
+        if self.check_should_dialog_close():
+            return context.window_manager.invoke_popup(self, width=550)
         return context.window_manager.invoke_props_dialog(self, width=550)
+
+    # Since Blender 4.1.0 there is a cancel button in the dialog window
+    # This method is called when the cancel button is clicked
+    # This method is also called when user clicks outside of the operator dialog window
+    def cancel(self, context: bpy.types.Context):
+        instance.exit_installer_operation()

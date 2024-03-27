@@ -71,7 +71,7 @@ class MAPR_BrowserSpawnAsset(bpy.types.Operator):
 
     @polib.utils_bpy.blender_cursor('WAIT')
     def execute(self, context: bpy.types.Context):
-        prefs = preferences.get_preferences(context).mapr_preferences
+        prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
         asset_provider = asset_registry.instance.master_asset_provider
         file_provider = asset_registry.instance.master_file_provider
         asset = asset_provider.get_asset(self.asset_id)
@@ -109,7 +109,7 @@ class MAPR_BrowserSpawnAsset(bpy.types.Operator):
         return {'FINISHED'}
 
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
-        prefs = preferences.get_preferences(context).mapr_preferences
+        prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
         asset_provider = asset_registry.instance.master_asset_provider
         asset = asset_provider.get_asset(self.asset_id)
         if asset is None:
@@ -134,7 +134,7 @@ class SpawnOptionsPopoverPanel(bpy.types.Panel):
     bl_region_type = 'HEADER'
 
     def draw(self, context: bpy.types.Context):
-        prefs = preferences.get_preferences(context)
+        prefs = preferences.prefs_utils.get_preferences(context)
         spawning_options = prefs.mapr_preferences.spawn_options
         layout = self.layout
         col = layout.column()

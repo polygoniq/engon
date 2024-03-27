@@ -41,4 +41,5 @@ def unregister():
     categories.unregister()
     filters.unregister()
 
-    del previews.manager_instance
+    # Delete the preview_manager to close the preview collection and allow previews to free
+    del previews.preview_manager

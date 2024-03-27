@@ -25,42 +25,23 @@ import typing
 import os
 import glob
 import json
-import math
-import mathutils
-import logging
 import polib
-import hatchery
-import mapr
+from . import prefs_utils
+from . import mapr_preferences
 from . import aquatiq_preferences
 from . import botaniq_preferences
 from . import traffiq_preferences
 from .. import asset_pack_installer
 from .. import pack_info_search_paths
 from .. import asset_registry
-from .. import asset_helpers
 from .. import keymaps
 from .. import ui_utils
-logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
 telemetry = polib.get_telemetry("engon")
 
 
 MODULE_CLASSES: typing.List[typing.Any] = []
-
-
-# Create alias to the custom property names, it makes code shorter and more readable
-CustomPropertyNames = polib.asset_pack_bpy.CustomPropertyNames
-
-
-DISPLAY_ENUM_ITEMS = (
-    ('BOUNDS', "Bounds", "Bounds, Display the bounds of the object"),
-    ('WIRE', "Wire", "Wire, Display the object as a wireframe"),
-    ('SOLID', "Solid",
-        "Solid, Display the object as a solid (if solid drawing is enabled in the viewport)"),
-    ('TEXTURED', "Textured",
-        "Textured, Display the object with textures (if textures are enabled in the viewport)"),
-)
 
 
 class ScatterProperties(bpy.types.PropertyGroup):
@@ -73,7 +54,7 @@ class ScatterProperties(bpy.types.PropertyGroup):
     # Used to change visibility of instance collection in active particle system
     active_display_type: bpy.props.EnumProperty(
         name="Display As",
-        items=DISPLAY_ENUM_ITEMS,
+        items=prefs_utils.SCATTER_DISPLAY_ENUM_ITEMS,
         default='TEXTURED',
         update=lambda self, context: self.active_display_type_updated(context)
     )
@@ -81,7 +62,7 @@ class ScatterProperties(bpy.types.PropertyGroup):
     # Change Visibility operator global properties
     display_type: bpy.props.EnumProperty(
         name="Display As",
-        items=DISPLAY_ENUM_ITEMS,
+        items=prefs_utils.SCATTER_DISPLAY_ENUM_ITEMS,
         default='TEXTURED'
     )
 
@@ -113,13 +94,6 @@ class GeneralPreferences(bpy.types.PropertyGroup):
         default=0,
     )
 
-    remove_duplicates: bpy.props.BoolProperty(
-        name="Remove Duplicates",
-        description="Automatically merges duplicate materials, node groups "
-        "and images into one. Saves memory",
-        default=True,
-    )
-
     show_asset_packs: bpy.props.BoolProperty(
         description="Show/Hide Asset Packs",
         default=True
@@ -144,19 +118,6 @@ class GeneralPreferences(bpy.types.PropertyGroup):
         type=ScatterProperties,
         name="Scatter Properties"
     )
-
-    @staticmethod
-    def get_main_material_library(addon_name: str, library_blend: str) -> typing.Optional[str]:
-        # We need to specify the library blend as well, because some asset packs (i.e. evermotion)
-        # share the same engon features but have their own material library.
-        for addon in asset_registry.instance.get_packs_by_engon_feature(addon_name):
-            # TODO: The material library should be present in the root folder, we should unify this
-            for blend_folder_candidate in ["blends", "blends/models"]:
-                material_library_path_candidate = \
-                    os.path.join(addon.install_path, blend_folder_candidate, library_blend)
-                if os.path.isfile(material_library_path_candidate):
-                    return material_library_path_candidate
-        return None
 
     def add_new_pack_info_search_path(
         self,
@@ -278,7 +239,7 @@ MODULE_CLASSES.append(GeneralPreferences)
 
 
 def pack_info_search_path_list_ensure_valid_index(context: bpy.types.Context) -> None:
-    prefs = get_preferences(context)
+    prefs = prefs_utils.get_preferences(context)
     min_index = 0
     max_index = len(prefs.general_preferences.pack_info_search_paths) - 1
 
@@ -305,7 +266,7 @@ class PackInfoSearchPathList_Export(bpy.types.Operator, bpy_extras.io_utils.Expo
     )
 
     def execute(self, context: bpy.types.Context):
-        prefs = get_preferences(context)
+        prefs = prefs_utils.get_preferences(context)
         search_paths_dict = prefs.general_preferences.get_search_paths_as_dict()
         data_out = json.dumps(search_paths_dict, indent=4)
         with open(self.filepath, "w") as outf:
@@ -330,7 +291,7 @@ class PackInfoSearchPathList_Import(bpy.types.Operator, bpy_extras.io_utils.Impo
     )
 
     def execute(self, context: bpy.types.Context):
-        prefs = get_preferences(context)
+        prefs = prefs_utils.get_preferences(context)
         with open(self.filepath) as f:
             data_in = json.load(f)
             prefs.general_preferences.add_search_paths_from_dict(data_in)
@@ -350,7 +311,7 @@ class PackInfoSearchPathList_OT_AddItem(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context: bpy.types.Context):
-        prefs = get_preferences(context)
+        prefs = prefs_utils.get_preferences(context)
         prefs.general_preferences.add_new_pack_info_search_path()
 
         return {'FINISHED'}
@@ -369,11 +330,11 @@ class PackInfoSearchPathList_OT_DeleteItem(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context):
-        prefs = get_preferences(context)
+        prefs = prefs_utils.get_preferences(context)
         return len(prefs.general_preferences.pack_info_search_paths) > 0
 
     def execute(self, context: bpy.types.Context):
-        prefs = get_preferences(context)
+        prefs = prefs_utils.get_preferences(context)
         the_list = prefs.general_preferences.pack_info_search_paths
         index = prefs.general_preferences.pack_info_search_path_index
         if index > 0:
@@ -412,11 +373,11 @@ class PackInfoSearchPathList_OT_MoveItem(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context):
-        prefs = get_preferences(context)
+        prefs = prefs_utils.get_preferences(context)
         return len(prefs.general_preferences.pack_info_search_paths) > 1
 
     def execute(self, context: bpy.types.Context):
-        prefs = get_preferences(context)
+        prefs = prefs_utils.get_preferences(context)
         the_list = prefs.general_preferences.pack_info_search_paths
         index = prefs.general_preferences.pack_info_search_path_index
         neighbor = index + (-1 if self.direction == 'UP' else 1)
@@ -437,7 +398,7 @@ class PackInfoSearchPathList_RemoveAll(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context: bpy.types.Context):
-        prefs = get_preferences(context)
+        prefs = prefs_utils.get_preferences(context)
         prefs.general_preferences.pack_info_search_paths.clear()
         pack_info_search_path_list_ensure_valid_index(context)
 
@@ -457,7 +418,7 @@ class PackInfoSearchPathList_RefreshPacks(bpy.types.Operator):
 
     @polib.utils_bpy.blender_cursor('WAIT')
     def execute(self, context: bpy.types.Context):
-        prefs = get_preferences(context)
+        prefs = prefs_utils.get_preferences(context)
         prefs.refresh_packs(save_prefs=prefs.save_prefs)
         return {'FINISHED'}
 
@@ -516,6 +477,8 @@ class AssetPackInstallationDialog(bpy.types.Operator, asset_pack_installer.Asset
         if self.check_should_dialog_close():
             if not self.close:
                 self.close = True
+            if not self.canceled:
+                layout.label(text=self.__class__.bl_label)
             self.draw_status_and_messages(layout)
             return
 
@@ -549,11 +512,14 @@ class AssetPackInstallationDialog(bpy.types.Operator, asset_pack_installer.Asset
             col.label(
                 text="Clicking 'OK' will COPY all contents of this Asset Pack into the installation directory.")
 
-        layout.prop(self, "canceled", toggle=True, text="Cancel Installation", icon='CANCEL')
+        # We show custom cancel button only in versions before 4.1.0
+        # From that version all operators have cancel button natively
+        if bpy.app.version < (4, 1, 0):
+            layout.prop(self, "canceled", toggle=True, text="Cancel Installation", icon='CANCEL')
 
     @polib.utils_bpy.blender_cursor('WAIT')
     def execute(self, context: bpy.types.Context):
-        prefs = get_preferences(context)
+        prefs = prefs_utils.get_preferences(context)
         gen_prefs: GeneralPreferences = prefs.general_preferences
         installer = asset_pack_installer.instance
 
@@ -570,6 +536,8 @@ class AssetPackInstallationDialog(bpy.types.Operator, asset_pack_installer.Asset
                 not installer.check_asset_pack_already_installed():
             gen_prefs.add_new_pack_info_search_path(file_path=pack_info_path_to_add,
                                                     path_type=pack_info_search_paths.PackInfoSearchPathType.SINGLE_FILE)
+            asset_registry.instance.register_pack_from_pack_info_path(
+                pack_info_path_to_add, refresh_registry=False)
             prefs.refresh_packs(save_prefs=prefs.save_prefs)
 
         bpy.ops.engon.asset_pack_install_dialog('INVOKE_DEFAULT')
@@ -613,6 +581,8 @@ class AssetPackUninstallationDialog(bpy.types.Operator, asset_pack_installer.Ass
         if self.check_should_dialog_close():
             if not self.close:
                 self.close = True
+            if not self.canceled:
+                layout.label(text=self.__class__.bl_label)
             self.draw_status_and_messages(layout)
             return
 
@@ -631,11 +601,14 @@ class AssetPackUninstallationDialog(bpy.types.Operator, asset_pack_installer.Ass
             box.label(
                 text="Clicking 'OK' will REMOVE all contents of this Asset Pack from the installation directory.")
 
-        layout.prop(self, "canceled", toggle=True, text="Cancel Uninstallation", icon='CANCEL')
+        # We show custom cancel button only in versions before 4.1.0
+        # From that version all operators have cancel button natively
+        if bpy.app.version < (4, 1, 0):
+            layout.prop(self, "canceled", toggle=True, text="Cancel Uninstallation", icon='CANCEL')
 
     @polib.utils_bpy.blender_cursor('WAIT')
     def execute(self, context: bpy.types.Context):
-        prefs = get_preferences(context)
+        prefs = prefs_utils.get_preferences(context)
         gen_prefs: GeneralPreferences = prefs.general_preferences
         installer = asset_pack_installer.instance
 
@@ -646,9 +619,11 @@ class AssetPackUninstallationDialog(bpy.types.Operator, asset_pack_installer.Ass
         if pack_info_path_to_remove is not None:
             gen_prefs.remove_all_copies_of_pack_info_search_path(context, pack_info_path_to_remove,
                                                                  path_type=pack_info_search_paths.PackInfoSearchPathType.SINGLE_FILE)
+            asset_registry.instance.unregister_pack_from_pack_info_path(
+                pack_info_path_to_remove, refresh_registry=False)
             prefs.refresh_packs(save_prefs=prefs.save_prefs)
 
-        bpy.ops.engon.asset_pack_install_dialog('INVOKE_DEFAULT')
+        bpy.ops.engon.asset_pack_uninstall_dialog('INVOKE_DEFAULT')
         return {'FINISHED'}
 
 
@@ -723,6 +698,8 @@ class AssetPackUpdateDialog(bpy.types.Operator, asset_pack_installer.AssetPackIn
         if self.check_should_dialog_close():
             if not self.close:
                 self.close = True
+            if not self.canceled:
+                layout.label(text=self.__class__.bl_label)
             self.draw_status_and_messages(layout)
             return
 
@@ -742,11 +719,14 @@ class AssetPackUpdateDialog(bpy.types.Operator, asset_pack_installer.AssetPackIn
                 text="Clicking 'OK' will REMOVE the old version of the Asset Pack from the installation directory.")
             col.label(text="It will be REPLACED with the new version.")
 
-        layout.prop(self, "canceled", toggle=True, text="Cancel Update", icon='CANCEL')
+        # We show custom cancel button only in versions before 4.1.0
+        # From that version all operators have cancel button natively
+        if bpy.app.version < (4, 1, 0):
+            layout.prop(self, "canceled", toggle=True, text="Cancel Update", icon='CANCEL')
 
     @polib.utils_bpy.blender_cursor('WAIT')
     def execute(self, context: bpy.types.Context):
-        prefs = get_preferences(context)
+        prefs = prefs_utils.get_preferences(context)
         gen_prefs: GeneralPreferences = prefs.general_preferences
         installer = asset_pack_installer.instance
 
@@ -758,15 +738,15 @@ class AssetPackUpdateDialog(bpy.types.Operator, asset_pack_installer.AssetPackIn
             pack_info_path_to_remove, pack_info_path_to_add = update_paths
             gen_prefs.remove_all_copies_of_pack_info_search_path(context, pack_info_path_to_remove,
                                                                  path_type=pack_info_search_paths.PackInfoSearchPathType.SINGLE_FILE)
-            # Asset Packs need to be refreshed after removing
-            # In case the paths are same, the asset_registry wouldn't load the new Asset Pack
-            # No need to save prefs here
-            prefs.refresh_packs()
-            gen_prefs.add_new_pack_info_search_path(file_path=pack_info_path_to_add,
-                                                    path_type=pack_info_search_paths.PackInfoSearchPathType.SINGLE_FILE)
+            asset_registry.instance.unregister_pack_from_pack_info_path(
+                pack_info_path_to_remove, refresh_registry=False)
+            gen_prefs.add_new_pack_info_search_path(
+                file_path=pack_info_path_to_add, path_type=pack_info_search_paths.PackInfoSearchPathType.SINGLE_FILE)
+            asset_registry.instance.register_pack_from_pack_info_path(
+                pack_info_path_to_add, refresh_registry=False)
             prefs.refresh_packs(save_prefs=prefs.save_prefs)
 
-        bpy.ops.engon.asset_pack_install_dialog('INVOKE_DEFAULT')
+        bpy.ops.engon.asset_pack_update_dialog('INVOKE_DEFAULT')
         return {'FINISHED'}
 
 
@@ -794,283 +774,6 @@ class SelectAssetPackInstallPath(bpy.types.Operator, bpy_extras.io_utils.ImportH
 
 
 MODULE_CLASSES.append(SelectAssetPackInstallPath)
-
-
-class SpawnOptions(bpy.types.PropertyGroup):
-    """Defines options that should be considered when spawning assets."""
-    # General
-    remove_duplicates: bpy.props.BoolProperty(
-        name="Remove Duplicates",
-        description="Automatically merges duplicate materials, node groups "
-        "and images into one when the asset is spawned. Saves memory",
-        default=True,
-    )
-    make_editable: bpy.props.BoolProperty(
-        name="Make Editable",
-        description="Automatically makes the spawned asset editable",
-        default=False
-    )
-
-    # Model
-    use_collection: bpy.props.EnumProperty(
-        name="Target Collection",
-        description="Collection to spawn the model into",
-        items=(
-            ('PACK', "Asset Pack Collection",
-             "Spawn model into collection named as the asset pack - 'botaniq, traffiq, ...'"),
-            ('ACTIVE', "Active Collection", "Spawn model into the active collection"),
-            ('PARTICLE_SYSTEM', "Particle System Collection",
-             "Spawn model into active particle system collection")
-        ),
-    )
-
-    # Materialiq
-    texture_size: bpy.props.EnumProperty(
-        items=lambda _, __: asset_helpers.get_materialiq_texture_sizes_enum_items(),
-        name="materialiq5 global maximum side size",
-        description="Maximum side size of textures spawned with a material",
-    )
-
-    use_displacement: bpy.props.BoolProperty(
-        name="Use Displacement",
-        description="Spawn material with enabled displacement",
-        default=False,
-    )
-
-    # scatter
-    display_type: bpy.props.EnumProperty(
-        name="Display As",
-        items=DISPLAY_ENUM_ITEMS,
-        default='TEXTURED'
-    )
-
-    display_percentage: bpy.props.IntProperty(
-        name="Display Percentage",
-        description="Percentage of particles that are displayed in viewport",
-        subtype='PERCENTAGE',
-        default=100,
-        min=0,
-        max=100,
-    )
-
-    link_instance_collection: bpy.props.BoolProperty(
-        description="If true, this setting links particle system instance collection to scene. "
-        "Objects from instance collection are spawned on (0, -10, 0).",
-        name="Link Instance Collection To Scene",
-        default=True
-    )
-
-    include_base_material: bpy.props.BoolProperty(
-        name="Include Base Material",
-        description="If true base material is loaded with the particle system and set "
-        "to the target object as active",
-        default=True
-    )
-
-    preserve_density: bpy.props.BoolProperty(
-        name="Preserve Density",
-        description="If true automatically recalculates density based on mesh area",
-        default=True
-    )
-
-    count: bpy.props.IntProperty(
-        name="Count",
-        description="Amount of particles to spawn if preserve density is off",
-        default=1000,
-    )
-
-    def get_spawn_options(
-        self,
-        asset: mapr.asset.Asset,
-        context: bpy.types.Context
-    ) -> hatchery.spawn.DatablockSpawnOptions:
-        """Returns spawn options for given asset based on its type"""
-        if asset.type_ == mapr.asset_data.AssetDataType.blender_model:
-            cursor_loc = mathutils.Vector(context.scene.cursor.location)
-            particle_spawn_location = cursor_loc - mathutils.Vector((0, 0, 10))
-            particle_spawn_rotation = mathutils.Euler((0, math.radians(90), 0), 'XYZ')
-            return hatchery.spawn.ModelSpawnOptions(
-                self._get_model_parent_collection(asset, context),
-                True,
-                # Spawn the asset on Z - 10 in particle systems
-                particle_spawn_location if self.use_collection == 'PARTICLE_SYSTEM' else None,
-                # Rotate the spawned asset 90 around Y to make it straight in particle systems
-                # that use Rotation around Z Axis - which are most of our particle systems.
-                particle_spawn_rotation if self.use_collection == 'PARTICLE_SYSTEM' else None
-            )
-        elif asset.type_ == mapr.asset_data.AssetDataType.blender_material:
-            return hatchery.spawn.MaterialSpawnOptions(
-                int(self.texture_size),
-                self.use_displacement,
-                context.selected_objects
-            )
-        elif asset.type_ == mapr.asset_data.AssetDataType.blender_particle_system:
-            return hatchery.spawn.ParticleSystemSpawnOptions(
-                self.display_type,
-                self.display_percentage,
-                self._get_instance_collection_parent(asset, context),
-                self.include_base_material,
-                # Purposefully use max_particle_count from scatter, as this property has a global
-                # meaning.
-                get_preferences(context).general_preferences.scatter_props.max_particle_count,
-                self.count,
-                self.preserve_density,
-                {context.active_object}
-            )
-        elif asset.type_ == mapr.asset_data.AssetDataType.blender_scene:
-            return hatchery.spawn.DatablockSpawnOptions()
-        elif asset.type_ == mapr.asset_data.AssetDataType.blender_world:
-            return hatchery.spawn.DatablockSpawnOptions()
-        elif asset.type_ == mapr.asset_data.AssetDataType.blender_geometry_nodes:
-            return hatchery.spawn.DatablockSpawnOptions()
-        else:
-            raise NotImplementedError(
-                f"Spawn options are not supported for type: {asset.type_}, please contact developers!")
-
-    def can_spawn(
-        self,
-        asset: mapr.asset.Asset,
-        context: bpy.types.Context
-    ) -> typing.Tuple[bool, typing.Optional[typing.Tuple[str, str]]]:
-        """Checks whether the given asset can spawn in given Blender context.
-
-        Returns boolean value and a tuple of strings (Error, Hint To User)
-        """
-        if asset.type_ == mapr.asset_data.AssetDataType.blender_model:
-            if self.use_collection == 'PARTICLE_SYSTEM':
-                if context.active_object is None:
-                    return False, (
-                        "Can't spawn model into particle system - No active object!",
-                        "Select active object with particle system."
-                    )
-                if context.active_object.particle_systems.active is None:
-                    return False, (
-                        "Can't spawn model into particle system - No particle system found!",
-                        "Select object with at least one particle system."
-                    )
-                instance_collection = context.active_object.particle_systems.active.settings.instance_collection
-                if instance_collection is None:
-                    return False, (
-                        "Can't spawn model into particle system - Missing instance collection!",
-                        "Select particle system and assign instance collection to it."
-                    )
-            return True, None
-        elif asset.type_ == mapr.asset_data.AssetDataType.blender_material:
-            material_assignable_objects = [
-                hatchery.utils.can_have_materials_assigned(o) for o in context.selected_objects]
-
-            # Check whether there is any selected object that has assignable material
-            if len(material_assignable_objects) == 0:
-                return False, (
-                    "Can't spawn material - No valid selected objects!",
-                    "Select objects that can have material assigned."
-                )
-            else:
-                return True, None
-        elif asset.type_ == mapr.asset_data.AssetDataType.blender_particle_system:
-            if context.active_object is None:
-                return False, (
-                    "Can't spawn particle system - No active object!",
-                    "Select a mesh object."
-                )
-            else:
-                if context.active_object.type != 'MESH':
-                    return False, (
-                        "Current object doesn't support particle systems!",
-                        "Select a mesh object."
-                    )
-                return True, None
-        elif asset.type_ == mapr.asset_data.AssetDataType.blender_scene:
-            return True, None
-        elif asset.type_ == mapr.asset_data.AssetDataType.blender_world:
-            return True, None
-        elif asset.type_ == mapr.asset_data.AssetDataType.blender_geometry_nodes:
-            return True, None
-        else:
-            raise NotImplementedError(
-                f"Invalid type given to can_spawn: {asset.type_}, please contact developers!")
-
-    def _get_instance_collection_parent(
-        self,
-        asset: mapr.asset.Asset,
-        context: bpy.types.Context
-    ) -> typing.Optional[bpy.types.Collection]:
-        if self.link_instance_collection:
-            return polib.asset_pack_bpy.collection_get(
-                context, asset_helpers.PARTICLE_SYSTEMS_COLLECTION)
-
-        return None
-
-    def _get_model_parent_collection(
-        self,
-        asset: mapr.asset.Asset,
-        context: bpy.types.Context
-    ) -> bpy.types.Collection:
-        if self.use_collection == 'ACTIVE':
-            return context.collection
-        elif self.use_collection == 'PACK':
-            collection = polib.asset_pack_bpy.collection_get(context, asset.text_parameters.get(
-                "polygoniq_addon", "unknown"))
-            return collection
-
-        elif self.use_collection == 'PARTICLE_SYSTEM':
-            if context.active_object is None:
-                logger.error(
-                    "Tried to to spawn object into particle system collection, but no object is active!")
-                return None
-
-            ps = context.active_object.particle_systems.active
-            if ps is None:
-                logger.error(f"No active particle system found!")
-                return None
-
-            coll = ps.settings.instance_collection
-            if coll is not None:
-                return coll
-            else:
-                logger.error(f"No particle system instance collection found!")
-                return None
-        else:
-            raise ValueError(f"Unknown value of 'use_collection': {self.use_collection}")
-
-
-MODULE_CLASSES.append(SpawnOptions)
-
-
-class MaprPreferences(bpy.types.PropertyGroup):
-    """Property group containing all the settings and customizable options for user interface"""
-    preview_scale_percentage: bpy.props.FloatProperty(
-        name="Preview Scale",
-        description="Preview scale",
-        min=0,
-        max=100,
-        default=50,
-        subtype='PERCENTAGE'
-    )
-    use_pills_nav: bpy.props.BoolProperty(
-        name="Tree / Pills Category Navigation",
-        description="If toggled, then pills navigation will be drawn, tree navigation otherwise",
-        default=False
-    )
-    search_history_count: bpy.props.IntProperty(
-        name="Search History Count",
-        description="Number of search queries that are remembered during one Blender instance run",
-        min=0,
-        default=20
-    )
-    debug: bpy.props.BoolProperty(
-        name="Enable Debug",
-        description="If true then asset browser displays addition debug information",
-        default=False,
-    )
-
-    spawn_options: bpy.props.PointerProperty(type=SpawnOptions)
-
-    # We store the state whether preferences were open to be able to re-open it on load
-    prefs_hijacked: bpy.props.BoolProperty(options={'HIDDEN'})
-
-
-MODULE_CLASSES.append(MaprPreferences)
 
 
 @polib.log_helpers_bpy.logged_preferences
@@ -1125,7 +828,7 @@ class Preferences(bpy.types.AddonPreferences):
     mapr_preferences: bpy.props.PointerProperty(
         name="Browser Preferences",
         description="Preferences related to the mapr asset browser",
-        type=MaprPreferences
+        type=mapr_preferences.MaprPreferences
     )
 
     aquatiq_preferences: bpy.props.PointerProperty(
@@ -1312,12 +1015,8 @@ class PackLogs(bpy.types.Operator):
 MODULE_CLASSES.append(PackLogs)
 
 
-def get_preferences(context: bpy.types.Context) -> Preferences:
-    engon_package = polib.utils_bpy.get_top_level_package_name(__package__)
-    return context.preferences.addons[engon_package].preferences
-
-
 def register():
+    mapr_preferences.register()
     aquatiq_preferences.register()
     botaniq_preferences.register()
     traffiq_preferences.register()
@@ -1331,3 +1030,4 @@ def unregister():
     traffiq_preferences.unregister()
     botaniq_preferences.unregister()
     aquatiq_preferences.unregister()
+    mapr_preferences.unregister()

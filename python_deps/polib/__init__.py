@@ -22,6 +22,7 @@ if "asset_pack_bpy" not in locals():
         from . import material_utils_bpy
         from . import module_install_utils_bpy
         from . import node_utils_bpy
+        from . import preview_manager_bpy
         from . import remove_duplicates_bpy
         from . import render_bpy
         from . import rigs_shared_bpy
@@ -79,6 +80,7 @@ if "asset_pack_bpy" not in locals():
         material_utils_bpy = types.ModuleType("material_utils_bpy")
         module_install_utils_bpy = types.ModuleType("module_install_utils_bpy")
         node_utils_bpy = types.ModuleType("node_utils_bpy")
+        preview_manager_bpy = types.ModuleType("preview_manager_bpy")
         remove_duplicates_bpy = types.ModuleType("remove_duplicates_bpy")
         render_bpy = types.ModuleType("render_bpy")
         rigs_shared_bpy = types.ModuleType("rigs_shared_bpy")
@@ -138,6 +140,7 @@ __all__ = [
     "material_utils_bpy",
     "module_install_utils_bpy",
     "node_utils_bpy",
+    "preview_manager_bpy",
     "remove_duplicates_bpy",
     "render_bpy",
     "rigs_shared_bpy",

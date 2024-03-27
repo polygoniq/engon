@@ -21,6 +21,8 @@
 import typing
 import bpy
 import enum
+import os
+import glob
 import collections
 import logging
 import polib
@@ -39,11 +41,16 @@ AQ_PUDDLES_NODEGROUP_NAME = "aq_Puddles"
 AQ_MASKABLE_NODE_GROUP_NAMES = {"aq_Fountain", AQ_PUDDLES_NODEGROUP_NAME}
 AQ_RIVER_GENERATOR_NODE_GROUP_NAME = "aq_Generator_River"
 AQ_RAIN_GENERATOR_NODE_GROUP_NAME = "aq_Rain-Generator_Rain"
+AQ_MATERIALS_LIBRARY_BLEND = "aq_Library_Materials.blend"
 
 # botaniq constants
 BOTANIQ_ALL_SEASONS_RAW = "spring-summer-autumn-winter"
 BQ_COLLECTION_NAME = "botaniq"
 BQ_VINE_GENERATOR_NODE_GROUP_NAME = "bq_Vine_Generator"
+BQ_ANIM_LIBRARY_BLEND = "bq_Library_Animation_Data.blend"
+
+# traffiq constants
+TQ_MODIFIER_LIBRARY_BLEND = "tq_Library_Modifiers.blend"
 
 
 PARTICLE_SYSTEM_PREFIX = f"engon_{polib.asset_pack_bpy.PARTICLE_SYSTEM_TOKEN}_"
@@ -109,6 +116,13 @@ def get_materialiq_texture_sizes_enum_items():
 
     return [
         (str(size), str(size), f"materialiq texture size: {size}") for size in texture_sizes]
+
+
+def get_asset_pack_library_path(engon_feature: str, library_blend_name: str) -> typing.Optional[str]:
+    for pack in asset_registry.instance.get_packs_by_engon_feature(engon_feature):
+        for lib in glob.iglob(os.path.join(pack.install_path, "blends", "**", library_blend_name), recursive=True):
+            return lib
+    return None
 
 
 def exclude_variant_from_asset_name(asset_name: str) -> str:

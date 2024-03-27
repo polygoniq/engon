@@ -60,7 +60,8 @@ class MakeSelectionEditable(bpy.types.Operator):
         logger.info(
             f"Resulting objects and parents: {selected_objects_and_parents_names}")
 
-        if preferences.get_preferences(context).general_preferences.remove_duplicates:
+        prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
+        if prefs.spawn_options.remove_duplicates:
             filters = [polib.remove_duplicates_bpy.polygoniq_duplicate_data_filter]
             polib.remove_duplicates_bpy.remove_duplicate_datablocks(
                 bpy.data.materials, filters, pack_paths)
@@ -288,7 +289,7 @@ class EngonPanel(EngonPanelMixin, bpy.types.Panel):
             self.layout, __package__, rel_url="panels/engon/panel_overview")
 
     def draw(self, context: bpy.types.Context):
-        prefs = preferences.get_preferences(context)
+        prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
         col = self.layout.column(align=True)
         row = col.row(align=True)
         row.scale_y = 1.5
@@ -305,7 +306,7 @@ class EngonPanel(EngonPanelMixin, bpy.types.Panel):
                 text="",
                 icon='WINDOW'
             )
-        if prefs.mapr_preferences.prefs_hijacked:
+        if prefs.prefs_hijacked:
             row = row.row(align=True)
             row.scale_x = 1.2
             row.alert = True
@@ -320,7 +321,7 @@ class EngonPanel(EngonPanelMixin, bpy.types.Panel):
         row = polib.ui_bpy.scaled_row(col, 1.5, align=True)
         row.operator(MakeSelectionLinked.bl_idname, text="Linked", icon='LINKED')
         row.operator(MakeSelectionEditable.bl_idname, text="Editable", icon='MESH_DATA')
-        row.prop(prefs.general_preferences, "remove_duplicates",
+        row.prop(prefs.spawn_options, "remove_duplicates",
                  text="", toggle=1, icon='FULLSCREEN_EXIT')
         col.separator()
 

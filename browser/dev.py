@@ -58,8 +58,7 @@ class MAPR_BrowserReloadPreviews(bpy.types.Operator):
 
     def execute(self, context: bpy.types.Context):
         assets = filters.asset_repository.current_assets
-        previews.manager_instance.clear_ids({asset.id_ for asset in assets})
-        previews.ensure_loaded_previews(assets)
+        previews.preview_manager.clear(ids={asset.id_ for asset in assets})
         return {'FINISHED'}
 
 

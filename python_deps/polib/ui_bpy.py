@@ -7,8 +7,16 @@ import sys
 import typing
 import os
 from . import utils_bpy
+from . import preview_manager_bpy
 
+
+# Global icon manager for polib icons, it NEEDS to be CLEARED  from each addon module separately
+# as we cannot detect from inside of polib, whether it is in use or not.
+# This means the preview manager can be cleared even if it is already used, but the icons will
+# be reloaded on demand on the next use.
 ICON_DIR_NAME = "icons"
+icon_manager = preview_manager_bpy.PreviewManager()
+icon_manager.add_preview_path(os.path.join(os.path.dirname(__file__), ICON_DIR_NAME))
 
 
 class SocialMediaURL:
@@ -18,76 +26,6 @@ class SocialMediaURL:
     BLENDERMARKET = "https://blendermarket.com/creators/polygoniq"
     WEBPAGE = "https://polygoniq.com/"
     GUMROAD = "https://gumroad.com/polygoniq"
-
-
-class IconManager:
-    def __init__(self, include_polib_icons: bool = True, additional_paths: typing.Optional[typing.List[str]] = None):
-        self.icon_previews = bpy.utils.previews.new()
-        self.include_polib_icons = include_polib_icons
-        self.additional_paths = additional_paths if additional_paths is not None else []
-        self.supported_extensions = (".jpg", ".png")
-        self.load_all()
-
-    def load_all(self) -> None:
-        if self.include_polib_icons:
-            icons_dir = os.path.join(os.path.dirname(__file__), ICON_DIR_NAME)
-            self._load_icons_from_path(icons_dir)
-
-        for path in self.additional_paths:
-            self._load_icons_from_path(path)
-
-    def get_icon_id(self, icon_name: str) -> int:
-        if icon_name in self.icon_previews:
-            return self.icon_previews[icon_name].icon_id
-        else:
-            return 1  # questionmark icon_id
-
-    def get_polygoniq_addon_icon_id(self, addon_name: str) -> int:
-        return self.get_icon_id(f"logo_{addon_name}")
-
-    def get_engon_feature_icon_id(self, feature_name: str) -> int:
-        return self.get_icon_id(f"logo_{feature_name}_features")
-
-    def clear(self):
-        self.icon_previews.clear()
-
-    def reload(self) -> None:
-        self.clear()
-        self.load_all()
-
-    # These methods for loading icons shouldn't be used from outside of load_all() because paths
-    # used to load icons here wouldn't be stored in additional_paths for reload() to work. Let's
-    # implement API that stores additional paths post-init if this is needed.
-    def _load_icons_from_path(self, path: str) -> None:
-        """Loads icon from the given path
-
-        If given path points to directory, only icons directly in this directory are loaded, not
-        nested ones.
-        """
-        if os.path.isfile(path):
-            icon_name, ext = os.path.splitext(os.path.basename(path))
-            if ext not in self.supported_extensions:
-                raise RuntimeError(f"Cannot load icon from {path}, its extension is not one of "
-                                   f"'{self.supported_extensions}'!")
-            self._load_icon(icon_name, path)
-        elif os.path.isdir(path):
-            for icon_filename in os.listdir(path):
-                icon_name, ext = os.path.splitext(icon_filename)
-                if ext in self.supported_extensions:
-                    self._load_icon(icon_name, os.path.join(path, icon_filename))
-        else:
-            raise RuntimeError(
-                f"Cannot load icons from {path}, it is not a valid file or directory!")
-
-    def _load_icon(self, icon_name: str, filepath: str) -> None:
-        assert os.path.splitext(filepath)[1] in self.supported_extensions
-        if icon_name in self.icon_previews:
-            return
-        # TODO: Load icons on demand instead of loading everything
-        self.icon_previews.load(icon_name, filepath, "IMAGE")
-
-
-icon_manager = IconManager()
 
 
 def get_asset_pack_icon_parameters(icon_id: typing.Optional[int], bpy_icon_name: str) -> typing.Dict:

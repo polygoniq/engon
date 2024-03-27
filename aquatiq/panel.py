@@ -130,7 +130,7 @@ class MaterialsPanel(AquatiqPanelInfoMixin, bpy.types.Panel):
 
     def draw_vertex_paint_ui(self, context: bpy.types.Context):
         layout = self.layout
-        prefs = preferences.get_preferences(context).aquatiq_preferences
+        prefs = preferences.prefs_utils.get_preferences(context).aquatiq_preferences
         brush = context.tool_settings.vertex_paint.brush
         unified_settings = context.tool_settings.unified_paint_settings
 

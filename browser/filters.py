@@ -65,7 +65,6 @@ class DataRepository:
             # We are fine here in a separate thread if we don't access any Blender data, the only
             # thing how we touch blender is loading previews and tagging redraw
             self.last_view = self.asset_provider.query(query)
-            previews.ensure_loaded_previews(self.last_view.assets)
             self.is_loading = False
             utils.tag_prefs_redraw(bpy.context)
             if on_complete is not None:
@@ -766,7 +765,8 @@ class BrowserSearchFilter(
             cls.search_history.remove(self.search)
 
         cls.search_history.append(self.search)
-        history_count = preferences.get_preferences(context).mapr_preferences.search_history_count
+        history_count = preferences.prefs_utils.get_preferences(
+            context).mapr_preferences.search_history_count
         while len(type(self).search_history) > history_count:
             cls.search_history.pop(0)
 

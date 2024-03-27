@@ -91,7 +91,7 @@ class EnterVertexPaintMode(bpy.types.Operator):
         active_object.data.use_paint_mask_vertex = False
         active_object.data.use_paint_mask = False
         bpy.ops.object.mode_set(mode='VERTEX_PAINT')
-        prefs = preferences.get_preferences(context).aquatiq_preferences
+        prefs = preferences.prefs_utils.get_preferences(context).aquatiq_preferences
         context.tool_settings.vertex_paint.brush.color = [prefs.draw_mask_factor] * 3
 
         return {'FINISHED'}

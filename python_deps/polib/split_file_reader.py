@@ -146,7 +146,6 @@ class SplitFileReader(io.RawIOBase):
             return self._read(size)
 
     def _read(self, target_size: int, read_once=False):
-        logger.debug(f"Reading {target_size}, currently {self._told}.")
         if not self._current_file_desc:
             raise OSError("SplitFileReader is closed.")
         if target_size >= 0:
@@ -174,7 +173,6 @@ class SplitFileReader(io.RawIOBase):
                 read = self._current_file_desc.read(target_size)
                 ret += read
             self._told += len(ret)
-        logger.debug(f"Read {len(ret)}, currently {self._told}.")
         return ret
 
     def readinto(self, buffer: bytearray) -> typing.Optional[int]:
@@ -210,9 +208,6 @@ class SplitFileReader(io.RawIOBase):
         `os.SEEK_SET`, `os.SEEK_CUR`, and `os.SEEK_END` are whence 0, 1, and 2, respectively.  `os.SEEK_HOLE` and
         `os.SEEK_DATA` are not supported.
         """
-
-        logger.debug(f"Seeking {offset}. Whence {whence}, currently {self._told}.")
-
         if self._stream_only:
             raise OSError("Seek performed on a streaming file.")
 
@@ -226,12 +221,10 @@ class SplitFileReader(io.RawIOBase):
             # more reasonable.  zipfile is one such library, making use of one `seek(x, 2)`, and then exclusively
             # `seek(x, 0)`
             how_far_to_go = -(self._told - offset)
-            logger.info(f"How far to go: {how_far_to_go}.")
             if offset == 0:
                 # A `seek(0, 0)` is just a shortcut to `_seek_to_head`
                 self._seek_to_head()
             elif how_far_to_go == 0:
-                logger.info("Nowhere to go.")
                 pass
             elif how_far_to_go > 0:
                 self._scan_forward(how_far_to_go)
@@ -241,10 +234,7 @@ class SplitFileReader(io.RawIOBase):
         elif whence == 1:
             # From the current position
             how_far_to_go = offset
-            logger.info(f"How far to go: {how_far_to_go}.")
-            if how_far_to_go == 0:
-                logger.info("Nowhere to go.")
-            elif how_far_to_go > 0:
+            if how_far_to_go > 0:
                 self._scan_forward(how_far_to_go)
             elif how_far_to_go < 0:
                 self._scan_backward(how_far_to_go)
@@ -252,21 +242,16 @@ class SplitFileReader(io.RawIOBase):
         elif whence == 2:  # noqa: PLR2004
             # From the end.
             how_far_to_go = offset
-            logger.info(f"How far to go: {how_far_to_go}.")
             # Without a-priori knowledge of the total file sizes, we can't really calculate the offset to go.
             # So, zip all thw way to the end, then navigate as appropriate.
             self._seek_to_tail()
-            if how_far_to_go == 0:
-                logger.info("Nowhere to go.")
-                pass
-            elif how_far_to_go < 0:
+            if how_far_to_go < 0:
                 self._scan_backward(offset)
             elif how_far_to_go > 0:
                 self._scan_forward(how_far_to_go)
 
         else:
             raise IndexError("Whence must be 0, 1, or 2")
-        logger.debug(f"Sought {offset}. Whence {whence}, currently {self._told}.")
         return self.tell()
 
     def _scan_forward(self, offset: int) -> None:
@@ -276,7 +261,6 @@ class SplitFileReader(io.RawIOBase):
 
         remaining = offset
         while remaining > 0:
-            logger.info(f"Scanning forward.  Offset: {offset}, Remaining: {remaining}.")
             start_pos = self._current_file_desc.tell()
             # Go all the way to the _end_ of file explicitly, because it is  allowed to seek() beyond that and get
             # misleading tell() information.
@@ -301,10 +285,6 @@ class SplitFileReader(io.RawIOBase):
                 # The generator for advancing file descriptors will ensure the pointer is at the start of the file part
                 if not self._safe_advance_file_desc(_FORWARD):
                     break
-        logger.info(
-            f"Out of loop.  Tell: {self._told}.  File tell: {self._current_file_desc.tell()}. "
-            f"Current file idx: {self._current_file_desc_idx}."
-        )
 
     def _scan_backward(self, offset: int) -> None:
         # The backward scan is implemented by moving the file pointer all the way to the front of the current file
@@ -315,7 +295,6 @@ class SplitFileReader(io.RawIOBase):
         remaining = offset
         # Remaining is a negative amount, because the scan is going backwards.
         while remaining < 0:
-            logger.info(f"Scanning backward.  Offset: {offset}, Remaining: {remaining}.")
             start_pos = self._current_file_desc.tell()
             self._current_file_desc.seek(0, 0)
             end_pos = self._current_file_desc.tell()
@@ -337,15 +316,12 @@ class SplitFileReader(io.RawIOBase):
                 # The generator for advancing file descriptors will ensure the pointer is at the tail of the file part
                 if not self._safe_advance_file_desc(_BACKWARD):
                     break
-        logger.info(
-            f"Out of loop.  Tell: {self._told}.  File tell: {self._current_file_desc.tell()}.")
 
     def _seek_to_head(self) -> None:
         """Set the position to zero, tell to zero, and at the head of the first file.
 
         No need to traverse the list and move through the intermediaries, as the zero position is always known.
         """
-        logger.info("Seek to head.")
         self._current_file_desc_idx = 0
         self._current_file_desc = self._file_desc_generator.send(_STATIONARY)
         self._current_file_desc.seek(0, 0)
@@ -360,9 +336,7 @@ class SplitFileReader(io.RawIOBase):
         # This process could be accelerated by doing a one-time pass and counting the file sizes directly, but this may
         # not be desirable.  In practice, `seek(x, 2)` is rare, used by ZipFile, and even then, just at the start.
 
-        logger.info(f"Start of seek to tail.  Tell: {self._told}.")
         while True:
-            logger.info(f"Current IDX: {self._current_file_desc_idx}.")
             # Save starting position, might not be zero.
             start = self._current_file_desc.tell()
             # The generator for advancing file descriptors will ensure the pointer is at the start of the file part.
@@ -375,8 +349,6 @@ class SplitFileReader(io.RawIOBase):
             # Don't roll off the last one.
             if not self._safe_advance_file_desc(_FORWARD):
                 break
-        logger.info(
-            f"End of seek to tail.  Tell: {self._told}, cfd tell {self._current_file_desc.tell()}.")
 
     def _safe_advance_file_desc(self, direction: int) -> bool:
         """Advance the file descriptor, but do not advance off the end, either way.
@@ -420,7 +392,7 @@ class SplitFileReader(io.RawIOBase):
         while True:
             self._current_file_desc_idx += direction
             if self._current_file_desc_idx < 0 or self._current_file_desc_idx >= len(self._files):
-                logger.debug("Moved off end of files list.  No current fd.")
+                logger.info("Moved off end of files list.  No current fd.")
                 direction = yield None
             else:
                 file = self._files[self._current_file_desc_idx]
@@ -434,15 +406,15 @@ class SplitFileReader(io.RawIOBase):
                     self._filePassed = 0
                     self.filename = file
                     with open(file, "rb") as self._current_file_desc:
-                        logger.debug(f"Opening new fd on {file}.")
+                        logger.info(f"Opening new fd on {file}.")
                         direction = yield self._current_file_desc
-                        logger.debug(f"Closing fd on {file}.")
+                        logger.info(f"Closing fd on {file}.")
                 else:
                     # No, its (probably) already file-like.
                     self._current_file_desc = file
-                    logger.debug(f"Passthrough file-like yielding {file}.")
+                    logger.info(f"Passthrough file-like yielding {file}.")
                     direction = yield self._current_file_desc
-                    logger.debug(f"Passthrough file-like done {file}.")
+                    logger.info(f"Passthrough file-like done {file}.")
 
     def test_all_readable(self):
         """Validate every file in the `files` parameter at `__init__` is actually readable.
@@ -478,7 +450,7 @@ class SplitFileReader(io.RawIOBase):
 
     def close(self) -> None:
         """Closes the existing file descriptor, sets the current file descriptor to None, and disables the ability to seek or read"""
-        logger.debug("Closing last file descriptor.")
+        logger.info("Closing last file descriptor.")
         self._file_desc_generator.close()
         self._current_file_desc = None
 

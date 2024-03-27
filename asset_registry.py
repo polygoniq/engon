@@ -160,7 +160,7 @@ class AssetPack:
         self.index_paths = index_paths
         self.file_id_prefix = file_id_prefix
 
-        # Initialize IconManager
+        # Initialize PreviewManager for icons
         self.pack_icon: typing.Optional[str] = None
         self.vendor_icon: typing.Optional[str] = None
         valid_icon_paths: typing.List[str] = []
@@ -174,8 +174,9 @@ class AssetPack:
                         f"Asset pack icon '{icon_path}' not found on path '{icon_fullpath}'!")
                 valid_icon_paths.append(icon_fullpath)
 
-        self.icon_manager = polib.ui_bpy.IconManager(
-            include_polib_icons=False, additional_paths=valid_icon_paths)
+        self.icon_manager = polib.preview_manager_bpy.PreviewManager()
+        for path in valid_icon_paths:
+            self.icon_manager.add_preview_path(path)
 
         # we remember which providers we registered to MAPR to be able to unregister them
         self.asset_providers: typing.List[mapr.asset_provider.AssetProvider] = []
@@ -391,6 +392,21 @@ class AssetRegistry:
             output_dict[feature] = [pack.install_path for pack in asset_packs]
         return output_dict
 
+    def register_pack_from_pack_info_path(self, pack_info_path: str, refresh_registry: bool = True) -> None:
+        asset_pack = AssetPack.load_from_json(pack_info_path)
+        logger.info(f"Registering asset pack '{asset_pack.full_name}' from '{pack_info_path}'")
+        self._register_pack(asset_pack)
+        if refresh_registry:
+            self._registry_refreshed()
+
+    def unregister_pack_from_pack_info_path(self, pack_info_path: str, refresh_registry: bool = True) -> None:
+        asset_pack = self.get_pack_by_pack_info_path(pack_info_path)
+        assert asset_pack is not None
+        logger.info(f"Unregistering asset pack '{asset_pack.full_name}' from '{pack_info_path}'")
+        self._unregister_pack(asset_pack)
+        if refresh_registry:
+            self._registry_refreshed()
+
     def refresh_packs_from_pack_info_paths(self, pack_info_files: typing.Iterable[str]) -> None:
         input_pack_info_files: typing.Set[str] = set(pack_info_files)
         logger.info(
@@ -435,7 +451,7 @@ instance = AssetRegistry()
 
 def reload_asset_pack_icons():
     for asset_pack in instance.get_registered_packs():
-        asset_pack.icon_manager.reload()
+        asset_pack.icon_manager.clear()
 
 
 instance.on_refresh.append(reload_asset_pack_icons)

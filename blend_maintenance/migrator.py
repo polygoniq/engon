@@ -125,7 +125,8 @@ class MigrateFromMaterialiq4(bpy.types.Operator):
         "Finds materialiq4 materials and replaces them with their equivalents from the latest version of materialiq"
 
     def execute(self, context: bpy.types.Context):
-        spawn_options = preferences.get_preferences(context).mapr_preferences.spawn_options
+        spawn_options = preferences.prefs_utils.get_preferences(
+            context).mapr_preferences.spawn_options
         asset_provider = asset_registry.instance.master_asset_provider
         file_provider = asset_registry.instance.master_file_provider
         spawner = mapr.blender_asset_spawner.AssetSpawner(asset_provider, file_provider)

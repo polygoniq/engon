@@ -538,7 +538,8 @@ class FollowPath(bpy.types.Operator):
             polib.rigs_shared_bpy.is_object_rigged(context.active_object)
 
     def draw(self, context: bpy.types.Context):
-        rig_properties = preferences.get_preferences(context).traffiq_preferences.rig_properties
+        rig_properties = preferences.prefs_utils.get_preferences(
+            context).traffiq_preferences.rig_properties
         layout = self.layout
         layout.prop(rig_properties, "auto_bake_steering", text="Bake Steering")
         layout.prop(rig_properties, "auto_bake_wheels", text="Bake Wheel Rotation")
@@ -559,7 +560,8 @@ class FollowPath(bpy.types.Operator):
         return context.window_manager.invoke_props_dialog(self)
 
     def execute(self, context: bpy.types.Context):
-        rig_properties = preferences.get_preferences(context).traffiq_preferences.rig_properties
+        rig_properties = preferences.prefs_utils.get_preferences(
+            context).traffiq_preferences.rig_properties
         target_path = context.scene.tq_target_path_object
         if target_path is None:
             self.report({'ERROR'}, "No target path selected!")

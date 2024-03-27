@@ -126,7 +126,7 @@ class ColorsPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
         self.layout.label(text="", icon='COLOR')
 
     def draw(self, context: bpy.types.Context):
-        prefs = preferences.get_preferences(context).traffiq_preferences
+        prefs = preferences.prefs_utils.get_preferences(context).traffiq_preferences
         row = self.layout.row()
         changeable_color_objs = [
             obj for obj in context.selected_objects if can_obj_change_car_paint_color(obj)]
@@ -191,7 +191,7 @@ class LightsPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
         self.layout.label(text="", icon='OUTLINER_OB_LIGHT')
 
     def draw(self, context: bpy.types.Context):
-        prefs = preferences.get_preferences(context).traffiq_preferences
+        prefs = preferences.prefs_utils.get_preferences(context).traffiq_preferences
         col = self.layout.column()
         lights_containers = lights.find_unique_lights_containers(context.selected_objects)
         if len(lights_containers) == 0:
@@ -246,7 +246,7 @@ class WearPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
         self.layout.label(text="", icon='UV')
 
     def draw(self, context: bpy.types.Context):
-        prefs = preferences.get_preferences(context).traffiq_preferences
+        prefs = preferences.prefs_utils.get_preferences(context).traffiq_preferences
         row = self.layout.row()
         wear_props_set = {
             polib.asset_pack_bpy.CustomPropertyNames.TQ_DIRT,

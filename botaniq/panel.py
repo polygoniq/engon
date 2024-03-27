@@ -51,7 +51,7 @@ def botaniq_duplicate_data_filter(data: bpy.types.ID) -> bool:
 
     if isinstance(data, bpy.types.Image):
         img_path = os.path.abspath(bpy.path.abspath(data.filepath, library=data.library))
-        install_path = preferences.get_preferences(bpy.context).install_path
+        install_path = preferences.prefs_utils.get_preferences(bpy.context).install_path
         try:
             return os.path.commonpath([img_path, install_path]) == install_path
         except ValueError:
@@ -97,7 +97,7 @@ class RandomizeFloatProperty(bpy.types.Operator):
 
     def draw(self, context: bpy.types.Context):
         layout = self.layout
-        prefs = preferences.get_preferences(context).botaniq_preferences
+        prefs = preferences.prefs_utils.get_preferences(context).botaniq_preferences
         layout.prop(prefs, "float_min", slider=True)
         layout.prop(prefs, "float_max", slider=True)
 
@@ -105,7 +105,7 @@ class RandomizeFloatProperty(bpy.types.Operator):
         return context.window_manager.invoke_props_dialog(self)
 
     def execute(self, context: bpy.types.Context):
-        prefs = preferences.get_preferences(context).botaniq_preferences
+        prefs = preferences.prefs_utils.get_preferences(context).botaniq_preferences
         for obj in set(context.selected_objects).union(asset_helpers.gather_instanced_objects(context.selected_objects)):
             custom_prop = obj.get(self.custom_property_name, None)
             if custom_prop is None:
@@ -314,7 +314,7 @@ class AdjustmentsPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
                 self.draw_obj_properties(obj, left_col, right_col, spaces=4)
                 displayed_assets += 1
 
-        prefs = preferences.get_preferences(context).botaniq_preferences
+        prefs = preferences.prefs_utils.get_preferences(context).botaniq_preferences
         row = layout.row(align=True)
         row.label(text="", icon='LIGHT_SUN')
         row.prop(prefs, "brightness", text="Brightness", slider=True)
@@ -432,7 +432,7 @@ class AnimationsPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
                 split.label(text=f"{speed:.1f}x")
 
     def draw(self, context: bpy.types.Context):
-        wind_properties = preferences.get_preferences(
+        wind_properties = preferences.prefs_utils.get_preferences(
             context).botaniq_preferences.wind_anim_properties
         layout = self.layout
 

@@ -19,33 +19,24 @@
 # ##### END GPL LICENSE BLOCK #####
 
 import bpy
+import polib
 import typing
+if typing.TYPE_CHECKING:
+    # TYPE_CHECKING is always False at runtime, so this block will never be executed
+    # This import is used only for type hinting
+    from .. import preferences
 
 
-MODULE_CLASSES: typing.List[typing.Any] = []
+SCATTER_DISPLAY_ENUM_ITEMS = (
+    ('BOUNDS', "Bounds", "Bounds, Display the bounds of the object"),
+    ('WIRE', "Wire", "Wire, Display the object as a wireframe"),
+    ('SOLID', "Solid",
+        "Solid, Display the object as a solid (if solid drawing is enabled in the viewport)"),
+    ('TEXTURED', "Textured",
+        "Textured, Display the object with textures (if textures are enabled in the viewport)"),
+)
 
 
-class AquatiqPreferences(bpy.types.PropertyGroup):
-    draw_mask_factor: bpy.props.FloatProperty(
-        name="Mask Factor",
-        description="Value of 1 means visible, value of 0 means hidden",
-        update=lambda self, context: self.update_mask_factor(context),
-        soft_max=1.0,
-        soft_min=0.0
-    )
-
-    def update_mask_factor(self, context: bpy.types.Context):
-        context.tool_settings.vertex_paint.brush.color = [self.draw_mask_factor] * 3
-
-
-MODULE_CLASSES.append(AquatiqPreferences)
-
-
-def register():
-    for cls in MODULE_CLASSES:
-        bpy.utils.register_class(cls)
-
-
-def unregister():
-    for cls in reversed(MODULE_CLASSES):
-        bpy.utils.unregister_class(cls)
+def get_preferences(context: bpy.types.Context) -> 'preferences.Preferences':
+    engon_package = polib.utils_bpy.get_top_level_package_name(__package__)
+    return context.preferences.addons[engon_package].preferences

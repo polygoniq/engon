@@ -120,7 +120,7 @@ class AddEmptyScatter(bpy.types.Operator):
 
     def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
-        props = preferences.get_preferences(context).general_preferences.scatter_props
+        props = preferences.prefs_utils.get_preferences(context).general_preferences.scatter_props
         col = layout.column()
 
         row = col.row()
@@ -135,7 +135,7 @@ class AddEmptyScatter(bpy.types.Operator):
 
     @polib.utils_bpy.blender_cursor('WAIT')
     def execute(self, context: bpy.types.Context):
-        props = preferences.get_preferences(context).general_preferences.scatter_props
+        props = preferences.prefs_utils.get_preferences(context).general_preferences.scatter_props
         active_object = context.active_object
         logger.info(f"Working on {active_object.name}")
         modifier = active_object.modifiers.new(
@@ -644,7 +644,7 @@ class ParticleSystemRecalculateDensity(bpy.types.Operator):
         ps_settings.count, overflow = hatchery.utils.get_area_based_particle_count(
             context.active_object,
             ps_settings.pps_density,
-            preferences.get_preferences(
+            preferences.prefs_utils.get_preferences(
                 context).general_preferences.scatter_props.max_particle_count,
             include_weights=particle_system.vertex_group_density != ""
         )
@@ -732,7 +732,7 @@ class ParticlesChangeDisplay(bpy.types.Operator):
 
     def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
-        props = preferences.get_preferences(context).general_preferences.scatter_props
+        props = preferences.prefs_utils.get_preferences(context).general_preferences.scatter_props
         layout.prop(self, "all_systems")
         layout.prop(self, "behavior", text="Objects")
         layout.prop(props, "display_type")
@@ -748,7 +748,7 @@ class ParticlesChangeDisplay(bpy.types.Operator):
             return [active_system] if polib.asset_pack_bpy.is_pps(active_system.name) else []
 
     def execute(self, context: bpy.types.Context):
-        props = preferences.get_preferences(context).general_preferences.scatter_props
+        props = preferences.prefs_utils.get_preferences(context).general_preferences.scatter_props
         particle_systems = []
 
         if self.behavior == self.Behavior.ACTIVE:
@@ -863,7 +863,7 @@ class ScatterParticlesSettingsPanel(panel.EngonPanelMixin, bpy.types.Panel):
 
     def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
-        props = preferences.get_preferences(context).general_preferences.scatter_props
+        props = preferences.prefs_utils.get_preferences(context).general_preferences.scatter_props
         particle_system = context.active_object.particle_systems.active
 
         col = layout.column(align=True)
@@ -911,7 +911,7 @@ class ScatterVisibilitySettingsPanel(panel.EngonPanelMixin, bpy.types.Panel):
 
     def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
-        props = preferences.get_preferences(context).general_preferences.scatter_props
+        props = preferences.prefs_utils.get_preferences(context).general_preferences.scatter_props
         polib.ui_bpy.scaled_row(layout, 1.5).operator(
             ParticlesChangeDisplay.bl_idname,
             icon='RESTRICT_VIEW_OFF', text="Manage Viewport Display"

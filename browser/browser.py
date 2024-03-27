@@ -58,7 +58,7 @@ class MAPR_BrowserPreferencesPopoverPanel(bpy.types.Panel):
 
         col.separator()
         col.label(text="Preview Manager:")
-        col.label(text=str(previews.manager_instance))
+        col.label(text=str(previews.preview_manager))
 
         col.separator()
         col.label(text="Polygoniq Global:")
@@ -66,7 +66,7 @@ class MAPR_BrowserPreferencesPopoverPanel(bpy.types.Panel):
 
     def draw(self, context: bpy.types.Context):
         layout = self.layout
-        prefs = preferences.get_preferences(context).mapr_preferences
+        prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
         layout.prop(prefs, "search_history_count")
         layout.prop(prefs, "use_pills_nav")
         layout.prop(prefs, "debug")
@@ -160,7 +160,7 @@ class MAPR_ShowAssetDetail(bpy.types.Operator):
         box = layout.box()
         title = box.row()
         title.label(text=f"{self.asset.title}")
-        layout.template_icon(previews.manager_instance.get_preview(self.asset.id_), scale=12.0)
+        layout.template_icon(previews.preview_manager.get_icon_id(self.asset.id_), scale=12.0)
         box = layout.box()
         heading = box.row()
         heading.enabled = False
@@ -192,9 +192,9 @@ MODULE_CLASSES.append(MAPR_ShowAssetDetail)
 def draw_asset_previews(
     context: bpy.types.Context,
     layout: bpy.types.UILayout,
-    mapr_prefs: preferences.MaprPreferences
+    mapr_prefs: preferences.mapr_preferences.MaprPreferences
 ) -> None:
-    pm = previews.manager_instance
+    pm = previews.preview_manager
     assets = filters.asset_repository.current_assets
     if len(asset_registry.instance.get_registered_packs()) == 0:
         col = layout.column()
@@ -242,7 +242,7 @@ def draw_asset_previews(
         # Convert percentages to Blender icon scale, 0% = 5.0, 100% = 12.5
         preview_scale = mapr_prefs.preview_scale_percentage / 100 * 7.5 + 5
         entry.template_icon(
-            pm.get_preview(asset.id_),
+            pm.get_icon_id(asset.id_),
             scale=preview_scale
         )
 
@@ -271,13 +271,13 @@ def prefs_content_draw_override(self, context: bpy.types.Context):
         row.alignment = 'CENTER'
         row.label(text="Loading...")
         return
-    prefs = preferences.get_preferences(context).mapr_preferences
+    prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
     draw_asset_previews(context, self.layout, prefs)
 
 
 def prefs_navbar_draw_override(self, context: bpy.types.Context):
     layout = self.layout
-    prefs = preferences.get_preferences(context).mapr_preferences
+    prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
 
     row = layout.row(align=True)
     row.label(text="engon browser",
@@ -297,7 +297,7 @@ def prefs_navbar_draw_override(self, context: bpy.types.Context):
 
 def prefs_header_draw_override(self, context: bpy.types.Context):
     layout: bpy.types.UILayout = self.layout
-    prefs = preferences.get_preferences(context).mapr_preferences
+    prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
     layout.scale_x, layout.scale_y = 1, 1
     # draw EDITOR_TYPE selector
     layout.row().template_header()
@@ -376,7 +376,7 @@ class MAPR_BrowserOpen(bpy.types.Operator):
     def open_browser(cls, context: bpy.types.Context, area: bpy.types.Area) -> None:
         cls.prev_area_ui_types[area] = area.ui_type
         area.ui_type = 'PREFERENCES'
-        preferences.get_preferences(context).mapr_preferences.prefs_hijacked = True
+        preferences.prefs_utils.get_preferences(context).mapr_preferences.prefs_hijacked = True
         # If the asset repository doesn't contain any view (it wasn't queried previously) we
         # query and reconstruct the filters manually within the root category.
         if filters.asset_repository.last_view is None:
@@ -495,7 +495,7 @@ class MAPR_BrowserClose(bpy.types.Operator):
         MAPR_BrowserOpen.prev_area_ui_types.clear()
 
         if store_state_to_prefs:
-            preferences.get_preferences(context).mapr_preferences.prefs_hijacked = False
+            preferences.prefs_utils.get_preferences(context).mapr_preferences.prefs_hijacked = False
         utils.tag_prefs_redraw(context)
 
     def execute(self, context: bpy.types.Context):
@@ -564,7 +564,7 @@ class MAPR_BrowserOpenAssetPacksPreferences(bpy.types.Operator):
             f"Top package of hierarchy `{__package__}` cannot be an empty string!"
         MAPR_BrowserClose.return_preferences(context)
         bpy.ops.preferences.addon_show(module=top_package)
-        gen_prefs = preferences.get_preferences(context).general_preferences
+        gen_prefs = preferences.prefs_utils.get_preferences(context).general_preferences
         gen_prefs.show_asset_packs = True
         gen_prefs.show_pack_info_paths = False
         gen_prefs.show_keymaps = False
@@ -577,7 +577,7 @@ MODULE_CLASSES.append(MAPR_BrowserOpenAssetPacksPreferences)
 
 @bpy.app.handlers.persistent
 def mapr_browser_load_post_handler(_):
-    prefs = preferences.get_preferences(bpy.context).mapr_preferences
+    prefs = preferences.prefs_utils.get_preferences(bpy.context).mapr_preferences
     # If mapr browser replaced preferences in previous instance, open it again
     if prefs.prefs_hijacked:
         # We need to clear the previously stored area ui types, so we don't refresh

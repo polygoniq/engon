@@ -22,11 +22,8 @@ import bpy
 import typing
 import os
 import enum
-import logging
 import polib
 from .. import asset_helpers
-from .. import asset_registry
-logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
 MODULE_CLASSES: typing.List[typing.Any] = []
@@ -228,23 +225,6 @@ class BotaniqPreferences(bpy.types.PropertyGroup):
 
         return set(extended_objects).union(
             asset_helpers.gather_instanced_objects(extended_objects))
-
-    @property
-    def animation_data_path(self) -> typing.Optional[str]:
-        # TODO: This is absolutely terrible and we need to replace it later, we assume one animation
-        #       data library existing and that being used for everything. In the future each asset
-        #       pack should be able to have its own
-        for pack in asset_registry.instance.get_packs_by_engon_feature("botaniq"):
-            library_path_candidate = \
-                os.path.join(
-                    pack.install_path,
-                    "blends",
-                    "models",
-                    "bq_Library_Animation_Data.blend"
-                )
-            if os.path.isfile(library_path_candidate):
-                return library_path_candidate
-        return None
 
 
 MODULE_CLASSES.append(BotaniqPreferences)

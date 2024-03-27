@@ -24,7 +24,6 @@ import typing
 import logging
 import mathutils
 import polib
-from .. import preferences
 from .. import asset_helpers
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
@@ -36,8 +35,8 @@ def ensure_puddles_nodegroup(context: bpy.types.Context) -> None:
     puddle_nodegroup = bpy.data.node_groups.get(asset_helpers.AQ_PUDDLES_NODEGROUP_NAME, None)
     if puddle_nodegroup is not None:
         return
-    prefs = preferences.get_preferences(context).general_preferences
-    material_library_path = prefs.get_main_material_library("aquatiq", "aq_Library_Materials.blend")
+    material_library_path = asset_helpers.get_asset_pack_library_path(
+        "aquatiq", asset_helpers.AQ_MATERIALS_LIBRARY_BLEND)
 
     if material_library_path is None:
         raise RuntimeError("Material library path of aquatiq not found!")
