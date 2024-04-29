@@ -6,57 +6,28 @@ import bmesh
 import rna_prop_ui
 
 
-def create_instanced_object(collection_name: str) -> bpy.types.Object:
-    """Creates empty and sets the instance collection to one with 'collection_name'.
-
-    This is similar behaviour to bpy.ops.collection_instance_add(collection=collection_name),
-    but it is faster, because it doesn't include bpy.ops overhead. Collection 'collection_name'
-    has to exist in bpy.data.collections before call of this function.
-    """
-
-    assert collection_name in bpy.data.collections
-    collection = bpy.data.collections[collection_name]
-    instance_obj = bpy.data.objects.new(collection_name, None)
-    instance_obj.instance_type = 'COLLECTION'
-    instance_obj.instance_collection = collection
-    return instance_obj
-
-
 def copy_custom_prop(src: bpy.types.ID, dst: bpy.types.ID, prop_name: str) -> None:
     """Copies custom property 'prop_name' from 'src' to 'dst' while preserving its settings"""
-    # Blender introduced new behaviour of custom properties post 3.0.0
-    if bpy.app.version >= (3, 0, 0):
-        # In order to copy the property with its configuration (min, max, subtype, etc)
-        # we need to use following code. Code is taken from the "Copy Attributes" addon that's
-        # shipped within Blender.
+    # In order to copy the property with its configuration (min, max, subtype, etc)
+    # we need to use following code. Code is taken from the "Copy Attributes" addon that's
+    # shipped within Blender.
 
-        # Create the property.
-        dst[prop_name] = src[prop_name]
-        # Copy the settings of the property.
-        try:
-            dst_prop_manager = dst.id_properties_ui(prop_name)
-        except TypeError:
-            # Python values like lists or dictionaries don't have any settings to copy.
-            # They just consist of a value and nothing else.
-            # Note: This also skips copying the properties that cannot be edited by
-            # id_properties_ui
-            return
+    # Create the property.
+    dst[prop_name] = src[prop_name]
+    # Copy the settings of the property.
+    try:
+        dst_prop_manager = dst.id_properties_ui(prop_name)
+    except TypeError:
+        # Python values like lists or dictionaries don't have any settings to copy.
+        # They just consist of a value and nothing else.
+        # Note: This also skips copying the properties that cannot be edited by
+        # id_properties_ui
+        return
 
-        src_prop_manager = src.id_properties_ui(prop_name)
-        assert src_prop_manager, f"Property '{prop_name}' not found in {src}"
+    src_prop_manager = src.id_properties_ui(prop_name)
+    assert src_prop_manager, f"Property '{prop_name}' not found in {src}"
 
-        dst_prop_manager.update_from(src_prop_manager)
-    else:
-        # Don't ever copy _RNA_UI
-        if prop_name == "_RNA_UI":
-            return
-
-        src_prop_ui = rna_prop_ui.rna_idprop_ui_prop_get(src, prop_name)
-        dst[prop_name] = src[prop_name]
-        dst_prop_ui = rna_prop_ui.rna_idprop_ui_prop_get(dst, prop_name)
-
-        for k in src_prop_ui.keys():
-            dst_prop_ui[k] = src_prop_ui[k]
+    dst_prop_manager.update_from(src_prop_manager)
 
     # Copy the Library Overridable flag, which is stored elsewhere, sometimes it's not possible
     # to copy the library override

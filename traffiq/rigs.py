@@ -241,15 +241,38 @@ class BakingOperatorBase:
                 context.object.pose.bones[source_bone.name].matrix_basis.copy())
             source_bone.select = True
 
-        baked_action = bpy_extras.anim_utils.bake_action(
-            context.object,
-            action=None,
-            frames=range(self.frame_start, self.frame_end + 1),
-            only_selected=True,
-            do_pose=True,
-            do_object=False,
-            do_visual_keying=True,
-        )
+        if bpy.app.version < (4, 1, 0):
+            baked_action = bpy_extras.anim_utils.bake_action(
+                context.object,
+                action=None,
+                frames=range(self.frame_start, self.frame_end + 1),
+                only_selected=True,
+                do_pose=True,
+                do_object=False,
+                do_visual_keying=True,
+            )
+        else:
+            # API for bake_action changed in 4.1.0 to use BakeOptions dataclass
+            baked_action = bpy_extras.anim_utils.bake_action(
+                context.object,
+                action=None,
+                frames=range(self.frame_start, self.frame_end + 1),
+                bake_options=bpy_extras.anim_utils.BakeOptions(
+                    only_selected=True,
+                    do_pose=True,
+                    do_visual_keying=True,
+                    do_constraint_clear=False,
+                    do_object=False,
+                    do_parents_clear=False,
+                    do_clean=False,
+                    do_bbone=False,
+                    # We bake location, rotation and custom props that are used in the rig
+                    do_location=True,
+                    do_rotation=True,
+                    do_scale=False,
+                    do_custom_props=True
+                )
+            )
 
         # Restore context
         for source_bone, matrix_basis in zip(source_bones, source_bones_matrix_basis):

@@ -64,6 +64,9 @@ TAGS = {
     "Winter": {
         "description": ""
     },
+    "Drawable": {
+        "description": "Asset that can be drawn using pen tools"
+    }
 }
 
 
@@ -92,6 +95,26 @@ NUMERIC_PARAMETERS = {
         "description": "Depth of the asset in meters",
         "unit": "m",
     },
+    "image_count": {
+        "description": "Number of images used in the asset",
+        "type": "int",
+    },
+    "material_count": {
+        "description": "Number of materials used in the asset",
+        "type": "int",
+    },
+    "object_count": {
+        "description": "Number of objects used in the asset",
+        "type": "int",
+    },
+    "triangle_count": {
+        "description": "Number of triangles used in the asset before applying modifiers",
+        "type": "int",
+    },
+    "triangle_count_applied": {
+        "description": "Number of triangles used in the asset after applying modifiers",
+        "type": "int",
+    }
 }
 
 
@@ -111,12 +134,14 @@ TEXT_PARAMETERS = {
         "search_weight": 0.0,
     },
     "mapr_asset_id": {
+        "description": "UUID of the asset in the MAPR index, internal use only",
         "is_required": True,
         "search_weight": 0.0,
         "show_filter": False,
     },
     # This is used for transferring the asset id from the recipe to the deserialized .blend file
     "mapr_asset_data_id": {
+        "description": "UUID of the asset data in the MAPR index, internal use only",
         "search_weight": 0.0,
         "show_filter": False
     },
@@ -248,6 +273,7 @@ VECTOR_PARAMETERS = {
         "description": "Version of asset pack this asset was introduced in",
         "search_weight": 0.0,
         "type": VectorType.INT,
+        "is_required": True
     },
     "viewport_color": {
         "description": "",
@@ -314,3 +340,8 @@ PARAMETER_GROUPING = {
 def format_parameter_name(param_name: str) -> str:
     """Formats given parameter to human readable form by removing underscores and titling it."""
     return param_name.replace("_", " ").title()
+
+
+def format_group_name(group_name: str) -> str:
+    """Formats given group name to human readable form by removing underscores and titling it."""
+    return group_name.replace("_", " ").title()

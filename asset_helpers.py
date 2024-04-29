@@ -51,6 +51,7 @@ BQ_ANIM_LIBRARY_BLEND = "bq_Library_Animation_Data.blend"
 
 # traffiq constants
 TQ_MODIFIER_LIBRARY_BLEND = "tq_Library_Modifiers.blend"
+TQ_EMERGENCY_LIGHTS_NODE_GROUP_NAME = "tq_Emergency_Lights"
 
 
 PARTICLE_SYSTEM_PREFIX = f"engon_{polib.asset_pack_bpy.PARTICLE_SYSTEM_TOKEN}_"
@@ -63,6 +64,32 @@ class PuddleNodeInputs:
     ANIMATION_SPEED = "Animation Speed"
     NOISE_STRENGTH = "Noise Strength"
     ANGLE_THRESHOLD = "Angle Threshold"
+
+
+def has_active_pps(obj: bpy.types.Object) -> bool:
+    active_particle_system = obj.particle_systems.active
+    if active_particle_system is None:
+        return False
+
+    if not polib.asset_pack_bpy.is_pps(active_particle_system.name):
+        return False
+
+    return True
+
+
+def has_active_object_with_pps(context: bpy.types.Context) -> bool:
+    """Returns true if context is in object mode and has active object with active pps
+
+    This is mainly used for the poll methods of particle system operators that work
+    on active object with particle system.
+    """
+    if context.mode != 'OBJECT':
+        return False
+
+    if context.active_object is None:
+        return False
+
+    return has_active_pps(context.active_object)
 
 
 def is_asset_with_engon_feature(obj: bpy.types.Object, feature: str, include_editable: bool = True, include_linked: bool = True) -> bool:

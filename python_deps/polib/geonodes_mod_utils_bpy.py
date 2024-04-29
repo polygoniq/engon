@@ -91,17 +91,14 @@ class GeoNodesModifierInputsPanelMixin:
 
     DRAW_ALL = -1
 
-    def draw_active_object_modifiers_node_group_inputs_template(
+    def draw_object_modifiers_node_group_inputs_template(
         self,
+        obj: bpy.types.Object,
         layout: bpy.types.UILayout,
-        context: bpy.types.Context,
         inputs: node_utils_bpy.NodeSocketsDrawTemplate,
         draw_modifier_header: bool = False,
         max_occurrences: int = 1
     ) -> None:
-        obj = context.active_object
-        if obj is None:
-            return
         mods = get_geometry_nodes_modifiers_by_node_group(
             obj, inputs.name)
         if len(mods) == 0:
@@ -117,6 +114,28 @@ class GeoNodesModifierInputsPanelMixin:
             col = layout.column(align=True)
             inputs.draw_from_geonodes_modifier(col, mods[i])
 
+    def draw_active_object_modifiers_node_group_inputs_template(
+        self,
+        layout: bpy.types.UILayout,
+        context: bpy.types.Context,
+        inputs: node_utils_bpy.NodeSocketsDrawTemplate,
+        draw_modifier_header: bool = False,
+        max_occurrences: int = 1
+    ) -> None:
+        obj = context.active_object
+        if obj is None:
+            return
+        self.draw_object_modifiers_node_group_inputs_template(
+            obj, layout, inputs, draw_modifier_header, max_occurrences)
+
+    def draw_show_viewport_and_render(
+        self,
+        layout: bpy.types.UILayout,
+        mod: bpy.types.NodesModifier
+    ) -> None:
+        layout.prop(mod, "show_viewport", text="")
+        layout.prop(mod, "show_render", text="")
+
     def draw_geonodes_modifier_ui_box(
         self,
         layout: bpy.types.UILayout,
@@ -127,8 +146,7 @@ class GeoNodesModifierInputsPanelMixin:
         row.prop(mod, "show_expanded", text="", emboss=False)
         row.prop(mod, "name", text="")
         row.prop(mod, "show_in_editmode", text="")
-        row.prop(mod, "show_viewport", text="")
-        row.prop(mod, "show_render", text="")
+        self.draw_show_viewport_and_render(row, mod)
         row.operator("object.modifier_copy", text="", icon='DUPLICATE').modifier = mod.name
         row.operator("object.modifier_remove", text="", icon='X', emboss=False).modifier = mod.name
         return box

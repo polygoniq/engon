@@ -143,6 +143,7 @@ class BotaniqPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_engon_botaniq"
     bl_label = "botaniq"
     bl_order = 10
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw_header(self, context: bpy.types.Context):
         self.layout.label(

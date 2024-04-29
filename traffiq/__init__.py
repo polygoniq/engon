@@ -20,16 +20,19 @@
 
 from . import panel
 from . import rigs
+from . import lights
 from . import road_generator
 
 
 def register():
     panel.register()
     rigs.register()
+    lights.register()
     road_generator.register()
 
 
 def unregister():
     road_generator.unregister()
+    lights.unregister()
     rigs.unregister()
     panel.unregister()

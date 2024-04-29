@@ -97,6 +97,7 @@ class MaterialiqPanel(MaterialiqPanelMixin, bpy.types.Panel):
     bl_label = "materialiq"
     bl_category = "polygoniq"
     bl_order = 10
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.template_icon(

@@ -161,7 +161,9 @@ class SpawnOptions(bpy.types.PropertyGroup):
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_world:
             return hatchery.spawn.DatablockSpawnOptions()
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_geometry_nodes:
-            return hatchery.spawn.DatablockSpawnOptions()
+            return hatchery.spawn.GeometryNodesSpawnOptions(
+                self._get_model_parent_collection(asset, context)
+            )
         else:
             raise NotImplementedError(
                 f"Spawn options are not supported for type: {asset.type_}, please contact developers!")
@@ -224,6 +226,11 @@ class SpawnOptions(bpy.types.PropertyGroup):
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_world:
             return True, None
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_geometry_nodes:
+            if self.use_collection == 'PARTICLE_SYSTEM':
+                return False, (
+                    "Can't spawn geometry nodes into particle system collection!",
+                    "Try spawning model asset."
+                )
             return True, None
         else:
             raise NotImplementedError(

@@ -628,7 +628,6 @@ def change_preset(
     # the correct animation style. But let's not change API of change_anim_style because of this
     # corner case and let's set style of helper objects to be sure.
     change_anim_style(obj, helper_objs, animation_style)
-    remove_orphan_actions()
 
     return old_frame_interval
 
@@ -1231,6 +1230,7 @@ class AnimationApplyPreset(AnimationOperatorBase):
                 obj, wind_properties.preset, wind_properties.strength, animation_library_path)
             set_animation_frame_range(obj, fps, old_frame_interval)
 
+        remove_orphan_actions()
         return {'FINISHED'}
 
 

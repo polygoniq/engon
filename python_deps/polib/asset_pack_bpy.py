@@ -333,14 +333,6 @@ def find_traffiq_asset_parts(obj: bpy.types.Object, part: TraffiqAssetPart) -> t
             yield hierarchy_obj
 
 
-def find_traffiq_lights_container(obj: bpy.types.Object) -> typing.Optional[bpy.types.Object]:
-    """Finds whatever contains all the lights of given objects. This can be a empty with instance
-    collection if the car is linked or an lights object if the car has been converted to editable.
-    """
-    return find_object_in_hierarchy(
-        obj, lambda x, _: x.get(CustomPropertyNames.TQ_LIGHTS, None) is not None)
-
-
 def is_pps(name: str) -> bool:
     split = name.split("_")
     if len(split) < 3:
@@ -716,6 +708,17 @@ def find_object_in_hierarchy(
         return None
 
     return search_hierarchy(root_obj)
+
+
+def get_root_objects_with_matched_child(
+    objects: typing.Iterable[bpy.types.Object],
+    comparator: HierarchyNameComparator
+) -> typing.Iterable[typing.Tuple[bpy.types.Object, bpy.types.Object]]:
+    """Searches hierarchies of objects and returns objects that satisfy the 'comparator', and their root objects"""
+    for root_obj in find_polygoniq_root_objects(objects):
+        searched_obj = find_object_in_hierarchy(root_obj, comparator)
+        if searched_obj is not None:
+            yield (root_obj, searched_obj)
 
 
 def get_hierarchy(root: bpy.types.ID) -> typing.List[bpy.types.ID]:

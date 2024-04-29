@@ -19,12 +19,21 @@
 # ##### END GPL LICENSE BLOCK #####
 
 import bpy
+import os
 import typing
+import mapr
+import logging
 from . import filters
 from . import previews
+from .. import asset_registry
+logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
 MODULE_CLASSES: typing.List[typing.Any] = []
+
+# Top secret path to the dev location
+EXPECTED_DEV_PATH = os.path.expanduser("~/polygoniq/")
+IS_DEV = os.path.exists(os.path.realpath(os.path.abspath(os.path.join(EXPECTED_DEV_PATH, ".git"))))
 
 
 class MAPR_BrowserDeleteCache(bpy.types.Operator):
@@ -63,6 +72,80 @@ class MAPR_BrowserReloadPreviews(bpy.types.Operator):
 
 
 MODULE_CLASSES.append(MAPR_BrowserReloadPreviews)
+
+
+class MAPR_BrowserOpenAssetSourceBlend(bpy.types.Operator):
+    bl_idname = "engon.dev_open_asset_source_blend"
+    bl_label = "Open Asset Source Blend"
+    bl_description = "Tries to figure out the development location of this asset and open it"
+
+    asset_id: bpy.props.StringProperty()
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        return IS_DEV
+
+    def draw(self, context: bpy.types.Context) -> None:
+        self.layout.label(text=f"Asset ID: {self.asset_id}")
+        self.layout.label(text=f"Path: {self.asset_path}")
+
+    def execute(self, context: bpy.types.Context):
+        if getattr(self, "asset_path", None) is None:
+            raise RuntimeError("asset_path is initialized in invoke, use INVOKE_DEFAULT!")
+
+        bpy.ops.wm.open_mainfile(filepath=self.asset_path, load_ui=False)
+        return {'FINISHED'}
+
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+        assert IS_DEV is True
+
+        self.asset_path = self._get_asset_dev_path()
+        if self.asset_path is None:
+            self.report({'ERROR'}, f"Development path not found for '{self.asset_id}'")
+            return {'CANCELLED'}
+
+        return context.window_manager.invoke_props_dialog(self, width=800)
+
+    def _get_asset_dev_path(self) -> typing.Optional[str]:
+        asset_provider = asset_registry.instance.master_asset_provider
+        asset = asset_provider.get_asset(self.asset_id)
+        if asset is None:
+            self.report({'ERROR'}, f"No asset found for '{self.asset_id}'")
+            return None
+
+        first_asset_data: typing.Optional[mapr.asset_data.AssetData] = None
+        for asset_data_id in asset_provider.list_asset_data_ids(asset.id_):
+            asset_data = asset_provider.get_asset_data(asset_data_id)
+            if asset_data is not None:
+                first_asset_data = asset_data
+                break
+
+        if first_asset_data is None:
+            self.report({'ERROR'}, f"No asset data found for '{self.asset_id}'")
+            return None
+
+        assert first_asset_data is not None
+
+        file_provider = asset_registry.instance.master_file_provider
+        path = file_provider.materialize_file(first_asset_data.primary_blend_file)
+        # Construct the pack_name from the primary_blend_file FileID - the pack name is the
+        # first token of the FileID before ":" without the leading slash.
+        pack_name = first_asset_data.primary_blend_file.split(":", 1)[0].removeprefix("/")
+        candidate_path = os.path.join(
+            EXPECTED_DEV_PATH,
+            "blender_asset_packs",
+            pack_name,
+            f"{pack_name}_asset_pack",
+            path[path.find("blends"):]
+        )
+        if os.path.isfile(candidate_path):
+            return candidate_path
+
+        self.report({'WARNING'}, f"Tried '{candidate_path}', but it doesn't belong to a file :(")
+        return None
+
+
+MODULE_CLASSES.append(MAPR_BrowserOpenAssetSourceBlend)
 
 
 def register():

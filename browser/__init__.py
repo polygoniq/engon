@@ -24,6 +24,7 @@ from . import dev
 from . import filters
 from . import previews
 from . import spawn
+from . import what_is_new
 
 
 def register():
@@ -32,9 +33,11 @@ def register():
     dev.register()
     spawn.register()
     browser.register()
+    what_is_new.register()
 
 
 def unregister():
+    what_is_new.unregister()
     browser.unregister()
     spawn.unregister()
     dev.unregister()

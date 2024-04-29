@@ -22,6 +22,7 @@ import bpy
 import typing
 import collections
 
+
 ADDON_KEYMAPS: typing.List[typing.Tuple[bpy.types.KeyMap, bpy.types.KeyMapItem]] = []
 
 # Keymap defines a set of keys that are active over a certain space and region in Blender
@@ -29,15 +30,17 @@ ADDON_KEYMAPS: typing.List[typing.Tuple[bpy.types.KeyMap, bpy.types.KeyMapItem]]
 # in the 3D view. For global events a KeymapDefinition("Window", "EMPTY", "WINDOW") can be used.
 # The first entry is the name of the keymap in Preferences / Keymap.
 KeymapDefinition = collections.namedtuple("KeymapDefinition", ["name", "space_type", "region_type"])
+# The name should match the label of the operator with the bl_idname
 KeymapItemDefinition = collections.namedtuple(
-    "KeymapItemDefinition", ["bl_idname", "key", "action", "ctrl", "shift", "alt"])
+    "KeymapItemDefinition", ["name", "bl_idname", "key", "action", "ctrl", "shift", "alt"])
 
 
 # TODO: Ideally we would import here the MAPR_ToggleArea and get the bl_idname, but this
 # would introduce circular deps and other dependency hell
 KEYMAP_DEFINITIONS: typing.Dict[KeymapDefinition, typing.List[KeymapItemDefinition]] = {
     KeymapDefinition('Window', 'EMPTY', 'WINDOW'): [
-        KeymapItemDefinition("engon.browser_toggle_area", 'E', 'PRESS', False, False, False),
+        KeymapItemDefinition("Toggle engon Browser", "engon.browser_toggle_area",
+                             'E', 'PRESS', False, False, False),
     ]
 }
 
@@ -49,17 +52,33 @@ def draw_settings_ui(context: bpy.types.Context, layout: bpy.types.UILayout) -> 
     if context.window_manager.keyconfigs.user is None:
         return
 
+    missing_items = False
     for km_def, km_items_def in KEYMAP_DEFINITIONS.items():
-        km_items = context.window_manager.keyconfigs.user.keymaps[km_def.name].keymap_items
+        km = context.window_manager.keyconfigs.user.keymaps[km_def.name]
+        km_items = km.keymap_items
         for km_item_def in km_items_def:
             km_item: bpy.types.KeyMapItem = km_items.get(km_item_def.bl_idname, None)
             if km_item is None:
+                row = col.row()
+                row.enabled = False
+                row.label(text=f"Deleted: {km_item_def.name}")
+                missing_items = True
                 continue
 
             assert km_item is not None
-            row = col.row()
+            row = col.row(align=True)
+            row.prop(km_item, "active", text="", toggle=False)
             row.label(text=km_item.name)
+            row = row.row()
             row.prop(km_item, "type", text="", full_event=True)
+            if km_item.is_user_modified:
+                # This makes the operator's poll method succeed
+                row.context_pointer_set("keymap", km)
+            row.operator("preferences.keyitem_restore", text="", icon='BACK').item_id = km_item.id
+    if missing_items:
+        row = col.row()
+        row.label(text="You can restore the deleted items in Blender Keymap preferences: ")
+        row.operator("screen.userpref_show", icon='PREFERENCES', text="").section = 'KEYMAP'
 
 
 def _register_keymaps():
@@ -73,7 +92,7 @@ def _register_keymaps():
         km = wm.keyconfigs.addon.keymaps.new(
             name=km_def.name, space_type=km_def.space_type, region_type=km_def.region_type)
 
-        for bl_idname, key, action, ctrl, shift, alt in km_items_def:
+        for _, bl_idname, key, action, ctrl, shift, alt in km_items_def:
             kmi = km.keymap_items.new(bl_idname, key, action, ctrl=ctrl, shift=shift, alt=alt)
             ADDON_KEYMAPS.append((km, kmi))
 

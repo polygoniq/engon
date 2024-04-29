@@ -71,7 +71,9 @@ def spawn_model(
             "The object wouldn't be present in the View Layer!")
 
     root_collection = load.load_master_collection(path)
-    root_empty = utils.create_instanced_object(root_collection.name)
+    root_empty = bpy.data.objects.new(root_collection.name, None)
+    root_empty.instance_type = 'COLLECTION'
+    root_empty.instance_collection = root_collection
     root_empty.location = context.scene.cursor.location
     if options.location_override is not None:
         root_empty.location = options.location_override
@@ -129,21 +131,6 @@ def spawn_material(
     Returns the spawned material.
     """
     material = load.load_material(path)
-
-    if not bpy.app.background and "materialiq" in path:
-        # We enforce preview rendering only for "materialiq" materials, as it really decreases
-        # performance of the spawning action.
-        # We need to force preview rendering here, otherwise spawned material will have
-        # pink preview miniature in material properties tab.
-        # bpy.ops.ed.lib_id_generate_preview() can be called only from blender with GUI.
-        # That's also reason why we can't call it in our build pipeline. A proper solution
-        # would be to force this preview rendering once in our pipeline.
-        # TODO: Subsequently spawning several materials and calling this function results in
-        # Blender crashing.
-        # with context.temp_override(id=material):
-        #     bpy.ops.ed.lib_id_generate_preview()
-        pass
-
     for obj in options.target_objects:
         if not utils.can_have_materials_assigned(obj):
             continue
@@ -281,6 +268,11 @@ def spawn_scene(
     return SceneSpawnedData(scene)
 
 
+@dataclasses.dataclass
+class GeometryNodesSpawnOptions(DatablockSpawnOptions):
+    parent_collection: typing.Optional[bpy.types.Collection] = None
+
+
 class GeometryNodesSpawnedData(SpawnedData):
     def __init__(
         self,
@@ -295,14 +287,15 @@ class GeometryNodesSpawnedData(SpawnedData):
 def spawn_geometry_nodes(
     path: str,
     context: bpy.types.Context,
-    options: DatablockSpawnOptions
+    options: GeometryNodesSpawnOptions
 ) -> GeometryNodesSpawnedData:
     """Loads object with the same name as basename of 'path' and adds it to the scene collection"""
     # Currently default behavior is to append the object containing the geometry nodes.
     # TODO: In future we want to load either node group into node tree, apply onto active
     # object and choose whether to start draw, or edit mode.
     obj = load.load_master_object(path)
-    context.scene.collection.objects.link(obj)
+    if options.parent_collection is not None:
+        options.parent_collection.objects.link(obj)
 
     # Due to a bug in Blender while converting boolean inputs we reassign the modifier node
     # group when spawning. The bug happens when object with modifiers is appended from a blend

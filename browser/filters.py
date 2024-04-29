@@ -490,6 +490,11 @@ class BrowserVectorParameterFilter(
         description="Distance from desired to compared color as computed by CIEDE2000 formula.",
     )
 
+    # We purposefully don't clamp ranges of vector properties, as different min and max values
+    # are useful for different use cases and e. g. for introduced in its valid to filter
+    # from (1, 0, 5) to (1, 9, 2) even if data min max is (1, 0, 0) and (2, 0, 0).
+    # TODO: Some smarter clamping could be introduced in the future, but lets not do it before
+    # we know the certain use cases.
     range_start: bpy.props.FloatVectorProperty(
         get=lambda self: self._range_start_get(),
         set=lambda self, value: self._range_start_set(value)
@@ -536,8 +541,8 @@ class BrowserVectorParameterFilter(
             col.prop(self, "color_value", text="")
             col.prop(self, "distance")
         elif self.type_ in {mapr.known_metadata.VectorType.FLOAT, mapr.known_metadata.VectorType.INT}:
-            col.prop(self, "range_start", text="Min")
-            col.prop(self, "range_end", text="Max")
+            col.row(align=True).prop(self, "range_start", text="From")
+            col.row(align=True).prop(self, "range_end", text="To")
 
     def is_default(self) -> bool:
         # For some reason I had to lower the 'rel_tol' for the self.distance 'isclose' check to pass
@@ -569,17 +574,6 @@ class BrowserVectorParameterFilter(
 
         return super().filter_(asset)
 
-    def _clamp_value(self, value: mathutils.Vector) -> mathutils.Vector:
-        # Clamp values to range min, max
-        for i in range(len(value)):
-            if value[i] < self.range_min[i]:
-                value[i] = self.range_min[i]
-
-            if value[i] > self.range_max[i]:
-                value[i] = self.range_max[i]
-
-        return value
-
     def _range_start_get(self):
         return self.get("range_start", mathutils.Vector((-1.0, -1.0, -1.0)))
 
@@ -587,11 +581,11 @@ class BrowserVectorParameterFilter(
         return self.get("range_end", mathutils.Vector((1.0, 1.0, 1.0)))
 
     def _range_start_set(self, value: typing.Tuple):
-        self["range_start"] = self._clamp_value(mathutils.Vector(value))
+        self["range_start"] = mathutils.Vector(value)
         _any_filter_updated_event()
 
     def _range_end_set(self, value: typing.Tuple):
-        self["range_end"] = self._clamp_value(mathutils.Vector(value))
+        self["range_end"] = mathutils.Vector(value)
         _any_filter_updated_event()
 
     @property
@@ -808,7 +802,7 @@ class FilterGroup(bpy.types.PropertyGroup):
     collapsed: bpy.props.BoolProperty(name="Collapsed", default=True)
 
     def get_nice_name(self) -> str:
-        return mapr.known_metadata.format_parameter_name(self.name)
+        return mapr.known_metadata.format_group_name(self.name)
 
     def draw(
         self,
@@ -1043,22 +1037,30 @@ MODULE_CLASSES.append(DynamicFilters)
 class MAPR_BrowserResetFilter(bpy.types.Operator):
     bl_idname = "engon.browser_reset_filter"
     bl_label = "Reset Filter"
-    bl_description = "Resets all or a selected filter in polygoniq asset browser"
+    bl_description = "Resets all or a selected filter in engon browser"
 
     filter_name: bpy.props.StringProperty()
     reset_all: bpy.props.BoolProperty(default=False)
 
-    def execute(self, context: bpy.types.Context):
+    @classmethod
+    def reset_all_filters(cls, context: bpy.types.Context) -> None:
         dyn_filters = get_filters(context)
-        if self.reset_all:
-            for filter_ in dyn_filters.filters.values():
-                filter_.reset()
+        for filter_ in dyn_filters.filters.values():
+            filter_.reset()
 
-            self.reset_all = False
-            return {'FINISHED'}
-        filter_ = dyn_filters.get_param_filter(self.filter_name)
+    @classmethod
+    def reset_filter(cls, context: bpy.types.Context, filter_name: str) -> None:
+        dyn_filters = get_filters(context)
+        filter_ = dyn_filters.get_param_filter(filter_name)
         if filter_ is not None:
             filter_.reset()
+
+    def execute(self, context: bpy.types.Context):
+        if self.reset_all:
+            MAPR_BrowserResetFilter.reset_all_filters(context)
+            self.reset_all = False
+        else:
+            MAPR_BrowserResetFilter.reset_filter(context, self.filter_name)
         return {'FINISHED'}
 
 

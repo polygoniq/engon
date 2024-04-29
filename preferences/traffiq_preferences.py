@@ -33,6 +33,14 @@ BUMPS_MODIFIER_NAME = "tq_bumps_displacement"
 BUMPS_MODIFIERS_CONTAINER_NAME = "tq_Bump_Modifiers_Container"
 
 
+MAIN_LIGHT_STATUS = (
+    ("0", "Off", "Front and rear lights are off"),
+    ("0.25", "Parking", "Parking lights are on"),
+    ("0.50", "Low-Beam", "Low-Beam lights are on"),
+    ("0.75", "High-Beam", "High-Beam lights are on"),
+)
+
+
 class CarPaintProperties(bpy.types.PropertyGroup):
     @staticmethod
     def update_car_paint_color_prop(context, value: typing.Tuple[float, float, float, float]):
@@ -195,20 +203,24 @@ MODULE_CLASSES.append(RigProperties)
 class LightsProperties(bpy.types.PropertyGroup):
     main_lights_status: bpy.props.EnumProperty(
         name="Main Lights Status",
-        items=(
-            ("0", "off", "Front and rear lights are off"),
-            ("0.25", "park", "Park lights are on"),
-            ("0.50", "low-beam", "Low-beam lights are on"),
-            ("0.75", "high-beam", "High-beam lights are on"),
-        ),
+        items=MAIN_LIGHT_STATUS,
         update=lambda self, context: polib.asset_pack_bpy.update_custom_prop(
             context,
-            [polib.asset_pack_bpy.find_traffiq_lights_container(
-                o) for o in context.selected_objects],
+            (lights_obj for _, lights_obj in self.find_unique_lights_containers_with_roots(
+                context.selected_objects)),
             polib.asset_pack_bpy.CustomPropertyNames.TQ_LIGHTS,
             float(self.main_lights_status)
         ),
     )
+
+    def find_unique_lights_containers_with_roots(
+        self,
+        objects: typing.Iterable[bpy.types.Object]
+    ) -> typing.Iterable[typing.Tuple[bpy.types.Object, bpy.types.Object]]:
+        return polib.asset_pack_bpy.get_root_objects_with_matched_child(
+            objects,
+            lambda x, _: x.get(polib.asset_pack_bpy.CustomPropertyNames.TQ_LIGHTS, None) is not None
+        )
 
 
 MODULE_CLASSES.append(LightsProperties)

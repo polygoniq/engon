@@ -22,51 +22,69 @@ import typing
 import bpy
 import logging
 import polib
+from .. import preferences
+from .. import asset_helpers
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
 MODULE_CLASSES: typing.List[typing.Type] = []
 
 
-def can_change_lights_status(obj: bpy.types.Object) -> bool:
-    return polib.asset_pack_bpy.CustomPropertyNames.TQ_LIGHTS in obj
+class SetLightsStatus(bpy.types.Operator):
+    bl_idname = "engon.traffiq_set_lights_status"
+    bl_label = "Set Lights Status To Selected"
+    bl_description = "Set lights status to selected objects"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    status: bpy.props.EnumProperty(
+        items=preferences.traffiq_preferences.MAIN_LIGHT_STATUS,
+        name="Lights Status",
+    )
+
+    def execute(self, context: bpy.types.Context):
+        prefs = preferences.prefs_utils.get_preferences(context).traffiq_preferences
+        prefs.lights_properties.main_lights_status = self.status
+        return {'FINISHED'}
 
 
-def get_lights_status_value(lights_container: bpy.types.Object) -> float:
-    return lights_container[polib.asset_pack_bpy.CustomPropertyNames.TQ_LIGHTS]
+MODULE_CLASSES.append(SetLightsStatus)
 
 
-def set_lights_status_value(lights_container: bpy.types.Object, value: float) -> None:
-    lights_container[polib.asset_pack_bpy.CustomPropertyNames.TQ_LIGHTS] = value
+def get_emergency_lights_container_from_hierarchy_with_root(
+    obj: bpy.types.Object
+) -> typing.Tuple[typing.Optional[bpy.types.Object], typing.Optional[bpy.types.Object]]:
+    """Returns the first object in the hierarchy that contains emergency lights and the root of the hierarchy
 
+    Returns None if no such object is found in the hierarchy of the given object.
+    """
+    def _contains_emergency_lights(obj: bpy.types.Object) -> bool:
+        return len(polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
+            obj, asset_helpers.TQ_EMERGENCY_LIGHTS_NODE_GROUP_NAME)) > 0
 
-main_lights_status = (
-    (0, "off"),
-    (0.25, "park"),
-    (0.50, "low-beam"),
-    (0.75, "high-beam")
-)
+    emergency_lights = list(
+        polib.asset_pack_bpy.get_root_objects_with_matched_child(
+            [obj], lambda obj, _: _contains_emergency_lights(obj)))
+    if len(emergency_lights) == 0:
+        return None, None
+    assert len(emergency_lights) == 1
+    return emergency_lights[0]
 
 
 def get_main_lights_status_text(value: float) -> str:
-    ret = "unknown"
-    for min_value, status in main_lights_status:
-        if value < min_value:
+    ret = "Unknown"
+    for min_value, status, _ in preferences.traffiq_preferences.MAIN_LIGHT_STATUS:
+        if value < float(min_value):
             return ret
         ret = status
 
     return ret
 
 
-def find_unique_lights_containers(objects: typing.Iterable[bpy.types.Object]) -> typing.Set[bpy.types.Object]:
-    ret = set()
-    for obj in objects:
-        light_obj = polib.asset_pack_bpy.find_traffiq_lights_container(obj)
-        if light_obj is None:
-            continue
-        if light_obj in ret:
-            continue
+def register():
+    for cls in MODULE_CLASSES:
+        bpy.utils.register_class(cls)
 
-        ret.add(light_obj)
 
-    return ret
+def unregister():
+    for cls in reversed(MODULE_CLASSES):
+        bpy.utils.unregister_class(cls)

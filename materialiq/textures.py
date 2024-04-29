@@ -45,10 +45,8 @@ class ChangeTextureSizeGlobal(bpy.types.Operator):
     )
 
     def execute(self, context: bpy.types.Context):
-        prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
         hatchery.textures.change_texture_sizes(int(self.max_size))
         self.report({"INFO"}, f"Changed global texture sizes to {self.max_size}")
-        prefs.spawn_options.texture_size = self.max_size
         return {'FINISHED'}
 
 

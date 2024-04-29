@@ -20,6 +20,11 @@
 
 import bpy
 import mapr
+import logging
+import typing
+from .. import asset_registry
+logger = logging.getLogger(f"polygoniq.{__name__}")
+
 
 # Estimate of PX width (without scale) of a letter in Blender
 # If we are able to count exact letter width, then we know more precisely when to wrap

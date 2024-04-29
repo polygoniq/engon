@@ -37,32 +37,6 @@ MODULE_CLASSES: typing.List[typing.Type] = []
 WEIGHT_PAINT_VERTICES_WARNING_THRESHOLD = 16
 
 
-def has_active_pps(obj: bpy.types.Object) -> bool:
-    active_particle_system = obj.particle_systems.active
-    if active_particle_system is None:
-        return False
-
-    if not polib.asset_pack_bpy.is_pps(active_particle_system.name):
-        return False
-
-    return True
-
-
-def has_active_object_with_pps(context: bpy.types.Context) -> bool:
-    """Returns true if context is in object mode and has active object with active pps
-
-    This is mainly used for the poll methods of particle system operators that work
-    on active object with particle system.
-    """
-    if context.mode != 'OBJECT':
-        return False
-
-    if context.active_object is None:
-        return False
-
-    return has_active_pps(context.active_object)
-
-
 def find_modifier_containing_particle_system(
     modifiers: typing.Iterable[bpy.types.Modifier],
     particle_system_name: str
@@ -204,7 +178,7 @@ class MakeParticleDataUnique(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        return has_active_object_with_pps(context)
+        return asset_helpers.has_active_object_with_pps(context)
 
     def execute(self, context: bpy.types.Context):
         particle_system = context.active_object.particle_systems[self.particle_system_name]
@@ -289,7 +263,7 @@ class ScatterWeightPaint(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        return has_active_object_with_pps(context)
+        return asset_helpers.has_active_object_with_pps(context)
 
     def execute(self, context: bpy.types.Context):
         active_object = context.active_object
@@ -355,7 +329,7 @@ class RenameParticleSystem(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        return has_active_object_with_pps(context)
+        return asset_helpers.has_active_object_with_pps(context)
 
     def execute(self, context: bpy.types.Context):
         if self.old_name == self.new_name:
@@ -436,11 +410,12 @@ class RemoveParticleSystem(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        return has_active_object_with_pps(context)
+        return asset_helpers.has_active_object_with_pps(context)
 
     def execute(self, context: bpy.types.Context):
         active_object = context.active_object
-        ps_to_remove = active_object.particle_systems.active
+        particle_systems = active_object.particle_systems
+        ps_to_remove = particle_systems.active
         # Keep references to particle system settings and name
         # because the 'ps_to_remove' data are removed with
         # the modifier
@@ -497,7 +472,10 @@ class RemoveParticleSystem(bpy.types.Operator):
         )
 
         if found_modifier is not None:
+            # Store previous index, so we can keep it on the next item from deleted.
+            prev_index = particle_systems.active_index
             active_object.modifiers.remove(found_modifier)
+            particle_systems.active_index = max(0, prev_index - 1)
 
         if ps_settings_to_remove.users == 0:
             bpy.data.particles.remove(ps_settings_to_remove)
@@ -521,7 +499,7 @@ class ParticleSystemAppendSelection(bpy.types.Operator):
         if active_object is None:
             return False
 
-        if not has_active_pps(active_object):
+        if not asset_helpers.has_active_pps(active_object):
             return False
 
         if active_object.particle_systems.active.settings.instance_collection is None:
@@ -578,7 +556,7 @@ class ParticleSystemRemoveAsset(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        if not has_active_object_with_pps(context):
+        if not asset_helpers.has_active_object_with_pps(context):
             return False
 
         settings = context.active_object.particle_systems.active.settings
@@ -593,6 +571,7 @@ class ParticleSystemRemoveAsset(bpy.types.Operator):
     def execute(self, context: bpy.types.Context):
         particle_settings: bpy.types.ParticleSettings = context.active_object.particle_systems.active.settings
         instance_collection = particle_settings.instance_collection
+        prev_index = particle_settings.active_instanceweight_index
         # instanceweight.name stores "name: COUNT" for some reason
         root_object_to_unlink_name, _ = particle_settings.active_instanceweight.name.split(":", 1)
         # instanceweights use the object it has to be in the bpy.data.objects
@@ -615,6 +594,11 @@ class ParticleSystemRemoveAsset(bpy.types.Operator):
             # is the last user.
             if obj.users <= 1:
                 bpy.data.objects.remove(obj)
+
+        # Update the active instance weight index for better UX (so after removing assets the
+        # index doesn't isn't set to zero).
+        particle_settings.active_instanceweight_index = max(
+            0, min(prev_index, len(instance_collection.all_objects)) - 1)
 
         logger.info(
             f"Removed {unlinked_object_names} from particle system {particle_settings.name} on "
@@ -783,6 +767,7 @@ class ScatterPanel(panel.EngonPanelMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_engon_scatter"
     bl_parent_id = panel.EngonPanel.bl_idname
     bl_label = "Scatter"
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon='FILE_VOLUME')
@@ -856,7 +841,7 @@ class ScatterParticlesSettingsPanel(panel.EngonPanelMixin, bpy.types.Panel):
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         return context.mode == 'OBJECT' and context.active_object is not None and \
-            has_active_pps(context.active_object)
+            asset_helpers.has_active_pps(context.active_object)
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon='PARTICLES')
@@ -920,7 +905,7 @@ class ScatterVisibilitySettingsPanel(panel.EngonPanelMixin, bpy.types.Panel):
         if context.active_object is None:
             return
 
-        if not has_active_pps(context.active_object):
+        if not asset_helpers.has_active_pps(context.active_object):
             return
 
         layout.separator()
@@ -963,7 +948,7 @@ class ScatterWeightPaintPanel(panel.EngonPanelMixin, bpy.types.Panel):
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         return context.mode in {'OBJECT', 'PAINT_WEIGHT'} and context.active_object is not None and \
-            has_active_pps(context.active_object)
+            asset_helpers.has_active_pps(context.active_object)
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon='BRUSH_DATA')
@@ -1039,7 +1024,7 @@ class ScatterInstancerDetailPanel(panel.EngonPanelMixin, bpy.types.Panel):
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         return context.mode == 'OBJECT' and context.active_object is not None and \
-            has_active_pps(context.active_object)
+            asset_helpers.has_active_pps(context.active_object)
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon='OUTLINER_OB_GROUP_INSTANCE')

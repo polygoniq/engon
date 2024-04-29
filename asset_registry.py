@@ -27,6 +27,7 @@ import zipfile
 import logging
 import mapr
 import polib
+import functools
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -180,6 +181,7 @@ class AssetPack:
 
         # we remember which providers we registered to MAPR to be able to unregister them
         self.asset_providers: typing.List[mapr.asset_provider.AssetProvider] = []
+        self.asset_multiplexer: typing.Optional[mapr.asset_provider.AssetProviderMultiplexer] = None
         self.file_providers: typing.List[mapr.asset_provider.FileProvider] = []
 
         # we remember which blender asset library entry we added
@@ -225,6 +227,28 @@ class AssetPack:
     def get_vendor_icon_id(self) -> typing.Optional[int]:
         return None if self.vendor_icon is None else self.icon_manager.get_icon_id(self.vendor_icon)
 
+    @functools.cached_property
+    def main_category_id(
+        self,
+    ) -> typing.Optional[mapr.category.CategoryID]:
+        if self.asset_multiplexer is None:
+            return None
+
+        main_category_id = self.asset_multiplexer.get_root_category_id()
+
+        all_child_of_root_asset_pack_categories: typing.Set[mapr.category.Category] = set()
+        for category in self.asset_multiplexer.list_child_category_ids(main_category_id):
+            all_child_of_root_asset_pack_categories.add(category)
+
+        if len(all_child_of_root_asset_pack_categories) == 1:
+            main_category_id = all_child_of_root_asset_pack_categories.pop()
+        else:
+            logger.error(f"We expect the pack {self.full_name} to have 1 child-of-root category, "
+                         f"but {len(all_child_of_root_asset_pack_categories)} were found. "
+                         f"Defaulting to root category '{main_category_id}'.")
+
+        return main_category_id
+
     def _register_in_mapr(
         self,
         master_asset_provider: mapr.asset_provider.AssetProviderMultiplexer,
@@ -258,6 +282,7 @@ class AssetPack:
             master_asset_provider.add_asset_provider(asset_multiplexer)
             master_file_provider.add_file_provider(file_multiplexer)
             self.asset_providers.append(asset_multiplexer)
+            self.asset_multiplexer = asset_multiplexer
             self.file_providers.append(file_multiplexer)
 
     def _unregister_from_mapr(
@@ -268,6 +293,7 @@ class AssetPack:
         for asset_provider in self.asset_providers:
             master_asset_provider.remove_asset_provider(asset_provider)
         self.asset_providers.clear()
+        self.asset_multiplexer = None
 
         for file_provider in self.file_providers:
             master_file_provider.remove_file_provider(file_provider)

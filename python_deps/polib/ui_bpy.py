@@ -23,7 +23,7 @@ class SocialMediaURL:
     DISCORD = "https://polygoniq.com/discord/"
     FACEBOOK = "https://www.facebook.com/polygoniq/"
     INSTAGRAM = "https://www.instagram.com/polygoniq.xyz/"
-    BLENDERMARKET = "https://blendermarket.com/creators/polygoniq"
+    BLENDERMARKET = "https://blendermarket.com/creators/polygoniq?ref=673"
     WEBPAGE = "https://polygoniq.com/"
     GUMROAD = "https://gumroad.com/polygoniq"
 
@@ -137,6 +137,41 @@ def row_with_label(
     row.enabled = enabled
     row.label(text=text, icon=icon)
     return row
+
+
+def collapsible_box(
+    layout: bpy.types.UILayout,
+    data: typing.Any,
+    show_prop_name: str,
+    title: str,
+    content_draw: typing.Callable[[bpy.types.UILayout], None],
+    docs_module: typing.Optional[str] = None,
+    docs_rel_url: str = "",
+) -> bpy.types.UILayout:
+    """Creates a collapsible box with 'title' and 'content' inside, based on 'layout'.
+
+    The box is shown based on the 'show_prop_name' property of 'data' object. Optionally, a button
+    leading to a documentation page can be added based on 'docs_module' and 'docs_rel_url'.
+    """
+    show = getattr(data, show_prop_name)
+    if show is None:
+        raise ValueError(f"Property '{show_prop_name}' not found in data object!")
+    box = layout.box()
+    row = box.row()
+    row.prop(
+        data,
+        show_prop_name,
+        icon='DISCLOSURE_TRI_DOWN' if show else 'DISCLOSURE_TRI_RIGHT',
+        text="",
+        emboss=False
+    )
+    row.label(text=title)
+    if docs_module is not None:
+        draw_doc_button(row, docs_module, docs_rel_url)
+    if show:
+        content_draw(box)
+
+    return box
 
 
 def center_mouse(context: bpy.types.Context) -> None:

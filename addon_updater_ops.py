@@ -937,7 +937,7 @@ def update_notice_box_ui(self, context):
         col.operator("wm.url_open", text="Get it now").url = updater.website
 
 
-def update_settings_ui(self, context: bpy.types.Context, layout: bpy.types.UILayout = None):
+def update_settings_ui(self, context, element=None):
     """Preferences - for drawing with full width inside user preferences
 
     A function that can be run inside user preferences panel for prefs UI.
@@ -947,21 +947,24 @@ def update_settings_ui(self, context: bpy.types.Context, layout: bpy.types.UILay
         addon_updater_ops.update_settings_ui(context)
     """
 
-    # Layout is a UI element, such as layout, a row, column, or box.
-    if layout is None:
-        layout = self.layout
+    # Element is a UI element, such as layout, a row, column, or box.
+    if element is None:
+        element = self.layout
+    box = element.box()
 
     # In case of error importing updater.
     if updater.invalid_updater:
-        layout.label(text="Error initializing updater code:")
-        layout.label(text=updater.error_msg)
+        box.label(text="Error initializing updater code:")
+        box.label(text=updater.error_msg)
         return
     settings = get_user_preferences(context)
     if not settings:
-        layout.label(text="Error getting updater preferences", icon='ERROR')
+        box.label(text="Error getting updater preferences", icon='ERROR')
         return
 
-    row = layout.row()
+    # auto-update settings
+    box.label(text="Updater Settings")
+    row = box.row()
 
     # special case to tell user to restart blender, if set that way
     if not updater.auto_reload_post_update:
@@ -995,7 +998,7 @@ def update_settings_ui(self, context: bpy.types.Context, layout: bpy.types.UILay
     # check_col.prop(settings,"updater_interval_minutes")
 
     # Checking / managing updates.
-    row = layout.row()
+    row = box.row()
     col = row.column()
     if updater.error is not None:
         sub_col = col.row(align=True)
@@ -1094,7 +1097,7 @@ def update_settings_ui(self, context: bpy.types.Context, layout: bpy.types.UILay
         backup_text = "Restore addon backup ({})".format(last_date)
         col.operator(AddonUpdaterRestoreBackup.bl_idname, text=backup_text)
 
-    row = layout.row()
+    row = box.row()
     row.scale_y = 0.7
     last_check = updater.json["last_check"]
     if updater.error is not None and updater.error_msg is not None:

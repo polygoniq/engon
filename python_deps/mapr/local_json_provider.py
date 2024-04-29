@@ -16,7 +16,13 @@ logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
 class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider):
-    def __init__(self, index_file_path: str, file_id_folder_path: str, file_id_prefix: str):
+    def __init__(
+        self,
+        index_file_path: str,
+        file_id_folder_path: str,
+        file_id_prefix: str,
+        index_json_override: typing.Optional[typing.Dict] = None
+    ):
         """Dual purpose asset and file provider, index is loaded from JSON, all files from disk
 
         index_file_path: path to the file containing MAPR index JSON
@@ -24,11 +30,14 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
                              when file_id_prefix is removed from the ID
         file_id_prefix: all files provided with this providers have to have an ID starting with
                         this prefix
+        index_json_override: optional dictionary to override the index JSON with, useful for testing
         """
 
         self.index_file_path = index_file_path
         self.file_id_folder_path = file_id_folder_path
         self.file_id_prefix = file_id_prefix
+
+        self.index_json_override = index_json_override
 
         # maps category ID to IDs of its child categories
         self.child_categories: typing.DefaultDict[category.CategoryID, typing.List[category.CategoryID]] = \
@@ -78,8 +87,11 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
 
     def load_index(self):
         index_json = {}
-        with open(self.index_file_path) as f:
-            index_json = json.load(f)
+        if self.index_json_override is None:
+            with open(self.index_file_path) as f:
+                index_json = json.load(f)
+        else:
+            index_json = self.index_json_override
 
         # TODO: sanity check the input json?
         # TODO: convert from dict mapping str->list to str->set?

@@ -289,24 +289,28 @@ class EngonPanel(EngonPanelMixin, bpy.types.Panel):
             self.layout, __package__, rel_url="panels/engon/panel_overview")
 
     def draw(self, context: bpy.types.Context):
-        prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
+        prefs = preferences.prefs_utils.get_preferences(context)
+        mapr_prefs = prefs.mapr_preferences
+        what_is_new_prefs = prefs.what_is_new_preferences
         col = self.layout.column(align=True)
         row = col.row(align=True)
         row.scale_y = 1.5
         if browser.browser.MAPR_BrowserChooseArea.is_running:
             row.label(text="Select area with mouse!", icon='RESTRICT_SELECT_ON')
         else:
+            new_packs = browser.what_is_new.get_updated_asset_packs(context)
+            is_something_new = what_is_new_prefs.display_what_is_new and len(new_packs) > 0
             row.operator(
                 browser.browser.MAPR_BrowserChooseArea.bl_idname,
-                text="Browse Assets",
-                icon='RESTRICT_SELECT_OFF'
+                text="Browse NEW Assets" if is_something_new else "Browse Assets",
+                icon='OUTLINER_OB_LIGHT' if is_something_new else 'RESTRICT_SELECT_OFF'
             )
             row.operator(
                 browser.browser.MAPR_BrowserOpen.bl_idname,
                 text="",
                 icon='WINDOW'
             )
-        if prefs.prefs_hijacked:
+        if mapr_prefs.prefs_hijacked:
             row = row.row(align=True)
             row.scale_x = 1.2
             row.alert = True
@@ -321,7 +325,7 @@ class EngonPanel(EngonPanelMixin, bpy.types.Panel):
         row = polib.ui_bpy.scaled_row(col, 1.5, align=True)
         row.operator(MakeSelectionLinked.bl_idname, text="Linked", icon='LINKED')
         row.operator(MakeSelectionEditable.bl_idname, text="Editable", icon='MESH_DATA')
-        row.prop(prefs.spawn_options, "remove_duplicates",
+        row.prop(mapr_prefs.spawn_options, "remove_duplicates",
                  text="", toggle=1, icon='FULLSCREEN_EXIT')
         col.separator()
 

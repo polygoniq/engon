@@ -24,6 +24,7 @@ import polib
 from . import rigs
 from . import lights
 from .. import preferences
+from .. import asset_helpers
 from .. import asset_registry
 
 
@@ -95,6 +96,7 @@ class TraffiqPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_engon_traffiq"
     bl_label = "traffiq"
     bl_order = 10
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw_header(self, context: bpy.types.Context):
         self.layout.label(
@@ -182,10 +184,19 @@ MODULE_CLASSES.append(ColorsPanel)
 
 
 @polib.log_helpers_bpy.logged_panel
-class LightsPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
+class LightsPanel(
+    TraffiqPanelInfoMixin,
+    polib.geonodes_mod_utils_bpy.GeoNodesModifierInputsPanelMixin,
+    bpy.types.Panel
+):
     bl_idname = "VIEW_3D_PT_engon_traffiq_lights"
     bl_parent_id = TraffiqPanel.bl_idname
-    bl_label = "Light Settings"
+    bl_label = "Lights Settings"
+
+    template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
+        asset_helpers.TQ_EMERGENCY_LIGHTS_NODE_GROUP_NAME,
+        filter_=lambda _: True
+    )
 
     def draw_header(self, context: bpy.types.Context):
         self.layout.label(text="", icon='OUTLINER_OB_LIGHT')
@@ -193,19 +204,25 @@ class LightsPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
     def draw(self, context: bpy.types.Context):
         prefs = preferences.prefs_utils.get_preferences(context).traffiq_preferences
         col = self.layout.column()
-        lights_containers = lights.find_unique_lights_containers(context.selected_objects)
-        if len(lights_containers) == 0:
+        lights_tuples = list(prefs.lights_properties.find_unique_lights_containers_with_roots(
+            context.selected_objects))
+        if len(lights_tuples) == 0:
             col.label(text="No assets with lights selected!")
             return
+
+        if context.scene.render.engine != 'CYCLES':
+            row = col.row()
+            row.alert = True
+            row.label(text="Lights are only supported in CYCLES!", icon='ERROR')
 
         status_col = col.column(align=True)
         row = status_col.row()
         row.label(text="Selected Assets:")
-        row.label(text="Light Status")
+        row.label(text="Main Lights Status")
         row.enabled = False
-        for lights_container in lights_containers:
+        for asset, lights_container in lights_tuples:
             row = status_col.row(align=True)
-            row.label(text=lights_container.name)
+            row.label(text=asset.name)
             row.prop(
                 lights_container,
                 f'["{polib.asset_pack_bpy.CustomPropertyNames.TQ_LIGHTS}"]',
@@ -216,13 +233,39 @@ class LightsPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
         col.separator()
 
         col = col.column(align=True)
-        col.label(text="Lights Status:")
-        col.prop(prefs.lights_properties, "main_lights_status", text="")
+        col.operator_menu_enum(
+            lights.SetLightsStatus.bl_idname,
+            property="status",
+            text="Selection Main Lights Status",
+            icon='LIGHTPROBE_GRID' if bpy.app.version < (4, 1, 0) else 'LIGHTPROBE_VOLUME'
+        )
 
-        if context.scene.render.engine != 'CYCLES':
-            row = col.row()
-            row.alert = True
-            row.label(text="Lights are only supported in CYCLES!", icon='ERROR')
+        # Emergency lights settings
+        self.layout.separator()
+        col = self.layout.column()
+        col.label(text="Emergency Lights", icon='LIGHT_SUN')
+        emergency_lights: typing.Optional[bpy.types.Object] = None
+        obj = context.active_object
+        if obj is not None:
+            root_object, emergency_lights = lights.get_emergency_lights_container_from_hierarchy_with_root(
+                obj)
+        # TODO: differentiate between linked asset and asset without emergency lights
+        if emergency_lights is None:
+            col.label(text="Active object is not editable or does not contain Emergency Lights!")
+            return
+        modifiers = polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
+            emergency_lights, asset_helpers.TQ_EMERGENCY_LIGHTS_NODE_GROUP_NAME)
+        mod = modifiers[0]
+        row = col.row()
+        left_col = row.column()
+        left_col.enabled = False
+        left_col.label(text=root_object.name)
+        right_col = row.column()
+        row = right_col.row(align=True)
+        row.alignment = 'RIGHT'
+        self.draw_show_viewport_and_render(row, mod)
+        self.draw_object_modifiers_node_group_inputs_template(
+            emergency_lights, col, LightsPanel.template)
 
 
 MODULE_CLASSES.append(LightsPanel)
