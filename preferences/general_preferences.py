@@ -193,6 +193,15 @@ class GeneralPreferences(bpy.types.PropertyGroup):
         op.filepath = os.path.expanduser("~" + os.sep)
         row.operator(PackInfoSearchPathList_RefreshPacks.bl_idname,
                      icon='FILE_REFRESH', text="")
+        try:
+            engon_version = polib.utils_bpy.get_addon_mod_info(
+                polib.utils_bpy.get_top_level_package_name(__package__))["version"]
+        except (ValueError, KeyError):
+            # This shouldn't happen at all, because we are in the same __package__ that we are
+            # searching for the version, but just to be sure and to always display asset pack
+            # preferences, we catch this.
+            engon_version = None
+
         for pack in asset_registry.instance.get_registered_packs():
             subbox: bpy.types.UILayout = layout.box()
 
@@ -231,6 +240,17 @@ class GeneralPreferences(bpy.types.PropertyGroup):
             sub_row.label(text=pack.vendor)
             label_col.label(text=f"Installation path:")
             value_col.label(text=f"{pack.install_path}")
+
+            if engon_version is not None and engon_version < pack.min_engon_version:
+                col = subbox.column(align=True)
+                col.label(
+                    text=f"engon {'.'.join(map(str, pack.min_engon_version))} or newer is recommended for this Asset Pack!",
+                    icon='ERROR'
+                )
+                col.label(
+                    text="Some features might not work correctly, please update engon in the "
+                    "'Updates' section.",
+                )
 
     def draw_pack_info_search_paths(
         self,

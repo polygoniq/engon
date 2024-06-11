@@ -66,6 +66,9 @@ TAGS = {
     },
     "Drawable": {
         "description": "Asset that can be drawn using pen tools"
+    },
+    "Photoscan": {
+        "description": "Assets created using photogrammetry"
     }
 }
 
@@ -252,6 +255,11 @@ TEXT_PARAMETERS = {
         "description": "Polygonal resolution of model",
         "search_weight": 0.0,
     },
+    "st_original": {
+        "description": "Path to the original source file and optionally the object name in the source 3DShaker asset pack",
+        "show_filter": False,
+        "search_weight": 0.0,
+    }
 }
 
 

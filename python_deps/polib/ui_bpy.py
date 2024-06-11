@@ -5,9 +5,14 @@ import bpy
 import addon_utils
 import sys
 import typing
+import re
+import functools
+import textwrap
 import os
 from . import utils_bpy
 from . import preview_manager_bpy
+import logging
+logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
 # Global icon manager for polib icons, it NEEDS to be CLEARED  from each addon module separately
@@ -240,12 +245,8 @@ def get_all_space_types() -> typing.Dict[str, bpy.types.Space]:
 
 def expand_addon_prefs(module_name: str) -> None:
     """Opens preferences of an add-on based on its module name"""
-    for mod in addon_utils.modules(refresh=False):
-        if mod.__name__ == module_name:
-            mod_info = addon_utils.module_bl_info(mod)
-            mod_info["show_expanded"] = True
-            return
-    raise ValueError(f"No module '{module_name}' was found!")
+    mod_info = utils_bpy.get_addon_mod_info(module_name)
+    mod_info["show_expanded"] = True
 
 
 def draw_doc_button(layout: bpy.types.UILayout, module: str, rel_url: str = "") -> None:
@@ -261,3 +262,80 @@ def draw_doc_button(layout: bpy.types.UILayout, module: str, rel_url: str = "") 
         icon='HELP',
         emboss=False
     ).url = url
+
+
+def draw_markdown_text(layout: bpy.types.UILayout, text: str, max_length: int = 100) -> None:
+    col = layout.column(align=True)
+
+    # Remove unicode characters from the text
+    # We do this to remove emojis, because Blender does not support them
+    text = text.encode("ascii", "ignore").decode()
+
+    # Remove markdown images
+    text = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", text)
+
+    # Convert markdown links to just the description
+    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)
+
+    # Convert bold and italic text to UPPERCASE
+    text = re.sub(r"(\*\*|__)(.*?)\1", lambda match: match.group(2).upper(), text)
+    text = re.sub(r"(\*|_)(.*?)\1", lambda match: match.group(2).upper(), text)
+
+    # Replace bullet list markers with classic bullet character (•), respecting indentation
+    text = re.sub(r"(^|\n)(\s*)([-*+])\s", r"\1\2• ", text)
+
+    # Regex for matching markdown headings
+    headings = re.compile(r"^#+")
+
+    lines = text.split("\r\n")
+    # Let's offset the text based on the heading level to make it more readable
+    offset = 0
+    for line in lines:
+        heading = headings.search(line)
+        if heading:
+            offset = len(heading.group()) - 1
+            line = line.replace(heading.group(), "")
+            line = line.strip().upper()
+
+        # Let's do a separator for empty lines
+        if len(line) == 0:
+            col.separator()
+            continue
+        split_lines = textwrap.wrap(line, max_length)
+        for split_line in split_lines:
+            col.label(text=4 * offset * " " + split_line)
+
+
+def draw_release_notes(
+    context: bpy.types.Context,
+    module_name: str,
+    release_tag: str = ""
+) -> None:
+    mod_info = utils_bpy.get_addon_mod_info(module_name)
+    # Get only the name without suffix (_full, _lite, etc.)
+    addon_name = mod_info["name"].split("_", 1)[0]
+
+    release_info = utils_bpy.get_addon_release_info(addon_name, release_tag)
+    error_msg = f"Cannot retrieve release info for {addon_name}!"
+    if release_info is None:
+        logger.error(error_msg)
+        show_message_box(error_msg, "Error", icon='ERROR')
+        return
+
+    version = release_info.get("tag_name", None)
+    if version is None:
+        logger.error("Release info does not contain version!")
+        show_message_box(error_msg, "Error", icon='ERROR')
+        return
+
+    body = release_info.get("body", None)
+    if not body:
+        logger.error("Release info does not contain body!")
+        show_message_box(error_msg, "Error", icon='ERROR')
+        return
+
+    context.window_manager.popup_menu(
+        lambda self, context: draw_markdown_text(self.layout, text=body, max_length=100),
+        title=f"{addon_name} {version} Release Notes",
+        icon='INFO'
+    )

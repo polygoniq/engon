@@ -26,10 +26,13 @@ import mapr
 import math
 import mathutils
 import hatchery
+from . import filters
 from .. import preferences
 from .. import asset_registry
 from .. import asset_helpers
 logger = logging.getLogger(f"polygoniq.{__name__}")
+
+SPAWN_ALL_DISPLAYED_ASSETS_WARNING_LIMIT = 30
 
 
 MODULE_CLASSES: typing.List[typing.Any] = []
@@ -121,6 +124,12 @@ class MAPR_BrowserSpawnAsset(MAPR_SpawnAssetBase):
             self.report({'ERROR'}, f"Asset with id {self.asset_id} not found")
             return {'CANCELLED'}
 
+        # If no object is selected we will spawn a sphere and assign material on it
+        if asset.type_ == mapr.asset_data.AssetDataType.blender_material and len(context.selected_objects) == 0:
+            bpy.ops.mesh.primitive_uv_sphere_add()
+            bpy.ops.object.shade_smooth()
+            bpy.ops.object.material_slot_add()
+
         self._spawn(context, asset, prefs.spawn_options.get_spawn_options(asset, context))
         # Make editable and remove duplicates is currently out of hatchery and works based on
         # assumption of correct context, which is suboptimal, but at current time the functions
@@ -150,6 +159,36 @@ class MAPR_BrowserSpawnAsset(MAPR_SpawnAssetBase):
 
 
 MODULE_CLASSES.append(MAPR_BrowserSpawnAsset)
+
+
+@polib.log_helpers_bpy.logged_operator
+class MAPR_BrowserSpawnAllDisplayed(bpy.types.Operator):
+    bl_idname = "engon.browser_spawn_all_displayed"
+    bl_label = "Spawn All Displayed"
+    bl_description = "Spawn all currently displayed assets"
+
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+        if len(filters.asset_repository.current_assets) > SPAWN_ALL_DISPLAYED_ASSETS_WARNING_LIMIT:
+            return context.window_manager.invoke_props_dialog(self)
+        else:
+            return self.execute(context)
+
+    def draw(self, context: bpy.types.Context) -> None:
+        layout = self.layout
+        layout.label(
+            text=f"This operation will spawn {len(filters.asset_repository.current_assets)} assets, continue?")
+
+    @polib.utils_bpy.blender_cursor('WAIT')
+    def execute(self, context: bpy.types.Context):
+        prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
+        assets = filters.asset_repository.current_assets
+        for asset in assets:
+            MAPR_SpawnAssetBase._spawn(
+                self, context, asset, prefs.spawn_options.get_spawn_options(asset, context))
+        return {'FINISHED'}
+
+
+MODULE_CLASSES.append(MAPR_BrowserSpawnAllDisplayed)
 
 
 @polib.log_helpers_bpy.logged_operator

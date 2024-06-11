@@ -65,6 +65,8 @@ class AssetPack:
                 f"Given json dict contains vendor but its type is '{type(vendor)}' "
                 f"instead of the expected 'str'!")
         engon_features = json_dict.get("engon_features", [])
+        # min_engon_version default is the version, when the field was introduced - 1.2.0
+        min_engon_version = json_dict.get("min_engon_version", [1, 2, 0])
         pack_info_path = os.path.realpath(os.path.abspath(pack_info_path))
         pack_info_parent_path = os.path.dirname(pack_info_path)
         install_path = os.path.realpath(os.path.abspath(pack_info_parent_path))
@@ -103,6 +105,7 @@ class AssetPack:
             typing.cast(typing.Tuple[int, int, int], tuple(version)),
             vendor,
             engon_features,
+            tuple(min_engon_version),
             install_path,
             pack_info_path,
             index_paths,
@@ -130,6 +133,7 @@ class AssetPack:
         version: typing.Tuple[int, int, int],
         vendor: str,
         engon_features: typing.List[str],
+        min_engon_version: typing.Tuple[int, int, int],
         install_path: str,
         pack_info_path: str,
         index_paths: typing.List[str],
@@ -156,6 +160,7 @@ class AssetPack:
         if len(engon_features) == 0:
             raise NotImplementedError("At least one engon feature required in each asset pack!")
         self.engon_feature = engon_features[0]
+        self.min_engon_version = min_engon_version
         self.install_path = install_path
         self.pack_info_path = pack_info_path
         self.index_paths = index_paths

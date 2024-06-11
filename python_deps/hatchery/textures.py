@@ -41,7 +41,7 @@ def change_texture_size(max_size: int, image: bpy.types.Image):
     for ext in TEXTURE_EXTENSIONS:
         new_path = generate_filepath(parent_dir, basename, str(max_size), ext)
         new_abs_path = bpy.path.abspath(new_path)
-        # We getsize() to check that the file is not empty. Because of compress_textures, there could
+        # We getsize() to check that the file is not empty. Because of compress_texture, there could
         # exist different file formats of the same texture, and all except one of them would be empty.
         if os.path.exists(new_abs_path) and os.path.getsize(new_abs_path) > 0:
             found = True

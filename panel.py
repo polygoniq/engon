@@ -19,14 +19,20 @@
 # ##### END GPL LICENSE BLOCK #####
 
 import bpy
+import enum
+import math
+import mathutils
 import typing
 import logging
 import random
+import mapr
 import polib
+import hatchery
 from . import browser
 from . import asset_registry
 from . import preferences
 from . import blend_maintenance
+from . import convert_selection
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -37,73 +43,6 @@ class EngonPanelMixin:
 
 
 MODULE_CLASSES: typing.List[typing.Any] = []
-
-
-@polib.log_helpers_bpy.logged_operator
-class MakeSelectionEditable(bpy.types.Operator):
-    bl_idname = "engon.make_selection_editable"
-    bl_label = "Convert to Editable"
-    bl_description = "Converts Collections into Mesh Data with Editable Materials"
-
-    bl_options = {'REGISTER', 'UNDO'}
-
-    @classmethod
-    def poll(cls, context):
-        return context.mode == 'OBJECT' and len(context.selected_objects) > 0
-
-    @polib.utils_bpy.blender_cursor('WAIT')
-    def execute(self, context):
-        selected_objects_and_parents_names = polib.asset_pack_bpy.make_selection_editable(
-            context, True, keep_selection=True, keep_active=True)
-        pack_paths = asset_registry.instance.get_packs_paths()
-
-        logger.info(
-            f"Resulting objects and parents: {selected_objects_and_parents_names}")
-
-        prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
-        if prefs.spawn_options.remove_duplicates:
-            filters = [polib.remove_duplicates_bpy.polygoniq_duplicate_data_filter]
-            polib.remove_duplicates_bpy.remove_duplicate_datablocks(
-                bpy.data.materials, filters, pack_paths)
-            polib.remove_duplicates_bpy.remove_duplicate_datablocks(
-                bpy.data.images, filters, pack_paths)
-            polib.remove_duplicates_bpy.remove_duplicate_datablocks(
-                bpy.data.node_groups, filters, pack_paths)
-
-        return {'FINISHED'}
-
-
-MODULE_CLASSES.append(MakeSelectionEditable)
-
-
-@polib.log_helpers_bpy.logged_operator
-class MakeSelectionLinked(bpy.types.Operator):
-    bl_idname = "engon.make_selection_linked"
-    bl_label = "Convert to Linked"
-    bl_description = "Converts selected objects to their linked variants from " \
-        "engon asset packs. WARNING: This operation removes " \
-        "all local changes. Doesn't work on particle systems, " \
-        "only polygoniq assets are supported by this operator"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    @classmethod
-    def poll(cls, context: bpy.types.Context):
-        return context.mode == 'OBJECT' and next(
-            polib.asset_pack_bpy.get_polygoniq_objects(
-                context.selected_objects, include_linked=False),
-            None
-        ) is not None
-
-    @polib.utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
-        converted_objects = polib.asset_pack_bpy.make_selection_linked(
-            context, asset_registry.instance.get_install_paths_by_engon_feature())
-        logger.info(f"Resulting converted objects: {converted_objects}")
-
-        return {'FINISHED'}
-
-
-MODULE_CLASSES.append(MakeSelectionLinked)
 
 
 @polib.log_helpers_bpy.logged_operator
@@ -269,6 +208,146 @@ class ResetTransform(bpy.types.Operator):
 MODULE_CLASSES.append(ResetTransform)
 
 
+@polib.log_helpers_bpy.logged_operator
+class SpreadObjects(bpy.types.Operator):
+    bl_idname = "engon.spread_objects"
+    bl_label = "Spread Objects"
+    bl_description = "Spreads selected objects into a grid"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    class DistributionType(enum.Enum):
+        LINE = "Line"
+        ROWS = "Rows"
+        SQUARE_GRID = "Square Grid"
+
+    distribution_type: bpy.props.EnumProperty(
+        name="Distribution Type",
+        description="How to spread the objects",
+        items=[
+            (DistributionType.LINE.value, DistributionType.LINE.value, "Spread assets in one line"),
+            (DistributionType.ROWS.value, DistributionType.ROWS.value, "Spread assets in rows and colums"),
+            (DistributionType.SQUARE_GRID.value, DistributionType.SQUARE_GRID.value, "Spread assets in grid"),
+        ],
+        default=DistributionType.LINE.value,
+    )
+
+    use_bounding_box_for_offset: bpy.props.BoolProperty(
+        name="Use Bounding Box for Offset",
+        description="If enabled, each objects bounding box is used in addition to the fixed "
+        "X, Y Offset. Otherwise just the fixed X and Y offset is used",
+        default=True
+    )
+
+    column_x_offset: bpy.props.FloatProperty(
+        name="X Offset",
+        default=0.1,
+        min=0.0
+    )
+
+    row_y_offset: bpy.props.FloatProperty(
+        name="Y Offset",
+        default=0.1,
+        min=0.0
+    )
+
+    automatic_square_grid: bpy.props.BoolProperty(
+        name="Automatic Square Grid",
+        description="If enabled, the number of objects in one row is automatically calculated to "
+        "make the grid close to a square",
+        default=True
+    )
+
+    objects_in_a_row: bpy.props.IntProperty(
+        name="Objects in a Row",
+        description="How many objects are there in one row of the grid. Only used if Automatic "
+        "Square Grid is disabled",
+        default=10,
+        min=1
+    )
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context):
+        # at least two objects required to do anything useful
+        return len(context.selected_objects) >= 2
+
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+        return context.window_manager.invoke_props_dialog(self, width=300)
+
+    def draw(self, context):
+        layout = self.layout
+
+        row = layout.row(align=False)
+        row.prop(self, "use_bounding_box_for_offset", text="")
+        row.label(text="Use Bounding Box for Offset")
+
+        row = layout.row(align=False)
+        row.prop(self, "column_x_offset", text="X Offset")
+        row.prop(self, "row_y_offset", text="Y Offset")
+
+        row = layout.row(align=False)
+        row.label(text="Distribution Type")
+        row.prop(self, "distribution_type", text="")
+
+        if self.distribution_type == self.DistributionType.ROWS.value:
+            row = layout.row(align=False)
+            row.prop(self, "objects_in_a_row", text="")
+
+    def execute(self, context: bpy.types.Context):
+        if self.distribution_type == self.DistributionType.LINE.value:
+            row_size = len(context.selected_objects)
+        elif self.distribution_type == self.DistributionType.ROWS.value:
+            row_size = self.objects_in_a_row
+        elif self.distribution_type == self.DistributionType.SQUARE_GRID.value:
+            row_size = math.ceil(math.sqrt(len(context.selected_objects)))
+        else:
+            raise ValueError("Invalid distribution option")
+
+        number_of_rows = math.ceil(len(context.selected_objects) / row_size)
+
+        cursor_location = bpy.context.scene.cursor.location
+        current_row_y = cursor_location.y
+        selected_objects_sorted = sorted(context.selected_objects, key=lambda obj: obj.name)
+        for i in range(number_of_rows):
+            current_column_x = cursor_location.x
+            objects_in_row = selected_objects_sorted[i * row_size:(i + 1) * row_size]
+            # we need to build up a future_row_y based on placed bounding boxes if using offset
+            # by bounding boxes. if fixed offset is used this will just stay at current_row_y
+            future_row_y = current_row_y
+            for obj in objects_in_row:
+                obj.matrix_world.translation = mathutils.Vector((0.0, 0.0, 0.0))
+                bbox_at_origin = hatchery.bounding_box.AlignedBox()
+                bbox_at_origin.extend_by_object(obj)
+
+                if not bbox_at_origin.is_valid():
+                    bbox_at_origin.extend_by_point(mathutils.Vector((0.0, 0.0, 0.0)))
+
+                obj.matrix_world.translation = mathutils.Vector((
+                    current_column_x, current_row_y, cursor_location[2]))
+
+                if self.use_bounding_box_for_offset:
+                    min_offset = bbox_at_origin.min
+                    min_offset[2] = 0.0
+                    obj.matrix_world.translation -= min_offset
+
+                    bbox_placed = hatchery.bounding_box.AlignedBox()
+                    bbox_placed.extend_by_object(obj)
+
+                    if not bbox_placed.is_valid():
+                        bbox_placed.extend_by_point(obj.location)
+
+                    current_column_x = bbox_placed.max.x
+                    future_row_y = max(future_row_y, bbox_placed.max.y)
+
+                current_column_x += self.column_x_offset
+
+            current_row_y = future_row_y + self.row_y_offset
+
+        return {'FINISHED'}
+
+
+MODULE_CLASSES.append(SpreadObjects)
+
+
 @polib.log_helpers_bpy.logged_panel
 class EngonPanel(EngonPanelMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_engon"
@@ -323,8 +402,9 @@ class EngonPanel(EngonPanelMixin, bpy.types.Panel):
 
         col.label(text="Convert selection:")
         row = polib.ui_bpy.scaled_row(col, 1.5, align=True)
-        row.operator(MakeSelectionLinked.bl_idname, text="Linked", icon='LINKED')
-        row.operator(MakeSelectionEditable.bl_idname, text="Editable", icon='MESH_DATA')
+        row.operator(convert_selection.MakeSelectionLinked.bl_idname, text="Linked", icon='LINKED')
+        row.operator(convert_selection.MakeSelectionEditable.bl_idname,
+                     text="Editable", icon='MESH_DATA')
         row.prop(mapr_prefs.spawn_options, "remove_duplicates",
                  text="", toggle=1, icon='FULLSCREEN_EXIT')
         col.separator()
@@ -335,6 +415,8 @@ class EngonPanel(EngonPanelMixin, bpy.types.Panel):
         row.operator(RandomizeTransform.bl_idname, text="Random", icon='ORIENTATION_GIMBAL')
         row.operator(ResetTransform.bl_idname, text="", icon='LOOP_BACK')
         col.separator()
+        row = col.row()
+        row.operator(SpreadObjects.bl_idname, icon='IMGDISPLAY')
 
 
 MODULE_CLASSES.append(EngonPanel)

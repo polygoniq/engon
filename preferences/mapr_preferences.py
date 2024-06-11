@@ -196,18 +196,6 @@ class SpawnOptions(bpy.types.PropertyGroup):
                         "Select particle system and assign instance collection to it."
                     )
             return True, None
-        elif asset.type_ == mapr.asset_data.AssetDataType.blender_material:
-            material_assignable_objects = [
-                hatchery.utils.can_have_materials_assigned(o) for o in context.selected_objects]
-
-            # Check whether there is any selected object that has assignable material
-            if len(material_assignable_objects) == 0:
-                return False, (
-                    "Can't spawn material - No valid selected objects!",
-                    "Select objects that can have material assigned."
-                )
-            else:
-                return True, None
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_particle_system:
             if context.active_object is None:
                 return False, (
@@ -224,6 +212,8 @@ class SpawnOptions(bpy.types.PropertyGroup):
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_scene:
             return True, None
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_world:
+            return True, None
+        elif asset.type_ == mapr.asset_data.AssetDataType.blender_material:
             return True, None
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_geometry_nodes:
             if self.use_collection == 'PARTICLE_SYSTEM':

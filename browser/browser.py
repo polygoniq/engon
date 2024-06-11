@@ -405,6 +405,10 @@ def prefs_navbar_draw_override(self, context: bpy.types.Context) -> None:
     else:
         categories.draw_tree_category_navigation(context, layout)
 
+    layout.separator()
+    row = layout.row(align=True)
+    row.operator(spawn.MAPR_BrowserSpawnAllDisplayed.bl_idname, icon='IMGDISPLAY')
+    layout.separator()
     filters.draw(context, layout)
 
 

@@ -18,6 +18,7 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
+from .. import addon_updater
 from .. import addon_updater_ops
 import bpy
 import bpy_extras
@@ -44,6 +45,26 @@ telemetry = polib.get_telemetry("engon")
 
 
 MODULE_CLASSES: typing.List[typing.Any] = []
+
+
+class ShowReleaseNotes(bpy.types.Operator):
+    bl_idname = "engon.show_release_notes"
+    bl_label = "Show Release Notes"
+    bl_description = "Show the release notes for the latest version of blend1"
+    bl_options = {'REGISTER'}
+
+    release_tag: bpy.props.StringProperty(
+        name="Release Tag",
+        default="",
+    )
+
+    def execute(self, context: bpy.types.Context):
+        polib.ui_bpy.draw_release_notes(
+            context, polib.utils_bpy.get_top_level_package_name(__package__), self.release_tag)
+        return {'FINISHED'}
+
+
+MODULE_CLASSES.append(ShowReleaseNotes)
 
 
 @polib.log_helpers_bpy.logged_preferences
@@ -199,7 +220,7 @@ class Preferences(bpy.types.AddonPreferences):
             self,
             "show_updater_settings",
             "Updates",
-            functools.partial(addon_updater_ops.update_settings_ui, self, context)
+            functools.partial(self.draw_update_settings, context)
         )
 
         box = col.box()
@@ -213,6 +234,26 @@ class Preferences(bpy.types.AddonPreferences):
         self.layout.operator(PackLogs.bl_idname, icon='EXPERIMENTAL')
 
         polib.ui_bpy.draw_settings_footer(self.layout)
+
+    def draw_update_settings(self, context: bpy.types.Context, layout: bpy.types.UILayout) -> None:
+        col = layout.column()
+        addon_updater_ops.update_settings_ui(self, context, col)
+        split = col.split(factor=0.5)
+        left_row = split.row()
+        left_row.enabled = bool(addon_updater.Updater.update_ready)
+        left_row.operator(
+            ShowReleaseNotes.bl_idname,
+            text="Latest Release Notes",
+            icon='PRESET_NEW'
+        ).release_tag = ""
+        right_row = split.row()
+        current_release_tag = polib.utils_bpy.get_release_tag_from_version(
+            addon_updater.Updater.current_version)
+        right_row.operator(
+            ShowReleaseNotes.bl_idname,
+            text="Current Release Notes",
+            icon='PRESET'
+        ).release_tag = current_release_tag
 
     def draw_save_userpref_prompt(self, layout: bpy.types.UILayout):
         row = layout.row()

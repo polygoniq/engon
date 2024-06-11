@@ -3,8 +3,6 @@
 
 import bpy
 import bpy.utils.previews
-import os
-import os.path
 import typing
 import collections
 import enum
@@ -339,119 +337,6 @@ def is_pps(name: str) -> bool:
         return False
 
     return split[1] == PARTICLE_SYSTEM_TOKEN
-
-
-def make_selection_linked(
-    context: bpy.types.Context,
-    install_paths_by_features: typing.Dict[str, typing.List[str]]
-) -> typing.List[bpy.types.Object]:
-    previous_selection = [obj.name for obj in context.selected_objects]
-    previous_active_object_name = context.active_object.name if context.active_object else None
-
-    converted_objects = []
-    for obj in find_polygoniq_root_objects(context.selected_objects):
-        if obj.instance_type == 'COLLECTION':
-            continue
-
-        path_property = obj.get("polygoniq_addon_blend_path", None)
-        if path_property is None:
-            continue
-
-        # Particle systems are skipped. After converting to editable
-        # all instances of particle system are separate objects. It
-        # is not easy to decide which object belonged to what preset.
-        if path_property.startswith("blends/particles"):
-            continue
-
-        # Asset Addons are now Asset Packs
-        # "polygoniq_addon" refers to the Asset Pack's engon feature
-        # TODO: Rework this after mapr_ids get merged
-        feature_property = obj.get("polygoniq_addon", None)
-        if feature_property is None:
-            continue
-
-        install_paths_by_feature = install_paths_by_features.get(feature_property, None)
-        if install_paths_by_feature is None:
-            logger.warning(
-                f"Obj {obj.name} contains property: {feature_property} but the Asset Pack is not installed!")
-            continue
-
-        asset_path: str = ""
-        asset_paths_list: typing.List[str] = []
-        for install_path in install_paths_by_feature:
-            asset_path = os.path.join(install_path, os.path.normpath(path_property))
-            asset_paths_list.append(f"'{asset_path}'")
-            if not os.path.isfile(asset_path):
-                logger.info(
-                    f"Could not find {obj.name} in {asset_path} because "
-                    f"it doesn't exist, perhaps the asset isn't in this version anymore.")
-                continue
-            if os.path.isfile(asset_path):
-                logger.info(f"Found {obj.name} in {asset_path}. Proceeding to linking.")
-                break
-        if not os.path.isfile(asset_path):
-            asset_paths_str = ", ".join(asset_paths_list)
-            logger.warning(
-                f"Cannot link {obj.name} from any of the paths: {asset_paths_str}, because "
-                f"it doesn't exist.")
-            continue
-
-        instance_root = None
-        old_model_matrix = obj.matrix_world.copy()
-        old_collections = list(obj.users_collection)
-        old_color = tuple(obj.color)
-        old_parent = obj.parent
-
-        # This way old object names won't interfere with the new ones
-        hierarchy_objects = get_hierarchy(obj)
-        for hierarchy_obj in hierarchy_objects:
-            hierarchy_obj.name = utils_bpy.generate_unique_name(
-                f"del_{hierarchy_obj.name}", bpy.data.objects)
-
-        model_data = hatchery.spawn.spawn_model(
-            asset_path,
-            context,
-            hatchery.spawn.ModelSpawnOptions(
-                parent_collection=None,
-                select_spawned=False
-            )
-        )
-        instance_root = model_data.instancer
-        if instance_root is not None:
-            instance_root.color = old_color
-
-        if instance_root is None:
-            logger.error(f"Failed to link asset {obj} with "
-                         f"{feature_property}, instance is None")
-            continue
-
-        instance_root.matrix_world = old_model_matrix
-        instance_root.parent = old_parent
-
-        for coll in old_collections:
-            if instance_root.name not in coll.objects:
-                coll.objects.link(instance_root)
-
-        converted_objects.append(instance_root)
-
-        bpy.data.batch_remove(hierarchy_objects)
-
-    # Force Blender to evaluate view_layer data after programmatically removing/linking objects.
-    # https://docs.blender.org/api/current/info_gotcha.html#no-updates-after-setting-values
-    context.view_layer.update()
-
-    for obj_name in previous_selection:
-        obj = context.view_layer.objects.get(obj_name, None)
-        # Linked version doesn't necessary contain the same objects
-        # e. g. traffiq linked version doesn't contain wheels, brakes, ...
-        if obj is not None:
-            obj.select_set(True)
-
-    if previous_active_object_name is not None and \
-       previous_active_object_name in context.view_layer.objects:
-        context.view_layer.objects.active = bpy.data.objects[previous_active_object_name]
-
-    return converted_objects
 
 
 def make_selection_editable(context: bpy.types.Context, delete_base_empty: bool, keep_selection: bool = True, keep_active: bool = True) -> typing.List[str]:

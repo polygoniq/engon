@@ -22,6 +22,7 @@ import bpy
 import os
 import typing
 import mapr
+import polib
 import logging
 from . import filters
 from . import previews
@@ -32,8 +33,8 @@ logger = logging.getLogger(f"polygoniq.{__name__}")
 MODULE_CLASSES: typing.List[typing.Any] = []
 
 # Top secret path to the dev location
-EXPECTED_DEV_PATH = os.path.expanduser("~/polygoniq/")
-IS_DEV = os.path.exists(os.path.realpath(os.path.abspath(os.path.join(EXPECTED_DEV_PATH, ".git"))))
+EXPECTED_DEV_PATH = os.path.realpath(os.path.expanduser("~/polygoniq/"))
+IS_DEV = os.path.exists(os.path.join(EXPECTED_DEV_PATH, ".git"))
 
 
 class MAPR_BrowserDeleteCache(bpy.types.Operator):
@@ -93,7 +94,7 @@ class MAPR_BrowserOpenAssetSourceBlend(bpy.types.Operator):
         if getattr(self, "asset_path", None) is None:
             raise RuntimeError("asset_path is initialized in invoke, use INVOKE_DEFAULT!")
 
-        bpy.ops.wm.open_mainfile(filepath=self.asset_path, load_ui=False)
+        polib.utils_bpy.fork_running_blender(self.asset_path)
         return {'FINISHED'}
 
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event):

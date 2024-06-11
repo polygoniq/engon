@@ -85,6 +85,7 @@ try:
     from . import pack_info_search_paths
     from . import asset_helpers
     from . import preferences
+    from . import convert_selection
     from . import panel
     from . import browser
     from . import blend_maintenance
@@ -104,12 +105,12 @@ finally:
 bl_info = {
     "name": "engon",
     "author": "polygoniq xyz s.r.o.",
-    "version": (1, 1, 0),  # bump doc_url as well!
+    "version": (1, 2, 0),  # bump doc_url as well!
     "blender": (3, 3, 0),
     "location": "polygoniq tab in the sidebar of the 3D View window",
     "description": "",
     "category": "Object",
-    "doc_url": "https://docs.polygoniq.com/engon/1.1.0/",
+    "doc_url": "https://docs.polygoniq.com/engon/1.2.0/",
     "tracker_url": "https://polygoniq.com/discord/"
 }
 
@@ -124,6 +125,7 @@ def register():
     ui_utils.register()
     pack_info_search_paths.register()
     preferences.register()
+    convert_selection.register()
     panel.register()
     scatter.register()
     blend_maintenance.register()
@@ -163,6 +165,7 @@ def unregister():
     blend_maintenance.unregister()
     scatter.unregister()
     panel.unregister()
+    convert_selection.unregister()
     preferences.unregister()
     pack_info_search_paths.unregister()
     ui_utils.unregister()
@@ -170,7 +173,7 @@ def unregister():
     # Remove all nested modules from module cache, more reliable than importlib.reload(..)
     # Idea by BD3D / Jacques Lucke
     for module_name in list(sys.modules.keys()):
-        if module_name.startswith(__name__):
+        if module_name.startswith(__package__):
             del sys.modules[module_name]
 
     addon_updater_ops.unregister()

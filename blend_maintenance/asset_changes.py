@@ -246,7 +246,10 @@ evermotion_am154_1_3_0_am154_prefix = AssetPackMigration(
         "collections":  [RegexMapping(re.compile("^(AM154-)(.*)"), r"am154_\2")],
         "meshes":       [RegexMapping(re.compile("^(AM154-)(.*)"), r"am154_\2")],
         "objects":      [RegexMapping(re.compile("^(AM154-)(.*)"), r"am154_\2")],
-        "materials":    [RegexMapping(re.compile("^(bq_)(.*)"), r"am154_\2")],
+        "materials":    [
+            RegexMapping(re.compile("^(bq_)(.*)"), r"am154_\2"),
+            RegexMapping(re.compile("(.*)(_bqm)$"), r"am154_\1")
+        ],
         "node_groups":  [RegexMapping(re.compile("^(bq_)(.*)"), r"am154_\2")],
     }
 )
