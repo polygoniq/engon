@@ -25,14 +25,15 @@ import mathutils
 import typing
 import logging
 import random
-import mapr
-import polib
-import hatchery
+from . import mapr
+from . import polib
+from . import hatchery
 from . import browser
 from . import asset_registry
 from . import preferences
 from . import blend_maintenance
 from . import convert_selection
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -63,49 +64,58 @@ class SnapToGround(bpy.types.Operator):
         # Since we are going to be moving all of those we can't do self-collisions.
 
         objects_to_snap = polib.asset_pack_bpy.filter_out_descendants_from_objects(
-            context.selected_objects)
+            context.selected_objects
+        )
         objects_to_snap_hierarchy = set()
         for obj in objects_to_snap:
             objects_to_snap_hierarchy.update(polib.asset_pack_bpy.get_hierarchy(obj))
 
-        ground_objects = [obj for obj in context.visible_objects if obj.type ==
-                          'MESH' and obj not in objects_to_snap_hierarchy]
+        ground_objects = [
+            obj
+            for obj in context.visible_objects
+            if obj.type == 'MESH' and obj not in objects_to_snap_hierarchy
+        ]
         snapped_objects_names = []
 
         for obj in objects_to_snap:
             if polib.asset_pack_bpy.is_polygoniq_object(obj, lambda x: x == "traffiq"):
                 logger.info(f"Determined that {obj.name} is a traffiq asset.")
                 # if editable car is selected with all its child objects -> skip these child objects
-                if polib.asset_pack_bpy.is_traffiq_asset_part(obj, polib.asset_pack_bpy.TraffiqAssetPart.Wheel):
+                if polib.asset_pack_bpy.is_traffiq_asset_part(
+                    obj, polib.asset_pack_bpy.TraffiqAssetPart.Wheel
+                ):
                     continue
-                if polib.asset_pack_bpy.is_traffiq_asset_part(obj, polib.asset_pack_bpy.TraffiqAssetPart.Brake):
+                if polib.asset_pack_bpy.is_traffiq_asset_part(
+                    obj, polib.asset_pack_bpy.TraffiqAssetPart.Brake
+                ):
                     continue
-                if polib.asset_pack_bpy.is_traffiq_asset_part(obj, polib.asset_pack_bpy.TraffiqAssetPart.Lights):
+                if polib.asset_pack_bpy.is_traffiq_asset_part(
+                    obj, polib.asset_pack_bpy.TraffiqAssetPart.Lights
+                ):
                     continue
 
-                root_object, body, lights, wheels, brakes = \
+                root_object, body, lights, wheels, brakes = (
                     polib.asset_pack_bpy.decompose_traffiq_vehicle(obj)
+                )
                 if root_object is not None:  # traffiq behavior
                     logger.debug(
                         f"Was able to decompose {obj.name} as if it was a traffiq vehicle. "
-                        f"Snapping to ground using the traffiq behavior.")
+                        f"Snapping to ground using the traffiq behavior."
+                    )
                     if len(wheels) > 0:
                         logger.info(
-                            f"Using {len(wheels)} separate wheels to determine final rotation...")
+                            f"Using {len(wheels)} separate wheels to determine final rotation..."
+                        )
                         polib.snap_to_ground_bpy.snap_to_ground_separate_wheels(
-                            obj,
-                            root_object,
-                            wheels,
-                            ground_objects
+                            obj, root_object, wheels, ground_objects
                         )
                     else:
                         logger.info(
                             f"No wheels present in this asset, using snap normal to determine "
-                            f"final rotation...")
+                            f"final rotation..."
+                        )
                         polib.snap_to_ground_bpy.snap_to_ground_adjust_rotation(
-                            obj,
-                            root_object,
-                            ground_objects
+                            obj, root_object, ground_objects
                         )
 
                     snapped_objects_names.append(obj.name)
@@ -113,7 +123,8 @@ class SnapToGround(bpy.types.Operator):
             elif polib.asset_pack_bpy.is_polygoniq_object(obj, lambda x: x == "botaniq"):
                 logger.info(
                     f"Determined that {obj.name} is a botaniq asset. Going to snap without "
-                    f"adjusting rotation.")
+                    f"adjusting rotation."
+                )
 
                 if obj.type == 'MESH':
                     polib.snap_to_ground_bpy.snap_to_ground_no_rotation(obj, obj, ground_objects)
@@ -124,18 +135,21 @@ class SnapToGround(bpy.types.Operator):
                         for collection_object in collection.objects:
                             if collection_object.type == 'MESH':
                                 polib.snap_to_ground_bpy.snap_to_ground_no_rotation(
-                                    obj, collection_object, ground_objects)
+                                    obj, collection_object, ground_objects
+                                )
                                 snapped_objects_names.append(obj.name)
                                 break
 
             else:  # generic behavior
                 logger.info(
                     f"Determined that {obj.name} is a generic asset. Going to snap with "
-                    f"adjustment to rotation.")
+                    f"adjustment to rotation."
+                )
 
                 if obj.type == 'MESH':
                     polib.snap_to_ground_bpy.snap_to_ground_adjust_rotation(
-                        obj, obj, ground_objects)
+                        obj, obj, ground_objects
+                    )
                     snapped_objects_names.append(obj.name)
                 elif obj.type == 'EMPTY' and obj.instance_type == 'COLLECTION':
                     collection = obj.instance_collection
@@ -143,7 +157,8 @@ class SnapToGround(bpy.types.Operator):
                         for collection_object in collection.objects:
                             if collection_object.type == 'MESH':
                                 polib.snap_to_ground_bpy.snap_to_ground_adjust_rotation(
-                                    obj, collection_object, ground_objects)
+                                    obj, collection_object, ground_objects
+                                )
                                 snapped_objects_names.append(obj.name)
                                 break
 
@@ -174,7 +189,7 @@ class RandomizeTransform(bpy.types.Operator):
             use_loc=False,
             rot=(0.0349066, 0.0349066, 3.14159),
             scale=(1.1, 1.1, 1.1),
-            scale_even=True
+            scale_even=True,
         )
 
         return {'FINISHED'}
@@ -225,8 +240,16 @@ class SpreadObjects(bpy.types.Operator):
         description="How to spread the objects",
         items=[
             (DistributionType.LINE.value, DistributionType.LINE.value, "Spread assets in one line"),
-            (DistributionType.ROWS.value, DistributionType.ROWS.value, "Spread assets in rows and colums"),
-            (DistributionType.SQUARE_GRID.value, DistributionType.SQUARE_GRID.value, "Spread assets in grid"),
+            (
+                DistributionType.ROWS.value,
+                DistributionType.ROWS.value,
+                "Spread assets in rows and colums",
+            ),
+            (
+                DistributionType.SQUARE_GRID.value,
+                DistributionType.SQUARE_GRID.value,
+                "Spread assets in grid",
+            ),
         ],
         default=DistributionType.LINE.value,
     )
@@ -235,26 +258,18 @@ class SpreadObjects(bpy.types.Operator):
         name="Use Bounding Box for Offset",
         description="If enabled, each objects bounding box is used in addition to the fixed "
         "X, Y Offset. Otherwise just the fixed X and Y offset is used",
-        default=True
+        default=True,
     )
 
-    column_x_offset: bpy.props.FloatProperty(
-        name="X Offset",
-        default=0.1,
-        min=0.0
-    )
+    column_x_offset: bpy.props.FloatProperty(name="X Offset", default=0.1, min=0.0)
 
-    row_y_offset: bpy.props.FloatProperty(
-        name="Y Offset",
-        default=0.1,
-        min=0.0
-    )
+    row_y_offset: bpy.props.FloatProperty(name="Y Offset", default=0.1, min=0.0)
 
     automatic_square_grid: bpy.props.BoolProperty(
         name="Automatic Square Grid",
         description="If enabled, the number of objects in one row is automatically calculated to "
         "make the grid close to a square",
-        default=True
+        default=True,
     )
 
     objects_in_a_row: bpy.props.IntProperty(
@@ -262,7 +277,7 @@ class SpreadObjects(bpy.types.Operator):
         description="How many objects are there in one row of the grid. Only used if Automatic "
         "Square Grid is disabled",
         default=10,
-        min=1
+        min=1,
     )
 
     @classmethod
@@ -309,7 +324,7 @@ class SpreadObjects(bpy.types.Operator):
         selected_objects_sorted = sorted(context.selected_objects, key=lambda obj: obj.name)
         for i in range(number_of_rows):
             current_column_x = cursor_location.x
-            objects_in_row = selected_objects_sorted[i * row_size:(i + 1) * row_size]
+            objects_in_row = selected_objects_sorted[i * row_size : (i + 1) * row_size]
             # we need to build up a future_row_y based on placed bounding boxes if using offset
             # by bounding boxes. if fixed offset is used this will just stay at current_row_y
             future_row_y = current_row_y
@@ -321,8 +336,9 @@ class SpreadObjects(bpy.types.Operator):
                 if not bbox_at_origin.is_valid():
                     bbox_at_origin.extend_by_point(mathutils.Vector((0.0, 0.0, 0.0)))
 
-                obj.matrix_world.translation = mathutils.Vector((
-                    current_column_x, current_row_y, cursor_location[2]))
+                obj.matrix_world.translation = mathutils.Vector(
+                    (current_column_x, current_row_y, cursor_location[2])
+                )
 
                 if self.use_bounding_box_for_offset:
                     min_offset = bbox_at_origin.min
@@ -359,13 +375,18 @@ class EngonPanel(EngonPanelMixin, bpy.types.Panel):
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.template_icon(
-            icon_value=polib.ui_bpy.icon_manager.get_polygoniq_addon_icon_id("engon"))
+            icon_value=polib.ui_bpy.icon_manager.get_polygoniq_addon_icon_id("engon")
+        )
 
     def draw_header_preset(self, context: bpy.types.Context) -> None:
         self.layout.operator(
-            browser.browser.MAPR_BrowserOpenAssetPacksPreferences.bl_idname, text="", icon='SETTINGS')
+            browser.browser.MAPR_BrowserOpenAssetPacksPreferences.bl_idname,
+            text="",
+            icon='SETTINGS',
+        )
         polib.ui_bpy.draw_doc_button(
-            self.layout, __package__, rel_url="panels/engon/panel_overview")
+            self.layout, __package__, rel_url="panels/engon/panel_overview"
+        )
 
     def draw(self, context: bpy.types.Context):
         prefs = preferences.prefs_utils.get_preferences(context)
@@ -382,31 +403,25 @@ class EngonPanel(EngonPanelMixin, bpy.types.Panel):
             row.operator(
                 browser.browser.MAPR_BrowserChooseArea.bl_idname,
                 text="Browse NEW Assets" if is_something_new else "Browse Assets",
-                icon='OUTLINER_OB_LIGHT' if is_something_new else 'RESTRICT_SELECT_OFF'
+                icon='OUTLINER_OB_LIGHT' if is_something_new else 'RESTRICT_SELECT_OFF',
             )
-            row.operator(
-                browser.browser.MAPR_BrowserOpen.bl_idname,
-                text="",
-                icon='WINDOW'
-            )
+            row.operator(browser.browser.MAPR_BrowserOpen.bl_idname, text="", icon='WINDOW')
         if mapr_prefs.prefs_hijacked:
             row = row.row(align=True)
             row.scale_x = 1.2
             row.alert = True
-            row.operator(
-                browser.browser.MAPR_BrowserClose.bl_idname,
-                text="",
-                icon='PANEL_CLOSE'
-            )
+            row.operator(browser.browser.MAPR_BrowserClose.bl_idname, text="", icon='PANEL_CLOSE')
         col.separator()
 
         col.label(text="Convert selection:")
         row = polib.ui_bpy.scaled_row(col, 1.5, align=True)
         row.operator(convert_selection.MakeSelectionLinked.bl_idname, text="Linked", icon='LINKED')
-        row.operator(convert_selection.MakeSelectionEditable.bl_idname,
-                     text="Editable", icon='MESH_DATA')
-        row.prop(mapr_prefs.spawn_options, "remove_duplicates",
-                 text="", toggle=1, icon='FULLSCREEN_EXIT')
+        row.operator(
+            convert_selection.MakeSelectionEditable.bl_idname, text="Editable", icon='MESH_DATA'
+        )
+        row.prop(
+            mapr_prefs.spawn_options, "remove_duplicates", text="", toggle=1, icon='FULLSCREEN_EXIT'
+        )
         col.separator()
 
         col.label(text="Transform selection:")

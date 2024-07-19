@@ -27,7 +27,7 @@ import os
 import glob
 import json
 import functools
-import polib
+
 # we don't use this module in this file but we use it elsewhere in engon, we import
 # it here to make sure we handle module cache reloads correctly
 from . import prefs_utils
@@ -39,6 +39,8 @@ from . import botaniq_preferences
 from . import traffiq_preferences
 from .. import keymaps
 from .. import ui_utils
+from .. import polib
+from .. import __package__ as base_package
 
 
 telemetry = polib.get_telemetry("engon")
@@ -59,8 +61,7 @@ class ShowReleaseNotes(bpy.types.Operator):
     )
 
     def execute(self, context: bpy.types.Context):
-        polib.ui_bpy.draw_release_notes(
-            context, polib.utils_bpy.get_top_level_package_name(__package__), self.release_tag)
+        polib.ui_bpy.show_release_notes_popup(context, base_package, self.release_tag)
         return {'FINISHED'}
 
 
@@ -70,20 +71,17 @@ MODULE_CLASSES.append(ShowReleaseNotes)
 @polib.log_helpers_bpy.logged_preferences
 @addon_updater_ops.make_annotations
 class Preferences(bpy.types.AddonPreferences):
-    bl_idname = polib.utils_bpy.get_top_level_package_name(__package__)
+    bl_idname = base_package
 
     # Addon updater preferences.
     auto_check_update: bpy.props.BoolProperty(
         name="Auto-check for Update",
         description="If enabled, auto-check for updates using an interval",
-        default=True
+        default=True,
     )
 
     updater_interval_months: bpy.props.IntProperty(
-        name='Months',
-        description="Number of months between checking for updates",
-        default=0,
-        min=0
+        name='Months', description="Number of months between checking for updates", default=0, min=0
     )
 
     updater_interval_days: bpy.props.IntProperty(
@@ -91,7 +89,7 @@ class Preferences(bpy.types.AddonPreferences):
         description="Number of days between checking for updates",
         default=7,
         min=0,
-        max=31
+        max=31,
     )
 
     updater_interval_hours: bpy.props.IntProperty(
@@ -99,7 +97,7 @@ class Preferences(bpy.types.AddonPreferences):
         description="Number of hours between checking for updates",
         default=0,
         min=0,
-        max=23
+        max=23,
     )
 
     updater_interval_minutes: bpy.props.IntProperty(
@@ -107,76 +105,66 @@ class Preferences(bpy.types.AddonPreferences):
         description="Number of minutes between checking for updates",
         default=0,
         min=0,
-        max=59
+        max=59,
     )
 
     general_preferences: bpy.props.PointerProperty(
         name="General Preferences",
         description="Preferences related to all asset packs",
-        type=general_preferences.GeneralPreferences
+        type=general_preferences.GeneralPreferences,
     )
 
     mapr_preferences: bpy.props.PointerProperty(
         name="Browser Preferences",
         description="Preferences related to the mapr asset browser",
-        type=mapr_preferences.MaprPreferences
+        type=mapr_preferences.MaprPreferences,
     )
 
     what_is_new_preferences: bpy.props.PointerProperty(
         name="\"See What's New\" preferences",
         description="Preferences related to the \"See What's New\" button",
-        type=what_is_new_preferences.WhatIsNewPreferences
+        type=what_is_new_preferences.WhatIsNewPreferences,
     )
 
     aquatiq_preferences: bpy.props.PointerProperty(
         name="Aquatiq Preferences",
         description="Preferences related to the aquatiq asset pack",
-        type=aquatiq_preferences.AquatiqPreferences
+        type=aquatiq_preferences.AquatiqPreferences,
     )
 
     botaniq_preferences: bpy.props.PointerProperty(
         name="Botaniq Preferences",
         description="Preferences related to the botaniq asset pack",
-        type=botaniq_preferences.BotaniqPreferences
+        type=botaniq_preferences.BotaniqPreferences,
     )
 
     traffiq_preferences: bpy.props.PointerProperty(
         name="Traffiq Preferences",
         description="Preferences related to the traffiq asset pack",
-        type=traffiq_preferences.TraffiqPreferences
+        type=traffiq_preferences.TraffiqPreferences,
     )
 
     first_time_register: bpy.props.BoolProperty(
         description="Gets set to False when engon gets registered for the first time "
         "or when registered after being unregistered",
-        default=True
+        default=True,
     )
 
-    show_asset_packs: bpy.props.BoolProperty(
-        description="Show/Hide Asset Packs",
-        default=True
-    )
+    show_asset_packs: bpy.props.BoolProperty(description="Show/Hide Asset Packs", default=True)
 
     show_pack_info_paths: bpy.props.BoolProperty(
-        name="Show/Hide Pack Info Search Paths",
-        default=False
+        name="Show/Hide Pack Info Search Paths", default=False
     )
 
-    show_keymaps: bpy.props.BoolProperty(
-        description="Show/Hide Keymaps",
-        default=False
-    )
+    show_keymaps: bpy.props.BoolProperty(description="Show/Hide Keymaps", default=False)
 
-    show_updater_settings: bpy.props.BoolProperty(
-        description="Show/Hide Updater",
-        default=False
-    )
+    show_updater_settings: bpy.props.BoolProperty(description="Show/Hide Updater", default=False)
 
     save_prefs: bpy.props.BoolProperty(
         name="Auto-Save Preferences",
         description="Automatically saves Preferences after running operators "
         "(e.g. Install Asset Pack) that change engon preferences",
-        default=True
+        default=True,
     )
 
     def draw(self, context: bpy.types.Context) -> None:
@@ -189,8 +177,8 @@ class Preferences(bpy.types.AddonPreferences):
             "show_asset_packs",
             "Asset Packs",
             self.general_preferences.draw_asset_packs,
-            docs_module=polib.utils_bpy.get_top_level_package_name(__package__),
-            docs_rel_url="getting_started/asset_packs"
+            docs_module=base_package,
+            docs_rel_url="getting_started/asset_packs",
         )
 
         if self.show_asset_packs:
@@ -201,8 +189,8 @@ class Preferences(bpy.types.AddonPreferences):
                 "show_pack_info_paths",
                 "Asset Pack Search Paths (For Advanced Users)",
                 functools.partial(self.general_preferences.draw_pack_info_search_paths, context),
-                docs_module=polib.utils_bpy.get_top_level_package_name(__package__),
-                docs_rel_url="advanced_topics/search_paths"
+                docs_module=base_package,
+                docs_rel_url="advanced_topics/search_paths",
             )
 
         # Keymaps section
@@ -211,17 +199,18 @@ class Preferences(bpy.types.AddonPreferences):
             self,
             "show_keymaps",
             "Keymaps",
-            functools.partial(keymaps.draw_settings_ui, context)
+            functools.partial(keymaps.draw_settings_ui, context),
         )
 
-        # Update Settings section
-        polib.ui_bpy.collapsible_box(
-            col,
-            self,
-            "show_updater_settings",
-            "Updates",
-            functools.partial(self.draw_update_settings, context)
-        )
+        if bpy.app.version < (4, 2, 0) or (bpy.app.version >= (4, 2, 0) and bpy.app.online_access):
+            # Update Settings section
+            polib.ui_bpy.collapsible_box(
+                col,
+                self,
+                "show_updater_settings",
+                "Updates",
+                functools.partial(self.draw_update_settings, context),
+            )
 
         box = col.box()
 
@@ -242,18 +231,17 @@ class Preferences(bpy.types.AddonPreferences):
         left_row = split.row()
         left_row.enabled = bool(addon_updater.Updater.update_ready)
         left_row.operator(
-            ShowReleaseNotes.bl_idname,
-            text="Latest Release Notes",
-            icon='PRESET_NEW'
+            ShowReleaseNotes.bl_idname, text="Latest Release Notes", icon='PRESET_NEW'
         ).release_tag = ""
         right_row = split.row()
-        current_release_tag = polib.utils_bpy.get_release_tag_from_version(
-            addon_updater.Updater.current_version)
-        right_row.operator(
-            ShowReleaseNotes.bl_idname,
-            text="Current Release Notes",
-            icon='PRESET'
-        ).release_tag = current_release_tag
+        # TODO: Broken 4.2
+        if addon_updater.Updater.current_version is not None:
+            current_release_tag = polib.utils_bpy.get_release_tag_from_version(
+                addon_updater.Updater.current_version
+            )
+            right_row.operator(
+                ShowReleaseNotes.bl_idname, text="Current Release Notes", icon='PRESET'
+            ).release_tag = current_release_tag
 
     def draw_save_userpref_prompt(self, layout: bpy.types.UILayout):
         row = layout.row()
@@ -261,11 +249,13 @@ class Preferences(bpy.types.AddonPreferences):
         row = row.row()
         row.alignment = 'RIGHT'
         op = row.operator(ui_utils.ShowPopup.bl_idname, text="", icon='INFO')
-        op.message = "Automatically saves preferences after running operators " \
-            "(e.g. Install Asset Pack) that change engon preferences. \n" \
-            "If you do not save preferences after running these operators, " \
-            "you might lose important engon data, for example, \n" \
+        op.message = (
+            "Automatically saves preferences after running operators "
+            "(e.g. Install Asset Pack) that change engon preferences. \n"
+            "If you do not save preferences after running these operators, "
+            "you might lose important engon data, for example, \n"
             "your installed Asset Packs might not load properly the next time you open Blender."
+        )
         op.title = "Auto-Save Preferences"
         op.icon = 'INFO'
 

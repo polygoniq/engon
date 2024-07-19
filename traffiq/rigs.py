@@ -31,8 +31,9 @@ import itertools
 import mathutils
 import collections
 import logging
-import polib
+from .. import polib
 from .. import preferences
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -42,8 +43,9 @@ MODULE_CLASSES: typing.List[typing.Type] = []
 class GroundSensorsManipulator:
     def __init__(self, pose: bpy.types.Pose):
         self.ground_sensors = self.__find_ground_sensors(pose)
-        self.ground_sensors_constraints: typing.Dict[str, bpy.types.Constraint] = \
+        self.ground_sensors_constraints: typing.Dict[str, bpy.types.Constraint] = (
             self.__get_ground_sensors_constraints(self.ground_sensors)
+        )
 
     def __find_ground_sensors(self, pose: bpy.types.Pose) -> typing.Set[bpy.types.PoseBone]:
         ground_sensors = set()
@@ -54,11 +56,11 @@ class GroundSensorsManipulator:
         return ground_sensors
 
     def __get_ground_sensors_constraints(
-        self,
-        ground_sensors: typing.Set[bpy.types.PoseBone]
+        self, ground_sensors: typing.Set[bpy.types.PoseBone]
     ) -> typing.Dict[str, typing.Optional[bpy.types.ShrinkwrapConstraint]]:
-        ground_sensor_constraints: typing.Dict[str,
-                                               bpy.types.Constraint] = collections.defaultdict(None)
+        ground_sensor_constraints: typing.Dict[str, bpy.types.Constraint] = collections.defaultdict(
+            None
+        )
         for ground_sensor in ground_sensors:
             for constraint in ground_sensor.constraints:
                 if constraint.type != 'SHRINKWRAP':
@@ -112,8 +114,7 @@ def clear_object_animation_property(obj: bpy.types.Object, property_name: str):
 
 
 def create_fcurve(action: bpy.types.Action, property_name: str) -> bpy.types.FCurve:
-    """Creates fcurve in 'action' with property_name wrapped as data path
-    """
+    """Creates fcurve in 'action' with property_name wrapped as data path"""
 
     return action.fcurves.new(f'["{property_name}"]', index=0, action_group="tq_WheelRotation")
 
@@ -174,12 +175,14 @@ class QuaternionFCurvesEvaluator:
 class BakingOperatorBase:
     frame_start: bpy.props.IntProperty(name="Start Frame", min=1, default=1)
     frame_end: bpy.props.IntProperty(name="End Frame", min=1, default=250)
-    keyframe_tolerance: bpy.props.FloatProperty(name="Keyframe tolerance", min=0, default=.01)
+    keyframe_tolerance: bpy.props.FloatProperty(name="Keyframe tolerance", min=0, default=0.01)
 
     @classmethod
     def poll(cls, context: bpy.types.Context):
-        return polib.rigs_shared_bpy.is_object_rigged(context.object) and \
-            context.object.mode in {'POSE', 'OBJECT'}
+        return polib.rigs_shared_bpy.is_object_rigged(context.object) and context.object.mode in {
+            'POSE',
+            'OBJECT',
+        }
 
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
         if context.object.animation_data is None:
@@ -187,7 +190,8 @@ class BakingOperatorBase:
             assert context.object.animation_data is not None
         if context.object.animation_data.action is None:
             context.object.animation_data.action = bpy.data.actions.new(
-                f"{context.object.name}_Action")
+                f"{context.object.name}_Action"
+            )
 
         return context.window_manager.invoke_props_dialog(self)
 
@@ -201,7 +205,9 @@ class BakingOperatorBase:
     def _create_euler_evaluator(self, action: bpy.types.Action, source_bone: bpy.types.Bone):
         fcurve_name = f'pose.bones["{source_bone.name}"].rotation_euler'
         fc_root_rot = [action.fcurves.find(fcurve_name, index=i) for i in range(3)]
-        return EulerToQuaternionFCurvesEvaluator(FCurvesEvaluator(fc_root_rot, default_value=(0.0, 0.0, 0.0)))
+        return EulerToQuaternionFCurvesEvaluator(
+            FCurvesEvaluator(fc_root_rot, default_value=(0.0, 0.0, 0.0))
+        )
 
     def _create_quaternion_evaluator(self, action: bpy.types.Action, source_bone: bpy.types.Bone):
         fcurve_name = f'pose.bones["{source_bone.name}"].rotation_quaternion'
@@ -213,18 +219,16 @@ class BakingOperatorBase:
     def _create_location_evaluator(self, action: bpy.types.Action, source_bone: bpy.types.Bone):
         fcurve_name = f'pose.bones["{source_bone.name}"].location'
         fc_root_loc = [action.fcurves.find(fcurve_name, index=i) for i in range(3)]
-        return VectorFCurvesEvaluator(
-            FCurvesEvaluator(fc_root_loc, default_value=(0.0, 0.0, 0.0))
-        )
+        return VectorFCurvesEvaluator(FCurvesEvaluator(fc_root_loc, default_value=(0.0, 0.0, 0.0)))
 
     def _create_scale_evaluator(self, action: bpy.types.Action, source_bone: bpy.types.Bone):
         fcurve_name = f'pose.bones["{source_bone.name}"].scale'
         fc_root_loc = [action.fcurves.find(fcurve_name, index=i) for i in range(3)]
-        return VectorFCurvesEvaluator(
-            FCurvesEvaluator(fc_root_loc, default_value=(1.0, 1.0, 1.0))
-        )
+        return VectorFCurvesEvaluator(FCurvesEvaluator(fc_root_loc, default_value=(1.0, 1.0, 1.0)))
 
-    def _bake_action(self, context: bpy.types.Context, source_bones: typing.Iterable[bpy.types.Bone]):
+    def _bake_action(
+        self, context: bpy.types.Context, source_bones: typing.Iterable[bpy.types.Bone]
+    ):
         action = context.object.animation_data.action
         nla_tweak_mode = getattr(context.object, "use_tweak_mode", False)
 
@@ -238,7 +242,8 @@ class BakingOperatorBase:
         source_bones_matrix_basis = []
         for source_bone in source_bones:
             source_bones_matrix_basis.append(
-                context.object.pose.bones[source_bone.name].matrix_basis.copy())
+                context.object.pose.bones[source_bone.name].matrix_basis.copy()
+            )
             source_bone.select = True
 
         if bpy.app.version < (4, 1, 0):
@@ -270,8 +275,8 @@ class BakingOperatorBase:
                     do_location=True,
                     do_rotation=True,
                     do_scale=False,
-                    do_custom_props=True
-                )
+                    do_custom_props=True,
+                ),
             )
 
         # Restore context
@@ -315,11 +320,15 @@ class BakeWheelRotation(bpy.types.Operator, BakingOperatorBase):
         wheel_bones = []
         brake_bones = []
         for side, position in itertools.product(("L", "R"), ("F", "B")):
-            for index, wheel_bone in enumerate(bone_name_range(bones, "MCH_WheelRotation", position, side)):
+            for index, wheel_bone in enumerate(
+                bone_name_range(bones, "MCH_WheelRotation", position, side)
+            ):
                 wheel_bones.append(wheel_bone)
                 brake_bones.append(bones.get(bone_name("Brake", position, side, index), wheel_bone))
 
-        for property_name in map(lambda wheel_bone: wheel_bone.name.replace("MCH_", "tq_"), wheel_bones):
+        for property_name in map(
+            lambda wheel_bone: wheel_bone.name.replace("MCH_", "tq_"), wheel_bones
+        ):
             clear_object_animation_property(context.object, property_name)
 
         bones = set(wheel_bones + brake_bones)
@@ -335,10 +344,7 @@ class BakeWheelRotation(bpy.types.Operator, BakingOperatorBase):
             bpy.data.actions.remove(baked_action)
 
     def _evaluate_distance_per_frame(
-        self,
-        action: bpy.types.Action,
-        bone: bpy.types.Bone,
-        brake_bone: bpy.types.Bone
+        self, action: bpy.types.Action, bone: bpy.types.Bone, brake_bone: bpy.types.Bone
     ) -> typing.Generator[typing.Tuple[int, float], None, None]:
         loc_evaluator = self._create_location_evaluator(action, bone)
         rot_evaluator = self._create_euler_evaluator(action, bone)
@@ -375,11 +381,10 @@ class BakeWheelRotation(bpy.types.Operator, BakingOperatorBase):
         context: bpy.types.Context,
         baked_action: bpy.types.Action,
         bone: bpy.types.Bone,
-        brake_bone: bpy.types.Bone
+        brake_bone: bpy.types.Bone,
     ) -> None:
         fc_rot = create_fcurve(
-            context.object.animation_data.action,
-            bone.name.replace("MCH_", "tq_")
+            context.object.animation_data.action, bone.name.replace("MCH_", "tq_")
         )
 
         # Reset the transform of the wheel bone, otherwise baking yields wrong results
@@ -419,8 +424,10 @@ class BakeSteering(bpy.types.Operator, BakingOperatorBase):
             return {'CANCELLED'}
 
         if self.frame_end > self.frame_start:
-            if "Steering" in active_object.data.bones and \
-               "MCH_SteeringRotation" in active_object.data.bones:
+            if (
+                "Steering" in active_object.data.bones
+                and "MCH_SteeringRotation" in active_object.data.bones
+            ):
                 steering = active_object.data.bones["Steering"]
                 mch_steering_rotation = active_object.data.bones["MCH_SteeringRotation"]
                 bone_offset = abs(steering.head_local.y - mch_steering_rotation.head_local.y)
@@ -430,10 +437,7 @@ class BakeSteering(bpy.types.Operator, BakingOperatorBase):
         return {'FINISHED'}
 
     def _evaluate_rotation_per_frame(
-        self,
-        action: bpy.types.Action,
-        bone_offset: float,
-        bone: bpy.types.Bone
+        self, action: bpy.types.Action, bone_offset: float, bone: bpy.types.Bone
     ) -> typing.Generator[typing.Tuple[int, float], None, None]:
         loc_evaluator = self._create_location_evaluator(action, bone)
         rot_evaluator = self._create_quaternion_evaluator(action, bone)
@@ -457,7 +461,8 @@ class BakeSteering(bpy.types.Operator, BakingOperatorBase):
             world_space_bone_normal_vector = rotation_quaternion @ bone_normal_vector
 
             projected_steering_direction = steering_direction_vector.dot(
-                world_space_bone_direction_vector)
+                world_space_bone_direction_vector
+            )
             if projected_steering_direction == 0:
                 continue
 
@@ -465,10 +470,15 @@ class BakeSteering(bpy.types.Operator, BakingOperatorBase):
             steering_direction_vector *= length_ratio
 
             steering_position = mathutils.geometry.distance_point_to_plane(
-                steering_direction_vector, world_space_bone_direction_vector, world_space_bone_normal_vector)
+                steering_direction_vector,
+                world_space_bone_direction_vector,
+                world_space_bone_normal_vector,
+            )
 
-            if previous_steering_position is not None \
-               and abs(steering_position - previous_steering_position) < steering_threshold:
+            if (
+                previous_steering_position is not None
+                and abs(steering_position - previous_steering_position) < steering_threshold
+            ):
                 continue
 
             yield frame, steering_position
@@ -476,16 +486,14 @@ class BakeSteering(bpy.types.Operator, BakingOperatorBase):
             previous_steering_position = steering_position
 
     def _bake_steering_rotation(
-        self,
-        context: bpy.types.Context,
-        bone_offset: float,
-        bone: bpy.types.Bone
+        self, context: bpy.types.Context, bone_offset: float, bone: bpy.types.Bone
     ) -> None:
         clear_object_animation_property(
-            context.object, polib.rigs_shared_bpy.TraffiqRigProperties.STEERING)
+            context.object, polib.rigs_shared_bpy.TraffiqRigProperties.STEERING
+        )
         fc_rot = create_fcurve(
             context.object.animation_data.action,
-            polib.rigs_shared_bpy.TraffiqRigProperties.STEERING
+            polib.rigs_shared_bpy.TraffiqRigProperties.STEERING,
         )
         baked_action = self._bake_action(context, [bone])
         if baked_action is None:
@@ -498,7 +506,9 @@ class BakeSteering(bpy.types.Operator, BakingOperatorBase):
             pb: bpy.types.PoseBone = context.object.pose.bones[bone.name]
             pb.matrix_basis.identity()
 
-            for f, steering_pos in self._evaluate_rotation_per_frame(baked_action, bone_offset, bone):
+            for f, steering_pos in self._evaluate_rotation_per_frame(
+                baked_action, bone_offset, bone
+            ):
                 kf = fc_rot.keyframe_points.insert(f, steering_pos)
                 kf.type = 'JITTER'
                 kf.interpolation = 'LINEAR'
@@ -518,8 +528,9 @@ class SetGroundSensors(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context):
-        return context.mode in {'OBJECT', 'POSE'} and \
-            polib.rigs_shared_bpy.is_object_rigged(context.active_object)
+        return context.mode in {'OBJECT', 'POSE'} and polib.rigs_shared_bpy.is_object_rigged(
+            context.active_object
+        )
 
     def execute(self, context: bpy.types.Context):
         if context.scene.tq_ground_object is None:
@@ -543,8 +554,10 @@ MODULE_CLASSES.append(SetGroundSensors)
 class FollowPath(bpy.types.Operator):
     bl_idname = "engon.traffiq_rig_follow_path"
     bl_label = "Follow Path"
-    bl_description = "Creates a follow path animation on active object. " \
+    bl_description = (
+        "Creates a follow path animation on active object. "
         "Animation is based on Ground and Path properties"
+    )
 
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -557,12 +570,14 @@ class FollowPath(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context):
-        return context.mode == 'OBJECT' and \
-            polib.rigs_shared_bpy.is_object_rigged(context.active_object)
+        return context.mode == 'OBJECT' and polib.rigs_shared_bpy.is_object_rigged(
+            context.active_object
+        )
 
     def draw(self, context: bpy.types.Context):
         rig_properties = preferences.prefs_utils.get_preferences(
-            context).traffiq_preferences.rig_properties
+            context
+        ).traffiq_preferences.rig_properties
         layout = self.layout
         layout.prop(rig_properties, "auto_bake_steering", text="Bake Steering")
         layout.prop(rig_properties, "auto_bake_wheels", text="Bake Wheel Rotation")
@@ -584,7 +599,8 @@ class FollowPath(bpy.types.Operator):
 
     def execute(self, context: bpy.types.Context):
         rig_properties = preferences.prefs_utils.get_preferences(
-            context).traffiq_preferences.rig_properties
+            context
+        ).traffiq_preferences.rig_properties
         target_path = context.scene.tq_target_path_object
         if target_path is None:
             self.report({'ERROR'}, "No target path selected!")
@@ -601,18 +617,14 @@ class FollowPath(bpy.types.Operator):
             self.report({'ERROR'}, f"Could not find root bone in {active_object.name}")
             return {'CANCELLED'}
 
-        follow_path_constraint = self.setup_follow_path_constraint(
-            root_bone,
-            target_path
-        )
+        follow_path_constraint = self.setup_follow_path_constraint(root_bone, target_path)
 
         ground_object = context.scene.tq_ground_object
         if rig_properties.auto_reset_transforms:
             self.reset_transforms(active_object, target_path, ground_object)
 
         offset_factor_data_path = FollowPath.get_offset_data_path(
-            root_bone.name,
-            follow_path_constraint.name
+            root_bone.name, follow_path_constraint.name
         )
 
         follow_path_constraint.offset_factor = 1.0
@@ -643,12 +655,11 @@ class FollowPath(bpy.types.Operator):
         return {'FINISHED'}
 
     def setup_follow_path_constraint(
-        self,
-        root_bone: bpy.types.PoseBone,
-        target_obj: bpy.types.Object
+        self, root_bone: bpy.types.PoseBone, target_obj: bpy.types.Object
     ) -> bpy.types.FollowPathConstraint:
-        follow_path_constraint: typing.Optional[bpy.types.FollowPathConstraint] = \
+        follow_path_constraint: typing.Optional[bpy.types.FollowPathConstraint] = (
             root_bone.constraints.get(FollowPath.CONSTRAINT_NAME, None)
+        )
         if follow_path_constraint is None:
             follow_path_constraint = root_bone.constraints.new(type='FOLLOW_PATH')
             assert follow_path_constraint is not None
@@ -686,24 +697,17 @@ class ChangeFollowPathSpeed(bpy.types.Operator):
     bl_description = "Recalculates the follow path keyframes based on desired speed"
     bl_options = {'REGISTER', 'UNDO'}
 
-    start_frame: bpy.props.IntProperty(
-        name="Start Frame",
-        min=0
-    )
+    start_frame: bpy.props.IntProperty(name="Start Frame", min=0)
 
-    target_speed: bpy.props.FloatProperty(
-        name="Target Speed",
-        default=10.0,
-        min=0.1
-    )
+    target_speed: bpy.props.FloatProperty(name="Target Speed", default=10.0, min=0.1)
 
     unit: bpy.props.EnumProperty(
         name="Unit",
         items=[
             ('KMH', "km/h", "Kilometers per hour"),
             ('MPH', "mph", "Miles per hour"),
-            ('MPS', "m/s", "Meters per second")
-        ]
+            ('MPS', "m/s", "Meters per second"),
+        ],
     )
 
     reverse: bpy.props.BoolProperty(
@@ -715,7 +719,7 @@ class ChangeFollowPathSpeed(bpy.types.Operator):
     rebake: bpy.props.BoolProperty(
         name="Rebake",
         description="Open wheel and steering rotation bake operators after changing speed",
-        default=True
+        default=True,
     )
 
     @classmethod
@@ -730,7 +734,8 @@ class ChangeFollowPathSpeed(bpy.types.Operator):
             return {'CANCELLED'}
 
         self.fp_constraint: bpy.types.FollowPathConstraint = self.root_bone.constraints.get(
-            FollowPath.CONSTRAINT_NAME)
+            FollowPath.CONSTRAINT_NAME
+        )
         if self.fp_constraint is None:
             self.report({'ERROR'}, f"Follow path constraint not found on '{active_object.name}'")
             return {'CANCELLED'}
@@ -758,7 +763,8 @@ class ChangeFollowPathSpeed(bpy.types.Operator):
 
         layout.prop(self, "reverse")
         animation_frames = ChangeFollowPathSpeed.get_animation_frames(
-            self.spline_len, self.target_speed_ms, self.fps)
+            self.spline_len, self.target_speed_ms, self.fps
+        )
         row = layout.row()
         row.label(text=f"Frames: {round(animation_frames)}")
         row.label(text=f"Duration: {animation_frames / self.fps:.2f}s")
@@ -772,20 +778,21 @@ class ChangeFollowPathSpeed(bpy.types.Operator):
 
     def execute(self, context: bpy.types.Context):
         if not hasattr(self, "spline_len"):
-            self.report(
-                {'ERROR'}, "This operator requires 'invoke' to be called before 'execute'!")
+            self.report({'ERROR'}, "This operator requires 'invoke' to be called before 'execute'!")
             return {'CANCELLED'}
 
         active_object: bpy.types.Object = context.active_object
         logger.info(f"Working on active object {active_object.name}")
         required_frames = ChangeFollowPathSpeed.get_animation_frames(
-            self.spline_len, self.target_speed_ms, self.fps)
+            self.spline_len, self.target_speed_ms, self.fps
+        )
         end_frame = self.start_frame + required_frames
 
         self.fp_constraint.forward_axis = 'TRACK_NEGATIVE_Y' if self.reverse else 'FORWARD_Y'
         self.fp_constraint.offset_factor = 0.0
         offset_factor_data_path = FollowPath.get_offset_data_path(
-            self.root_bone.name, self.fp_constraint.name)
+            self.root_bone.name, self.fp_constraint.name
+        )
 
         fcurve = active_object.animation_data.action.fcurves.find(offset_factor_data_path)
         if fcurve is not None and len(fcurve.keyframe_points) == 2:
@@ -800,10 +807,12 @@ class ChangeFollowPathSpeed(bpy.types.Operator):
         end_frame_int = round(end_frame)
         if self.rebake:
             bpy.ops.engon.traffiq_rig_bake_wheels_rotation(
-                'INVOKE_DEFAULT', frame_start=start_frame_int, frame_end=end_frame_int)
+                'INVOKE_DEFAULT', frame_start=start_frame_int, frame_end=end_frame_int
+            )
 
             bpy.ops.engon.traffiq_rig_bake_steering(
-                'INVOKE_DEFAULT', frame_start=start_frame_int, frame_end=end_frame_int)
+                'INVOKE_DEFAULT', frame_start=start_frame_int, frame_end=end_frame_int
+            )
 
         return {'FINISHED'}
 
@@ -831,8 +840,9 @@ class RemoveAnimation(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context):
-        return context.mode in {'OBJECT', 'POSE'} and \
-            polib.rigs_shared_bpy.is_object_rigged(context.active_object)
+        return context.mode in {'OBJECT', 'POSE'} and polib.rigs_shared_bpy.is_object_rigged(
+            context.active_object
+        )
 
     def remove_follow_path_keyframes(self, obj: bpy.types.Object) -> None:
         """Tries to remove root motion related fcurve from 'obj'"""
@@ -845,8 +855,7 @@ class RemoveAnimation(bpy.types.Operator):
             return
 
         offset_factor_data_path = FollowPath.get_offset_data_path(
-            root_bone.name,
-            fp_constraint.name
+            root_bone.name, fp_constraint.name
         )
 
         action = obj.animation_data.action

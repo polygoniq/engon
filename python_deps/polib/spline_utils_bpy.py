@@ -20,7 +20,7 @@ def add_bezier_point_to_spline(
     spline: bpy.types.Spline,
     position: mathutils.Vector,
     prepend: bool = False,
-    handle_type: str = 'VECTOR'
+    handle_type: str = 'VECTOR',
 ) -> bpy.types.BezierSplinePoint:
     assert spline.type == 'BEZIER'
     spline.bezier_points.add(1)
@@ -40,9 +40,7 @@ def add_bezier_point_to_spline(
 
 
 def remove_bezier_point(
-    curve_obj: bpy.types.Object,
-    spline: bpy.types.Spline,
-    remove_idx: int
+    curve_obj: bpy.types.Object, spline: bpy.types.Spline, remove_idx: int
 ) -> None:
     """Removes bezier point from a spline by changing selection and calling bpy.ops.curve.delete"""
     bpy.context.view_layer.objects.active = curve_obj
@@ -84,9 +82,7 @@ def join_splines(
 
 
 def split_spline(
-    curve: bpy.types.Curve,
-    spline: bpy.types.Spline,
-    split_idx: int
+    curve: bpy.types.Curve, spline: bpy.types.Spline, split_idx: int
 ) -> typing.Tuple[bpy.types.Spline, bpy.types.Spline]:
     """Splits bezier spline 'spline' into two splines inside 'curve' on 'split_idx'
 
@@ -111,9 +107,7 @@ def split_spline(
 
 
 def new_bezier_spline(
-    curve_obj: bpy.types.Object,
-    position: mathutils.Vector,
-    handle_type: str
+    curve_obj: bpy.types.Object, position: mathutils.Vector, handle_type: str
 ) -> typing.Tuple[bpy.types.Spline, bpy.types.BezierSplinePoint]:
     """Creates new spline on 'curve_obj', returns new spline and its first bezier point
 

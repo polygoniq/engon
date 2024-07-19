@@ -25,12 +25,14 @@ import bpy
 import itertools
 import typing
 import math
-import polib
+from . import animations
+from .. import polib
 from .. import asset_helpers
 from .. import asset_registry
 from .. import preferences
-from . import animations
+from .. import __package__ as base_package
 import logging
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -70,12 +72,7 @@ class SetColor(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     color: bpy.props.FloatVectorProperty(
-        name="Color",
-        subtype='COLOR',
-        default=(1.0, 1.0, 1.0, 1.0),
-        size=4,
-        min=0.0,
-        max=1.0
+        name="Color", subtype='COLOR', default=(1.0, 1.0, 1.0, 1.0), size=4, min=0.0, max=1.0
     )
 
     def execute(self, context: bpy.types.Context):
@@ -90,7 +87,9 @@ MODULE_CLASSES.append(SetColor)
 class RandomizeFloatProperty(bpy.types.Operator):
     bl_idname = "engon.botaniq_randomize_float_property"
     bl_label = "Randomize Float Property"
-    bl_description = "Set random value from specified interval for a custom property of selected objects"
+    bl_description = (
+        "Set random value from specified interval for a custom property of selected objects"
+    )
     bl_options = {'REGISTER', 'UNDO'}
 
     custom_property_name: bpy.props.StringProperty(options={'HIDDEN'})
@@ -106,16 +105,15 @@ class RandomizeFloatProperty(bpy.types.Operator):
 
     def execute(self, context: bpy.types.Context):
         prefs = preferences.prefs_utils.get_preferences(context).botaniq_preferences
-        for obj in set(context.selected_objects).union(asset_helpers.gather_instanced_objects(context.selected_objects)):
+        for obj in set(context.selected_objects).union(
+            asset_helpers.gather_instanced_objects(context.selected_objects)
+        ):
             custom_prop = obj.get(self.custom_property_name, None)
             if custom_prop is None:
                 continue
             random_value = random.uniform(prefs.float_min, prefs.float_max)
             polib.asset_pack_bpy.update_custom_prop(
-                context,
-                [obj],
-                self.custom_property_name,
-                random_value
+                context, [obj], self.custom_property_name, random_value
             )
 
             logger.info(
@@ -147,13 +145,14 @@ class BotaniqPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
 
     def draw_header(self, context: bpy.types.Context):
         self.layout.label(
-            text="", icon_value=polib.ui_bpy.icon_manager.get_engon_feature_icon_id("botaniq"))
+            text="", icon_value=polib.ui_bpy.icon_manager.get_engon_feature_icon_id("botaniq")
+        )
 
     def draw_header_preset(self, context: bpy.types.Context) -> None:
         polib.ui_bpy.draw_doc_button(
             self.layout,
-            polib.utils_bpy.get_top_level_package_name(__package__),
-            rel_url="panels/botaniq/panel_overview"
+            base_package,
+            rel_url="panels/botaniq/panel_overview",
         )
 
     def draw(self, context: bpy.types.Context):
@@ -165,10 +164,7 @@ MODULE_CLASSES.append(BotaniqPanel)
 
 class AdjustmentMixin:
     @classmethod
-    def has_pps(
-        cls,
-        obj: bpy.types.Object
-    ) -> bool:
+    def has_pps(cls, obj: bpy.types.Object) -> bool:
         for particle_system in obj.particle_systems:
             if polib.asset_pack_bpy.is_pps(particle_system.name):
                 return True
@@ -176,8 +172,7 @@ class AdjustmentMixin:
 
     @classmethod
     def get_selected_botaniq_assets(
-        cls,
-        context: bpy.types.Context
+        cls, context: bpy.types.Context
     ) -> typing.Iterable[bpy.types.Object]:
         objects = set(context.selected_objects)
         if context.active_object is not None:
@@ -185,21 +180,17 @@ class AdjustmentMixin:
 
         return filter(
             lambda obj: asset_helpers.is_asset_with_engon_feature(obj, "botaniq"),
-            polib.asset_pack_bpy.find_polygoniq_root_objects(objects)
+            polib.asset_pack_bpy.find_polygoniq_root_objects(objects),
         )
 
     @classmethod
     def get_selected_particle_system_targets(
-        cls,
-        context: bpy.types.Context
+        cls, context: bpy.types.Context
     ) -> typing.Iterable[bpy.types.Object]:
         objects = set(context.selected_objects)
         if context.active_object is not None:
             objects.add(context.active_object)
-        return filter(
-            lambda obj: AdjustmentMixin.has_pps(obj),
-            objects
-        )
+        return filter(lambda obj: AdjustmentMixin.has_pps(obj), objects)
 
 
 @polib.log_helpers_bpy.logged_panel
@@ -230,7 +221,7 @@ class AdjustmentsPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
         obj: bpy.types.Object,
         left_col: bpy.types.UILayout,
         right_col: bpy.types.UILayout,
-        spaces: int = 0
+        spaces: int = 0,
     ) -> None:
         row = left_col.row()
         row.label(text=f"{spaces * ' '}{obj.name}")
@@ -239,9 +230,9 @@ class AdjustmentsPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
         brightness = obj.get(polib.asset_pack_bpy.CustomPropertyNames.BQ_BRIGHTNESS, None)
         season = obj.get(polib.asset_pack_bpy.CustomPropertyNames.BQ_SEASON_OFFSET, None)
         random_per_branch = obj.get(
-            polib.asset_pack_bpy.CustomPropertyNames.BQ_RANDOM_PER_BRANCH, None)
-        random_per_leaf = obj.get(
-            polib.asset_pack_bpy.CustomPropertyNames.BQ_RANDOM_PER_LEAF, None)
+            polib.asset_pack_bpy.CustomPropertyNames.BQ_RANDOM_PER_BRANCH, None
+        )
+        random_per_leaf = obj.get(polib.asset_pack_bpy.CustomPropertyNames.BQ_RANDOM_PER_LEAF, None)
         if brightness is not None:
             row.label(text=f"{brightness:.2f}")
         else:
@@ -270,10 +261,12 @@ class AdjustmentsPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
         assets = set(AdjustmentMixin.get_selected_botaniq_assets(context))
         ps_objects = set(AdjustmentMixin.get_selected_particle_system_targets(context))
         ps_object_to_instanced_objects = {
-            obj: set(asset_helpers.gather_instanced_objects([obj])) for obj in ps_objects}
+            obj: set(asset_helpers.gather_instanced_objects([obj])) for obj in ps_objects
+        }
         # Objects that are not in particle systems and are not particle system containers
-        assets = assets - ps_objects - \
-            set(itertools.chain(*ps_object_to_instanced_objects.values()))
+        assets = (
+            assets - ps_objects - set(itertools.chain(*ps_object_to_instanced_objects.values()))
+        )
         if len(assets) == 0 and len(ps_objects) == 0:
             layout.label(text="No botaniq assets or particle systems selected!")
             return
@@ -302,10 +295,13 @@ class AdjustmentsPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
             displayed_assets += 1
 
         # Let's always draw the objects of the particle system, don't trim the objects inside
-        for i, (scatter_obj, instanced_objects) in enumerate(ps_object_to_instanced_objects.items()):
+        for i, (scatter_obj, instanced_objects) in enumerate(
+            ps_object_to_instanced_objects.items()
+        ):
             if displayed_assets >= AdjustmentsPanel.MAX_DISPLAYED_ASSETS:
                 left_col.label(
-                    text=f"... and {len(ps_object_to_instanced_objects) - i} additional scatter(s)")
+                    text=f"... and {len(ps_object_to_instanced_objects) - i} additional scatter(s)"
+                )
                 break
 
             left_col.label(text=scatter_obj.name, icon='PARTICLES')
@@ -325,8 +321,13 @@ class AdjustmentsPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
 
         row = layout.row(align=True)
         row.label(text="", icon='BRUSH_MIX')
-        row.prop(prefs, "season_offset", icon='BRUSH_MIX',
-                 text=f"Season: {self.get_season_from_value(prefs.season_offset)}", slider=True)
+        row.prop(
+            prefs,
+            "season_offset",
+            icon='BRUSH_MIX',
+            text=f"Season: {self.get_season_from_value(prefs.season_offset)}",
+            slider=True,
+        )
         row.operator(
             RandomizeFloatProperty.bl_idname, text="", icon='FILE_3D'
         ).custom_property_name = polib.asset_pack_bpy.CustomPropertyNames.BQ_SEASON_OFFSET
@@ -363,7 +364,7 @@ class AnimationsPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
         context: bpy.types.Context,
         layout: bpy.types.UILayout,
         obj: bpy.types.Object,
-        animated_object: bpy.types.Object
+        animated_object: bpy.types.Object,
     ) -> None:
         """Draws animation details of 'obj' into 'layout' based on 'context' and 'animated_obj'.
 
@@ -379,7 +380,8 @@ class AnimationsPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
             split.label(text=obj.name, icon='OUTLINER_COLLECTION')
             split.operator(
                 animations.AnimationMakeInstanceUnique.bl_idname,
-                text=f"{obj.instance_collection.users - 1}")
+                text=f"{obj.instance_collection.users - 1}",
+            )
 
         action = animated_object.animation_data.action
         animation_type, preset = animations.parse_action_name(action)
@@ -421,7 +423,8 @@ class AnimationsPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
                 # Duration
                 scene_interval = context.scene.frame_end - context.scene.frame_start
                 scene_fps = animations.get_scene_fps(
-                    context.scene.render.fps, context.scene.render.fps_base)
+                    context.scene.render.fps, context.scene.render.fps_base
+                )
                 split = col.split(factor=split_factor, align=True)
                 split.label(text="Duration:")
                 split.label(text=f"{scene_interval / scene_fps:.1f} s")
@@ -434,7 +437,8 @@ class AnimationsPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
 
     def draw(self, context: bpy.types.Context):
         wind_properties = preferences.prefs_utils.get_preferences(
-            context).botaniq_preferences.wind_anim_properties
+            context
+        ).botaniq_preferences.wind_anim_properties
         layout = self.layout
 
         row = polib.ui_bpy.scaled_row(layout, 1.5, align=True)
@@ -442,10 +446,12 @@ class AnimationsPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
         layout.separator()
 
         row = layout.row(align=True)
-        row.operator(animations.AnimationMakeInstanced.bl_idname,
-                     text="Make Instance", icon='GROUP')
-        row.operator(animations.AnimationRemoveWind.bl_idname,
-                     text="Remove Animation", icon='REMOVE')
+        row.operator(
+            animations.AnimationMakeInstanced.bl_idname, text="Make Instance", icon='GROUP'
+        )
+        row.operator(
+            animations.AnimationRemoveWind.bl_idname, text="Remove Animation", icon='REMOVE'
+        )
 
         row = layout.row(align=True)
         row.operator(animations.AnimationMute.bl_idname, text="Mute/Unmute Animation")
@@ -464,8 +470,9 @@ class AnimationsPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
             col = layout.column(align=True)
             col.label(text="Animation Style")
             row = col.split(align=True)
-            row.operator(animations.AnimationSetAnimStyle.bl_idname,
-                         text="Loop / Procedural Switch")
+            row.operator(
+                animations.AnimationSetAnimStyle.bl_idname, text="Loop / Procedural Switch"
+            )
             col.separator()
 
             row = col.split(align=True, factor=0.75)
@@ -549,7 +556,9 @@ class AnimationAdvancedPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
 
         action = animated_object.animation_data.action
         scale_mod_prop_map = animations.get_envelope_multiplier_mod_prop_map(action)
-        for mod_name, fmod_limits in sorted(animations.get_animation_state_control_modifiers(action), key=lambda x: x[0]):
+        for mod_name, fmod_limits in sorted(
+            animations.get_animation_state_control_modifiers(action), key=lambda x: x[0]
+        ):
             row = col.row(align=True)
             row.label(text=f"{mod_name[len('bq_'):]}")
 
@@ -563,24 +572,30 @@ class AnimationAdvancedPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
 
             row.prop(animated_object.modifiers[mod_name], "show_viewport", text="")
             # For some reason next icon from the desired one has to be used: AUTO => CHECKMARK
-            row.prop(fmod_limits, "mute", text="",
-                     icon='AUTO' if fmod_limits.mute is True else 'BLANK1')
+            row.prop(
+                fmod_limits, "mute", text="", icon='AUTO' if fmod_limits.mute is True else 'BLANK1'
+            )
 
 
 MODULE_CLASSES.append(AnimationAdvancedPanel)
 
 
 class VineGeneratorPanelMixin(
-    BotaniqPanelInfoMixin,
-    polib.geonodes_mod_utils_bpy.GeoNodesModifierInputsPanelMixin
+    BotaniqPanelInfoMixin, polib.geonodes_mod_utils_bpy.GeoNodesModifierInputsPanelMixin
 ):
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.active_object
         if obj is None:
             return False
-        return len(polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
-            obj, asset_helpers.BQ_VINE_GENERATOR_NODE_GROUP_NAME)) > 0
+        return (
+            len(
+                polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
+                    obj, asset_helpers.BQ_VINE_GENERATOR_NODE_GROUP_NAME
+                )
+            )
+            > 0
+        )
 
 
 class VineGeneratorPanel(VineGeneratorPanelMixin, bpy.types.Panel):
@@ -590,8 +605,11 @@ class VineGeneratorPanel(VineGeneratorPanelMixin, bpy.types.Panel):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        return super().poll(context) or bpy.data.node_groups.get(
-            asset_helpers.BQ_VINE_GENERATOR_NODE_GROUP_NAME, None) is not None
+        return (
+            super().poll(context)
+            or bpy.data.node_groups.get(asset_helpers.BQ_VINE_GENERATOR_NODE_GROUP_NAME, None)
+            is not None
+        )
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon="GRAPH")
@@ -599,8 +617,15 @@ class VineGeneratorPanel(VineGeneratorPanelMixin, bpy.types.Panel):
     def draw(self, context: bpy.types.Context):
         layout: bpy.types.UILayout = self.layout
         obj = context.active_object
-        if obj is None or len(polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
-                obj, asset_helpers.BQ_VINE_GENERATOR_NODE_GROUP_NAME)) == 0:
+        if (
+            obj is None
+            or len(
+                polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
+                    obj, asset_helpers.BQ_VINE_GENERATOR_NODE_GROUP_NAME
+                )
+            )
+            == 0
+        ):
             layout.label(text="Select a Vine Generator object")
 
 
@@ -623,12 +648,9 @@ class VineGeneratorGeneralAdjustmentsPanel(VineGeneratorPanelMixin, bpy.types.Pa
             "Cast to Target",
             "Angle Threshold",
             "Normal Orientation",
-            "Seed"
+            "Seed",
         ),
-        socket_names_drawn_first=[
-            "Target Object",
-            "Target Collection"
-        ]
+        socket_names_drawn_first=["Target Object", "Target Collection"],
     )
 
     def draw(self, context: bpy.types.Context):
@@ -656,7 +678,7 @@ class VineGeneratorStemAdjustmentsPanel(VineGeneratorPanelMixin, bpy.types.Panel
         ),
         socket_names_drawn_first=[
             "Stem Material",
-        ]
+        ],
     )
 
     def draw(self, context: bpy.types.Context):
@@ -689,7 +711,7 @@ class VineGeneratorLeavesAdjustmentsPanel(VineGeneratorPanelMixin, bpy.types.Pan
         ),
         socket_names_drawn_first=[
             "Leaves Collection",
-        ]
+        ],
     )
 
     def draw(self, context: bpy.types.Context):

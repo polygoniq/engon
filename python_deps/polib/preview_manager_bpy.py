@@ -7,6 +7,7 @@ import os
 import logging
 import typing
 import threading
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 

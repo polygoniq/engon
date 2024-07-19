@@ -21,11 +21,12 @@
 import bpy
 import typing
 import logging
-import polib
-import hatchery
+from .. import polib
+from .. import hatchery
 from . import misc_ops
 from .. import preferences
 from .. import asset_helpers
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -77,8 +78,11 @@ class ChangeTextureSizeActiveMaterial(bpy.types.Operator):
     def execute(self, context: bpy.types.Context):
         textures = hatchery.textures.get_used_textures(context.active_object.active_material)
         hatchery.textures.change_texture_sizes(int(self.max_size), textures)
-        self.report({"INFO"}, f"Changed active material '{context.active_object.active_material.name}' "
-                    f"texture sizes to {self.max_size}")
+        self.report(
+            {"INFO"},
+            f"Changed active material '{context.active_object.active_material.name}' "
+            f"texture sizes to {self.max_size}",
+        )
         return {'FINISHED'}
 
 
@@ -89,19 +93,19 @@ MODULE_CLASSES.append(ChangeTextureSizeActiveMaterial)
 class SyncTextureNodes(bpy.types.Operator):
     bl_idname = "engon.materialiq_sync_texture_nodes"
     bl_label = "Sync Texture Nodes (Beta)"
-    bl_description = "Synchronizes values of all texture nodes inside active material (for the " \
-        "same image) with values from texture node displayed in Textures Panel. Currently " \
+    bl_description = (
+        "Synchronizes values of all texture nodes inside active material (for the "
+        "same image) with values from texture node displayed in Textures Panel. Currently "
         "does not sync sequence properties and colorspace settings"
+    )
 
     node_tree_name: bpy.props.StringProperty(
-        name="Node Tree Name",
-        description="Name of node tree containing textures to be synced"
+        name="Node Tree Name", description="Name of node tree containing textures to be synced"
     )
 
     @staticmethod
     def sync_texture_node_values(
-        src: bpy.types.ShaderNodeTexImage,
-        targets: typing.Iterable[bpy.types.ShaderNodeTexImage]
+        src: bpy.types.ShaderNodeTexImage, targets: typing.Iterable[bpy.types.ShaderNodeTexImage]
     ) -> None:
         """Sets values of blender defined properties from 'src' node to all nodes in 'targets'
 
@@ -112,7 +116,8 @@ class SyncTextureNodes(bpy.types.Operator):
         # shader node. When we subtract properties defined by the base node from the NodeTexImage
         # node (only writable ones!) we get only the NodeTexImage defined properties
         tex_image_node_all_prop_names = {
-            p.identifier for p in src.bl_rna.properties if not p.is_readonly}
+            p.identifier for p in src.bl_rna.properties if not p.is_readonly
+        }
         base_node_prop_names = set(src.bl_rna.base.bl_rna.properties.keys())
         tex_image_node_prop_names = tex_image_node_all_prop_names - base_node_prop_names
         for prop_name in tex_image_node_prop_names:

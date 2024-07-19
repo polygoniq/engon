@@ -23,8 +23,9 @@ import bpy
 import typing
 import logging
 import mathutils
-import polib
+from .. import polib
 from .. import asset_helpers
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -36,13 +37,16 @@ def ensure_puddles_nodegroup(context: bpy.types.Context) -> None:
     if puddle_nodegroup is not None:
         return
     material_library_path = asset_helpers.get_asset_pack_library_path(
-        "aquatiq", asset_helpers.AQ_MATERIALS_LIBRARY_BLEND)
+        "aquatiq", asset_helpers.AQ_MATERIALS_LIBRARY_BLEND
+    )
 
     if material_library_path is None:
         raise RuntimeError("Material library path of aquatiq not found!")
 
     with bpy.data.libraries.load(material_library_path, link=False) as (data_from, data_to):
-        assert asset_helpers.AQ_PUDDLES_NODEGROUP_NAME in data_from.node_groups, f"Nodegroup {asset_helpers.AQ_PUDDLES_NODEGROUP_NAME} not found in {material_library_path}"
+        assert (
+            asset_helpers.AQ_PUDDLES_NODEGROUP_NAME in data_from.node_groups
+        ), f"Nodegroup {asset_helpers.AQ_PUDDLES_NODEGROUP_NAME} not found in {material_library_path}"
         data_to.node_groups = [asset_helpers.AQ_PUDDLES_NODEGROUP_NAME]
 
 
@@ -63,9 +67,12 @@ def can_material_have_effect(mat: bpy.types.Material) -> typing.Tuple[bool, str]
     return True, ""
 
 
-def get_active_material_output(mat: bpy.types.Material) -> typing.Optional[bpy.types.ShaderNodeOutputMaterial]:
+def get_active_material_output(
+    mat: bpy.types.Material,
+) -> typing.Optional[bpy.types.ShaderNodeOutputMaterial]:
     material_outputs = polib.node_utils_bpy.find_nodes_by_bl_idname(
-        mat.node_tree.nodes, "ShaderNodeOutputMaterial", recursive=False)
+        mat.node_tree.nodes, "ShaderNodeOutputMaterial", recursive=False
+    )
 
     for mat_out in material_outputs:
         if mat_out.is_active_output:
@@ -84,7 +91,9 @@ def get_displacement_node_input(node: bpy.types.Node) -> typing.Optional[bpy.typ
     return None
 
 
-def check_puddles_nodegroup_count(objects: typing.Iterable[bpy.types.Object], predicate: typing.Callable[[int], bool]) -> bool:
+def check_puddles_nodegroup_count(
+    objects: typing.Iterable[bpy.types.Object], predicate: typing.Callable[[int], bool]
+) -> bool:
     for obj in objects:
         if obj.type not in {'MESH', 'CURVE'}:
             continue
@@ -97,7 +106,8 @@ def check_puddles_nodegroup_count(objects: typing.Iterable[bpy.types.Object], pr
             continue
 
         puddles_instances = polib.node_utils_bpy.find_nodegroups_by_name(
-            mat.node_tree, asset_helpers.AQ_PUDDLES_NODEGROUP_NAME)
+            mat.node_tree, asset_helpers.AQ_PUDDLES_NODEGROUP_NAME
+        )
         if predicate(len(puddles_instances)):
             return True
     return False
@@ -146,13 +156,15 @@ class AddPuddles(bpy.types.Operator):
             nodes = mat.node_tree.nodes
             # Use existing nodegroup if possible, otherwise create new
             puddles_instances = polib.node_utils_bpy.find_nodegroups_by_name(
-                mat.node_tree, asset_helpers.AQ_PUDDLES_NODEGROUP_NAME)
+                mat.node_tree, asset_helpers.AQ_PUDDLES_NODEGROUP_NAME
+            )
             if len(puddles_instances) > 0:
                 puddles_instance = puddles_instances.pop()
             else:
                 puddles_instance = nodes.new('ShaderNodeGroup')
                 puddles_instance.node_tree = bpy.data.node_groups.get(
-                    asset_helpers.AQ_PUDDLES_NODEGROUP_NAME)
+                    asset_helpers.AQ_PUDDLES_NODEGROUP_NAME
+                )
 
             puddles_instance.location = material_output.location - mathutils.Vector((200.0, 0))
             puddles_instance.name = asset_helpers.AQ_PUDDLES_NODEGROUP_NAME
@@ -170,11 +182,11 @@ class AddPuddles(bpy.types.Operator):
                 height_input = get_displacement_node_input(mat_displacement_input_node)
 
                 if height_input is not None and height_input.is_linked:
-                    links.new(height_input.links[0].from_socket,
-                              puddles_instance.inputs["Height"])
+                    links.new(height_input.links[0].from_socket, puddles_instance.inputs["Height"])
                     links.new(puddles_instance.outputs["Height"], height_input)
-                    puddles_instance.location = mat_displacement_input_node.location - \
-                        mathutils.Vector((200.0, 0))
+                    puddles_instance.location = (
+                        mat_displacement_input_node.location - mathutils.Vector((200.0, 0))
+                    )
                     puddles_instance.inputs["Use Height"].default_value = 1.0
 
             mask = obj.data.vertex_colors.get(asset_helpers.AQ_MASK_NAME, None)
@@ -182,7 +194,8 @@ class AddPuddles(bpy.types.Operator):
                 mask = obj.data.vertex_colors.new(name=asset_helpers.AQ_MASK_NAME)
 
             logger.info(
-                f"Added effect {asset_helpers.AQ_PUDDLES_NODEGROUP_NAME} from material {mat.name}")
+                f"Added effect {asset_helpers.AQ_PUDDLES_NODEGROUP_NAME} from material {mat.name}"
+            )
 
         return {'FINISHED'}
 
@@ -214,7 +227,8 @@ class RemovePuddles(bpy.types.Operator):
                 continue
 
             puddles_nodes = polib.node_utils_bpy.find_nodegroups_by_name(
-                mat.node_tree, asset_helpers.AQ_PUDDLES_NODEGROUP_NAME)
+                mat.node_tree, asset_helpers.AQ_PUDDLES_NODEGROUP_NAME
+            )
             if len(puddles_nodes) == 0:
                 continue
 
@@ -236,7 +250,8 @@ class RemovePuddles(bpy.types.Operator):
 
             mat.node_tree.nodes.remove(puddles_instance)
             logger.info(
-                f"Removed effect {asset_helpers.AQ_PUDDLES_NODEGROUP_NAME} from material {mat.name}")
+                f"Removed effect {asset_helpers.AQ_PUDDLES_NODEGROUP_NAME} from material {mat.name}"
+            )
         return {'FINISHED'}
 
 

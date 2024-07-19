@@ -32,8 +32,7 @@ def get_addon_version_in_blender(full_name: str) -> typing.Optional[typing.Itera
 
 
 def install_addon_zip(zip_file_path: str, module_name: str) -> None:
-    """From zip file in 'zip_file_path' installs module named 'module_name'
-    """
+    """From zip file in 'zip_file_path' installs module named 'module_name'"""
     if not zipfile.is_zipfile(zip_file_path):
         raise RuntimeError(f"{zip_file_path} is not a valid ZIP file!")
 
@@ -68,7 +67,8 @@ def install_addon_zip(zip_file_path: str, module_name: str) -> None:
     # we do the actual update in the blender event loop to avoid crashes in case
     # grumpy_cat is updating itself
     bpy.app.timers.register(
-        lambda: refresh_and_enable(module_name), first_interval=0, persistent=True)
+        lambda: refresh_and_enable(module_name), first_interval=0, persistent=True
+    )
 
 
 def uninstall_addon_module_name(module_name: str) -> None:

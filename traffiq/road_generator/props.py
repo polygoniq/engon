@@ -45,13 +45,13 @@ class FilletProps(bpy.types.PropertyGroup):
     only_selected: bpy.props.BoolProperty(
         name="Only Selected",
         default=True,
-        description="Only selected objects will have their modifiers affected"
+        description="Only selected objects will have their modifiers affected",
     )
 
     value: bpy.props.FloatProperty(
         name="Target Value",
         default=3.0,
-        description="All Fillet Radius values will be set to value of this field"
+        description="All Fillet Radius values will be set to value of this field",
     )
 
 
@@ -60,35 +60,29 @@ MODULE_CLASSES.append(FilletProps)
 
 class ResampleProps(bpy.types.PropertyGroup):
     include_input: bpy.props.BoolProperty(
-        name="Input Curves",
-        default=True,
-        description="If True then input curves are resampled"
+        name="Input Curves", default=True, description="If True then input curves are resampled"
     )
     include_markings: bpy.props.BoolProperty(
-        name="Road Markings",
-        default=True,
-        description="If True then road markings are resampled"
+        name="Road Markings", default=True, description="If True then road markings are resampled"
     )
     include_profile: bpy.props.BoolProperty(
-        name="Road Profiles",
-        default=True,
-        description="If True then road profiles are resampled"
+        name="Road Profiles", default=True, description="If True then road profiles are resampled"
     )
     include_register: bpy.props.BoolProperty(
         name="Crossroad Arc Curves",
         default=True,
-        description="If True then crossroad arcs are resampled"
+        description="If True then crossroad arcs are resampled",
     )
     value: bpy.props.FloatProperty(
         name="Target Value",
         default=3.0,
         description="All included road modifiers will be resampled to this value. Lower value "
-        "results in finer geometry while smaller values create cheaper geometry"
+        "results in finer geometry while smaller values create cheaper geometry",
     )
     only_selected: bpy.props.BoolProperty(
         name="Only Selected",
         default=True,
-        description="Only selected objects will have their modifiers affected"
+        description="Only selected objects will have their modifiers affected",
     )
 
 
@@ -97,9 +91,7 @@ MODULE_CLASSES.append(ResampleProps)
 
 class CrossroadProps(bpy.types.PropertyGroup):
     points_offset: bpy.props.FloatProperty(
-        name="Crossroad Points Offset (m)",
-        default=15.0,
-        min=1.0
+        name="Crossroad Points Offset (m)", default=15.0, min=1.0
     )
 
     build_crosswalks: bpy.props.BoolProperty(
@@ -115,17 +107,23 @@ class CrossroadProps(bpy.types.PropertyGroup):
             (CrossroadType.TRAFFIC_LIGHTS, "Traffic Lights", "Traffic Lights"),
             (CrossroadType.YIELD, "Yield", "Yield"),
             (CrossroadType.STOP, "Stop", "Stop"),
-        ]
+        ],
     )
 
     yield_method: bpy.props.EnumProperty(
         name="Yield Method",
         items=[
-            (CrossroadYieldMethod.NARROW_ROAD,
-             "Narrow Road", "Narrower roads will have yield signs"),
-            (CrossroadYieldMethod.SHORTER_SEGMENT,
-             "Shorter Segment", "Shorter roads will have yield signs")
-        ]
+            (
+                CrossroadYieldMethod.NARROW_ROAD,
+                "Narrow Road",
+                "Narrower roads will have yield signs",
+            ),
+            (
+                CrossroadYieldMethod.SHORTER_SEGMENT,
+                "Shorter Segment",
+                "Shorter roads will have yield signs",
+            ),
+        ],
     )
 
 
@@ -136,12 +134,11 @@ class RoadGeneratorProps(bpy.types.PropertyGroup):
     grid_scale_multiplier: bpy.props.FloatProperty(
         name="Snapping Grid Scale",
         default=10.0,
-        description="Multiplier of overlay grid scale for building roads operator"
+        description="Multiplier of overlay grid scale for building roads operator",
     )
 
     debug: bpy.props.BoolProperty(
-        name="Debug",
-        description="If True then additional debug information will be displayed"
+        name="Debug", description="If True then additional debug information will be displayed"
     )
 
     current_road_type: bpy.props.EnumProperty(
@@ -150,7 +147,7 @@ class RoadGeneratorProps(bpy.types.PropertyGroup):
 
     current_road_height: bpy.props.FloatProperty(
         name="New Segment Height",
-        description="Value of Z coordinate in the world space the new points will be built with"
+        description="Value of Z coordinate in the world space the new points will be built with",
     )
 
     crossroad: bpy.props.PointerProperty(type=CrossroadProps)
@@ -160,8 +157,8 @@ class RoadGeneratorProps(bpy.types.PropertyGroup):
     def cycle_road_type(self):
         enum_items_names = [x[0] for x in road_type.loader.get_road_types_as_enum_items()]
         self.current_road_type = enum_items_names[
-            (enum_items_names.index(self.current_road_type) + 1) %
-            len(road_type.loader.road_type_data)
+            (enum_items_names.index(self.current_road_type) + 1)
+            % len(road_type.loader.road_type_data)
         ]
 
     # TODO: This whole paths part should be changed to work directly from MAPR, we should

@@ -22,7 +22,7 @@ import bpy
 import typing
 import os
 import enum
-import polib
+from .. import polib
 from .. import asset_helpers
 
 
@@ -57,7 +57,7 @@ class WindAnimationProperties(bpy.types.PropertyGroup):
         name="Automatic Make Instance",
         description="Automatically make instance out of object when spawning animation. "
         "Better performance, but assets share data, customization per instance",
-        default=False
+        default=False,
     )
 
     animation_type: bpy.props.EnumProperty(
@@ -65,19 +65,49 @@ class WindAnimationProperties(bpy.types.PropertyGroup):
         description="Select one of predefined animations types."
         "This changes the animation and animation modifier stack",
         items=(
-            (AnimationType.WIND_BEST_FIT.value, AnimationType.WIND_BEST_FIT.value,
-             "Different animation types based on the selection", 'SHADERFX', 0),
-            (AnimationType.WIND_TREE.value, AnimationType.WIND_TREE.value,
-             "Animation mostly suited for tree assets", 'BLANK1', 1),
-            (AnimationType.WIND_PALM.value, AnimationType.WIND_PALM.value,
-             "Animation mostly suited for palm assets", 'BLANK1', 2),
-            (AnimationType.WIND_LOW_VEGETATION.value, AnimationType.WIND_LOW_VEGETATION.value,
-             "Animation mostly suited for low vegetation assets", 'BLANK1', 3),
-            (AnimationType.WIND_LOW_VEGETATION_PLANTS.value, AnimationType.WIND_LOW_VEGETATION_PLANTS.value,
-             "Animation mostly suited for low vegetation plant assets", 'BLANK1', 4),
-            (AnimationType.WIND_SIMPLE.value, AnimationType.WIND_SIMPLE.value,
-             "Simple animation, works only on assets with Leaf_ or Grass_ materials", 'BLANK1', 5)
-        )
+            (
+                AnimationType.WIND_BEST_FIT.value,
+                AnimationType.WIND_BEST_FIT.value,
+                "Different animation types based on the selection",
+                'SHADERFX',
+                0,
+            ),
+            (
+                AnimationType.WIND_TREE.value,
+                AnimationType.WIND_TREE.value,
+                "Animation mostly suited for tree assets",
+                'BLANK1',
+                1,
+            ),
+            (
+                AnimationType.WIND_PALM.value,
+                AnimationType.WIND_PALM.value,
+                "Animation mostly suited for palm assets",
+                'BLANK1',
+                2,
+            ),
+            (
+                AnimationType.WIND_LOW_VEGETATION.value,
+                AnimationType.WIND_LOW_VEGETATION.value,
+                "Animation mostly suited for low vegetation assets",
+                'BLANK1',
+                3,
+            ),
+            (
+                AnimationType.WIND_LOW_VEGETATION_PLANTS.value,
+                AnimationType.WIND_LOW_VEGETATION_PLANTS.value,
+                "Animation mostly suited for low vegetation plant assets",
+                'BLANK1',
+                4,
+            ),
+            (
+                AnimationType.WIND_SIMPLE.value,
+                AnimationType.WIND_SIMPLE.value,
+                "Simple animation, works only on assets with Leaf_ or Grass_ materials",
+                'BLANK1',
+                5,
+            ),
+        ),
     )
 
     preset: bpy.props.EnumProperty(
@@ -87,8 +117,8 @@ class WindAnimationProperties(bpy.types.PropertyGroup):
         items=(
             (WindPreset.BREEZE.value, WindPreset.BREEZE.value, "Light breeze wind", 'BOIDS', 0),
             (WindPreset.WIND.value, WindPreset.WIND.value, "Moderate wind", 'CURVES_DATA', 1),
-            (WindPreset.STORM.value, WindPreset.STORM.value, "Strong storm wind", 'MOD_NOISE', 2)
-        )
+            (WindPreset.STORM.value, WindPreset.STORM.value, "Strong storm wind", 'MOD_NOISE', 2),
+        ),
     )
 
     strength: bpy.props.FloatProperty(
@@ -111,7 +141,7 @@ class WindAnimationProperties(bpy.types.PropertyGroup):
         name="Bake Folder",
         description="Folder where baked .abc animations are saved",
         default=os.path.realpath(os.path.expanduser("~/botaniq_animations/")),
-        subtype='DIR_PATH'
+        subtype='DIR_PATH',
     )
 
     # Used to choose target of most wind animation operators but not all.
@@ -139,16 +169,11 @@ class BotaniqPreferences(bpy.types.PropertyGroup):
         default=0.0,
         min=0.0,
         max=1.0,
-        step=0.1
+        step=0.1,
     )
 
     float_max: bpy.props.FloatProperty(
-        name="Max Value",
-        description="Maximum float value",
-        default=1.0,
-        min=0.0,
-        max=1.0,
-        step=0.1
+        name="Max Value", description="Maximum float value", default=1.0, min=0.0, max=1.0, step=0.1
     )
 
     brightness: bpy.props.FloatProperty(
@@ -163,7 +188,7 @@ class BotaniqPreferences(bpy.types.PropertyGroup):
             context,
             self.get_adjustment_affected_objects(context),
             polib.asset_pack_bpy.CustomPropertyNames.BQ_BRIGHTNESS,
-            self.brightness
+            self.brightness,
         ),
     )
 
@@ -178,7 +203,7 @@ class BotaniqPreferences(bpy.types.PropertyGroup):
             context,
             self.get_adjustment_affected_objects(context),
             polib.asset_pack_bpy.CustomPropertyNames.BQ_RANDOM_PER_BRANCH,
-            self.hue_per_branch
+            self.hue_per_branch,
         ),
     )
 
@@ -193,7 +218,7 @@ class BotaniqPreferences(bpy.types.PropertyGroup):
             context,
             self.get_adjustment_affected_objects(context),
             polib.asset_pack_bpy.CustomPropertyNames.BQ_RANDOM_PER_LEAF,
-            self.hue_per_leaf
+            self.hue_per_leaf,
         ),
     )
 
@@ -208,14 +233,14 @@ class BotaniqPreferences(bpy.types.PropertyGroup):
             context,
             self.get_adjustment_affected_objects(context),
             polib.asset_pack_bpy.CustomPropertyNames.BQ_SEASON_OFFSET,
-            self.season_offset
+            self.season_offset,
         ),
     )
 
     wind_anim_properties: bpy.props.PointerProperty(
         name="Animation Properties",
         description="Wind animation related property group",
-        type=WindAnimationProperties
+        type=WindAnimationProperties,
     )
 
     def get_adjustment_affected_objects(self, context: bpy.types.Context):
@@ -223,8 +248,7 @@ class BotaniqPreferences(bpy.types.PropertyGroup):
         if context.active_object is not None:
             extended_objects.add(context.active_object)
 
-        return set(extended_objects).union(
-            asset_helpers.gather_instanced_objects(extended_objects))
+        return set(extended_objects).union(asset_helpers.gather_instanced_objects(extended_objects))
 
 
 MODULE_CLASSES.append(BotaniqPreferences)

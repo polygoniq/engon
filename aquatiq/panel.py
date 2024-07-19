@@ -21,7 +21,7 @@
 
 import bpy
 import typing
-import polib
+from .. import polib
 from . import paint_mask
 from . import puddles
 from . import materials
@@ -29,6 +29,7 @@ from .. import preferences
 from .. import asset_registry
 from .. import asset_helpers
 from .. import ui_utils
+from .. import __package__ as base_package
 
 
 AQ_PAINT_VERTICES_WARNING_THRESHOLD = 16
@@ -48,29 +49,39 @@ class AquatiqPanelInfoMixin:
 
 
 class RainGeneratorPanelMixin(
-    AquatiqPanelInfoMixin,
-    polib.geonodes_mod_utils_bpy.GeoNodesModifierInputsPanelMixin
+    AquatiqPanelInfoMixin, polib.geonodes_mod_utils_bpy.GeoNodesModifierInputsPanelMixin
 ):
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.active_object
         if obj is None:
             return False
-        return len(polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
-            obj, asset_helpers.AQ_RAIN_GENERATOR_NODE_GROUP_NAME)) > 0
+        return (
+            len(
+                polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
+                    obj, asset_helpers.AQ_RAIN_GENERATOR_NODE_GROUP_NAME
+                )
+            )
+            > 0
+        )
 
 
 class RiverGeneratorPanelMixin(
-    AquatiqPanelInfoMixin,
-    polib.geonodes_mod_utils_bpy.GeoNodesModifierInputsPanelMixin
+    AquatiqPanelInfoMixin, polib.geonodes_mod_utils_bpy.GeoNodesModifierInputsPanelMixin
 ):
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.active_object
         if obj is None:
             return False
-        return len(polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
-            obj, asset_helpers.AQ_RIVER_GENERATOR_NODE_GROUP_NAME)) > 0
+        return (
+            len(
+                polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
+                    obj, asset_helpers.AQ_RIVER_GENERATOR_NODE_GROUP_NAME
+                )
+            )
+            > 0
+        )
 
 
 @polib.log_helpers_bpy.logged_panel
@@ -82,13 +93,14 @@ class AquatiqPanel(AquatiqPanelInfoMixin, bpy.types.Panel):
 
     def draw_header(self, context: bpy.types.Context):
         self.layout.label(
-            text="", icon_value=polib.ui_bpy.icon_manager.get_engon_feature_icon_id("aquatiq"))
+            text="", icon_value=polib.ui_bpy.icon_manager.get_engon_feature_icon_id("aquatiq")
+        )
 
     def draw_header_preset(self, context: bpy.types.Context) -> None:
         polib.ui_bpy.draw_doc_button(
             self.layout,
-            polib.utils_bpy.get_top_level_package_name(__package__),
-            rel_url="panels/aquatiq/panel_overview"
+            base_package,
+            rel_url="panels/aquatiq/panel_overview",
         )
 
     def draw(self, context: bpy.types.Context):
@@ -154,10 +166,12 @@ class MaterialsPanel(AquatiqPanelInfoMixin, bpy.types.Panel):
 
         col = layout.column(align=True)
         row = col.row(align=True)
-        row.operator(paint_mask.ApplyMask.bl_idname,
-                     text="Boundaries", icon='MATPLANE').only_boundaries = True
-        row.operator(paint_mask.ApplyMask.bl_idname,
-                     text="Fill", icon='SNAP_FACE').only_boundaries = False
+        row.operator(
+            paint_mask.ApplyMask.bl_idname, text="Boundaries", icon='MATPLANE'
+        ).only_boundaries = True
+        row.operator(
+            paint_mask.ApplyMask.bl_idname, text="Fill", icon='SNAP_FACE'
+        ).only_boundaries = False
 
         col = layout.column(align=True)
         polib.ui_bpy.row_with_label(col, text="Brush")
@@ -199,7 +213,7 @@ class PuddlesPanel(AquatiqPanelInfoMixin, bpy.types.Panel):
             x,
             "Water Color",
             "Noise Scale",
-        )
+        ),
     )
 
     @classmethod
@@ -215,11 +229,11 @@ class PuddlesPanel(AquatiqPanelInfoMixin, bpy.types.Panel):
         layout.operator(puddles.AddPuddles.bl_idname, icon='ADD')
         layout.operator(puddles.RemovePuddles.bl_idname, icon='PANEL_CLOSE')
 
-        if context.active_object is not None and \
-                puddles.check_puddles_nodegroup_count([context.active_object], lambda x: x != 0):
+        if context.active_object is not None and puddles.check_puddles_nodegroup_count(
+            [context.active_object], lambda x: x != 0
+        ):
             col = layout.column(align=True)
-            PuddlesPanel.template.draw_from_material(
-                context.active_object.active_material, col)
+            PuddlesPanel.template.draw_from_material(context.active_object.active_material, col)
 
 
 MODULE_CLASSES.append(PuddlesPanel)
@@ -232,8 +246,11 @@ class RainGeneratorPanel(RainGeneratorPanelMixin, bpy.types.Panel):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        return super().poll(context) or bpy.data.node_groups.get(
-            asset_helpers.AQ_RAIN_GENERATOR_NODE_GROUP_NAME, None) is not None
+        return (
+            super().poll(context)
+            or bpy.data.node_groups.get(asset_helpers.AQ_RAIN_GENERATOR_NODE_GROUP_NAME, None)
+            is not None
+        )
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon='OUTLINER_DATA_LIGHTPROBE')
@@ -241,8 +258,15 @@ class RainGeneratorPanel(RainGeneratorPanelMixin, bpy.types.Panel):
     def draw(self, context: bpy.types.Context):
         layout: bpy.types.UILayout = self.layout
         obj = context.active_object
-        if obj is None or len(polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
-                obj, asset_helpers.AQ_RAIN_GENERATOR_NODE_GROUP_NAME)) == 0:
+        if (
+            obj is None
+            or len(
+                polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
+                    obj, asset_helpers.AQ_RAIN_GENERATOR_NODE_GROUP_NAME
+                )
+            )
+            == 0
+        ):
             layout.label(text="Select a Rain Generator object")
 
 
@@ -257,17 +281,12 @@ class RainGeneratorGeneralAdjustmentsPanel(RainGeneratorPanelMixin, bpy.types.Pa
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
         asset_helpers.AQ_RAIN_GENERATOR_NODE_GROUP_NAME,
         filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(
-            x,
-            "Self Object",
-            "Realize Instances",
-            "Collision",
-            "Rain",
-            "Randomize"
+            x, "Self Object", "Realize Instances", "Collision", "Rain", "Randomize"
         ),
         socket_names_drawn_first=[
             "Self Object",
             "Collision Collection",
-        ]
+        ],
     )
 
     def draw(self, context: bpy.types.Context):
@@ -289,11 +308,7 @@ class RainGeneratorSplashEffectsPanel(RainGeneratorPanelMixin, bpy.types.Panel):
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
         asset_helpers.AQ_RAIN_GENERATOR_NODE_GROUP_NAME,
-        filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(
-            x,
-            "Splashes",
-            "2D Effects"
-        )
+        filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(x, "Splashes", "2D Effects"),
     )
 
     def draw(self, context: bpy.types.Context):
@@ -315,14 +330,8 @@ class RainGeneratorCameraAdjustmentsPanel(RainGeneratorPanelMixin, bpy.types.Pan
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
         asset_helpers.AQ_RAIN_GENERATOR_NODE_GROUP_NAME,
-        filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(
-            x,
-            "Camera",
-            "Culling"
-        ),
-        socket_names_drawn_first=[
-            "Camera Culling Camera"
-        ]
+        filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(x, "Camera", "Culling"),
+        socket_names_drawn_first=["Camera Culling Camera"],
     )
 
     def draw(self, context: bpy.types.Context):
@@ -343,8 +352,11 @@ class RiverGeneratorPanel(RiverGeneratorPanelMixin, bpy.types.Panel):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        return super().poll(context) or bpy.data.node_groups.get(
-            asset_helpers.AQ_RIVER_GENERATOR_NODE_GROUP_NAME, None) is not None
+        return (
+            super().poll(context)
+            or bpy.data.node_groups.get(asset_helpers.AQ_RIVER_GENERATOR_NODE_GROUP_NAME, None)
+            is not None
+        )
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon='FORCE_FORCE')
@@ -352,8 +364,15 @@ class RiverGeneratorPanel(RiverGeneratorPanelMixin, bpy.types.Panel):
     def draw(self, context: bpy.types.Context):
         layout: bpy.types.UILayout = self.layout
         obj = context.active_object
-        if obj is None or len(polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
-                obj, asset_helpers.AQ_RIVER_GENERATOR_NODE_GROUP_NAME)) == 0:
+        if (
+            obj is None
+            or len(
+                polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
+                    obj, asset_helpers.AQ_RIVER_GENERATOR_NODE_GROUP_NAME
+                )
+            )
+            == 0
+        ):
             layout.label(text="Select a River Generator object")
 
 
@@ -375,13 +394,12 @@ class RiverGeneratorGeneralAdjustmentsPanel(RiverGeneratorPanelMixin, bpy.types.
             "Depth",
             "Seed",
             "Animation Speed",
-        ) and not polib.node_utils_bpy.filter_node_socket_name(
+        )
+        and not polib.node_utils_bpy.filter_node_socket_name(
             x,
             "Bank Width",
         ),
-        socket_names_drawn_first=[
-            "Self Object"
-        ]
+        socket_names_drawn_first=["Self Object"],
     )
 
     def draw(self, context: bpy.types.Context):
@@ -403,15 +421,8 @@ class RiverGeneratorBankRiverbedAdjustmentsPanel(RiverGeneratorPanelMixin, bpy.t
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
         asset_helpers.AQ_RIVER_GENERATOR_NODE_GROUP_NAME,
-        filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(
-            x,
-            "Bank",
-            "Riverbed"
-        ),
-        socket_names_drawn_first=[
-            "Bank Material",
-            "Riverbed Material"
-        ]
+        filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(x, "Bank", "Riverbed"),
+        socket_names_drawn_first=["Bank Material", "Riverbed Material"],
     )
 
     def draw(self, context: bpy.types.Context):
@@ -433,15 +444,8 @@ class RiverGeneratorScatterPanel(RiverGeneratorPanelMixin, bpy.types.Panel):
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
         asset_helpers.AQ_RIVER_GENERATOR_NODE_GROUP_NAME,
-        filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(
-            x,
-            "Vegetation",
-            "Rocks"
-        ),
-        socket_names_drawn_first=[
-            "Rocks",
-            "Vegetation"
-        ]
+        filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(x, "Vegetation", "Rocks"),
+        socket_names_drawn_first=["Rocks", "Vegetation"],
     )
 
     def draw(self, context: bpy.types.Context):
@@ -464,18 +468,13 @@ class RiverGeneratorAdvancedAdjustmentsPanel(RiverGeneratorPanelMixin, bpy.types
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
         asset_helpers.AQ_RIVER_GENERATOR_NODE_GROUP_NAME,
         filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(
-            x,
-            "Noise",
-            "Foam",
-            "Caustic",
-            "Collision"
-        ) and not polib.node_utils_bpy.filter_node_socket_name(
+            x, "Noise", "Foam", "Caustic", "Collision"
+        )
+        and not polib.node_utils_bpy.filter_node_socket_name(
             x,
             "Rocks Collision Complexity",
         ),
-        socket_names_drawn_first=[
-            "Collision"
-        ]
+        socket_names_drawn_first=["Collision"],
     )
 
     def draw(self, context: bpy.types.Context):

@@ -26,6 +26,7 @@ import typing
 import dataclasses
 import logging
 from . import road_type
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -37,6 +38,7 @@ class RoadSegment:
     Road segment is subset of 'curve_object.data.splines' - one concrete spline that can have
     arbitrary amount of points.
     """
+
     curve_object: bpy.types.Object
     spline: bpy.types.Spline
     type_: road_type.RoadType
@@ -68,23 +70,21 @@ class SegmentAdjacency:
     """Represents adjacency of stored segment endpoint to a crossroad"""
 
     def __init__(
-        self,
-        segment: RoadSegment,
-        point_idx: int = 0,
-        first_point: typing.Optional[bool] = None
+        self, segment: RoadSegment, point_idx: int = 0, first_point: typing.Optional[bool] = None
     ):
         self.segment = segment
         if first_point is not None:
             self.is_first_point = first_point
         else:
             bezier_points_last_idx = len(segment.spline.bezier_points) - 1
-            assert point_idx == 0 or point_idx == bezier_points_last_idx, \
-                "Only first or last point can be adjacent to crossroad!"
+            assert (
+                point_idx == 0 or point_idx == bezier_points_last_idx
+            ), "Only first or last point can be adjacent to crossroad!"
             self.is_first_point = point_idx == 0
 
     @property
     def adjacent_point(self) -> bpy.types.BezierSplinePoint:
-        return self.segment.spline.bezier_points[0 if self.is_first_point else - 1]
+        return self.segment.spline.bezier_points[0 if self.is_first_point else -1]
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
@@ -112,6 +112,7 @@ class Crossroad:
     Crossroad.obj is a Blender object that has specific modifier stack that creates geometry
     between different RoadSegments. This object has to have position always set to (0, 0, 0).
     """
+
     id_: int
     collection: bpy.types.Collection
     obj: bpy.types.Object
@@ -127,7 +128,8 @@ class Crossroad:
             position_sum += adj.adjacent_point.co
 
         self.radius = max(
-            (self.position - adj.adjacent_point.co).length for adj in self.adjacencies)
+            (self.position - adj.adjacent_point.co).length for adj in self.adjacencies
+        )
 
     def __hash__(self) -> int:
         return hash(self.id_)
@@ -169,12 +171,11 @@ class RoadNetwork:
                 del self._endpoint_cx_map[adj]
 
     def get_endpoints_connections(
-        self,
-        segment: RoadSegment
+        self, segment: RoadSegment
     ) -> typing.Tuple[typing.Optional[Crossroad], typing.Optional[Crossroad]]:
         return (
             self._endpoint_cx_map.get(SegmentAdjacency(segment, first_point=True), None),
-            self._endpoint_cx_map.get(SegmentAdjacency(segment, first_point=False), None)
+            self._endpoint_cx_map.get(SegmentAdjacency(segment, first_point=False), None),
         )
 
     def remove_segment(self, segment: RoadSegment) -> None:
@@ -192,21 +193,23 @@ class RoadNetwork:
             end_cx.adjacencies.remove(end_cx_adj)
             del self._endpoint_cx_map[end_cx_adj]
 
-    def replace_segment(self, original: RoadSegment, new: RoadSegment, reverse: bool = False) -> None:
+    def replace_segment(
+        self, original: RoadSegment, new: RoadSegment, reverse: bool = False
+    ) -> None:
         start_cx, end_cx = self.get_endpoints_connections(original)
         logger.debug(f"Replacing segment {original} with {new}, reverse: {reverse}")
         if start_cx is not None:
             self._replace_crossroad_adjacency(
                 start_cx,
                 SegmentAdjacency(original, first_point=True),
-                SegmentAdjacency(new, first_point=not reverse)
+                SegmentAdjacency(new, first_point=not reverse),
             )
 
         if end_cx is not None:
             self._replace_crossroad_adjacency(
                 end_cx,
                 SegmentAdjacency(original, first_point=False),
-                SegmentAdjacency(new, first_point=reverse)
+                SegmentAdjacency(new, first_point=reverse),
             )
 
         self.remove_segment(original)
@@ -223,13 +226,15 @@ class RoadNetwork:
             self._replace_crossroad_adjacency(
                 start_cx,
                 SegmentAdjacency(original, first_point=True),
-                SegmentAdjacency(head, first_point=True))
+                SegmentAdjacency(head, first_point=True),
+            )
 
         if end_cx:
             self._replace_crossroad_adjacency(
                 end_cx,
                 SegmentAdjacency(original, first_point=False),
-                SegmentAdjacency(tail, first_point=False))
+                SegmentAdjacency(tail, first_point=False),
+            )
 
         self.remove_segment(original)
         self.add_segment(head)
@@ -246,16 +251,16 @@ class RoadNetwork:
             return True
 
         # Check whether point_idx in segment is end point connected to a crossroad
-        if point_idx == bezier_points_last_idx and SegmentAdjacency(segment, first_point=False) in self._endpoint_cx_map:
+        if (
+            point_idx == bezier_points_last_idx
+            and SegmentAdjacency(segment, first_point=False) in self._endpoint_cx_map
+        ):
             return True
 
         return False
 
     def _replace_crossroad_adjacency(
-        self,
-        crossroad: Crossroad,
-        removed_adj: SegmentAdjacency,
-        new_adj: SegmentAdjacency
+        self, crossroad: Crossroad, removed_adj: SegmentAdjacency, new_adj: SegmentAdjacency
     ) -> None:
         crossroad.adjacencies.remove(removed_adj)
         crossroad.adjacencies.add(new_adj)

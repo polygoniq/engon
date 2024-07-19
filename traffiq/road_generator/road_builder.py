@@ -25,18 +25,20 @@ import math
 import dataclasses
 import mathutils
 import logging
-import polib
+from ... import polib
 from . import road_network
 from . import road_type
 from . import props
 from . import crossroad_builder
 from . import asset_helpers
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
 @dataclasses.dataclass
 class BuildPoint(abc.ABC):
     """Abstract point where road can be built"""
+
     position: mathutils.Vector
 
 
@@ -48,6 +50,7 @@ class EmptyBuildPoint(BuildPoint):
 @dataclasses.dataclass
 class CrossroadBuildPoint(BuildPoint):
     """Build point where there is existing crossroad"""
+
     position: mathutils.Vector
     crossroad: road_network.Crossroad
 
@@ -55,6 +58,7 @@ class CrossroadBuildPoint(BuildPoint):
 @dataclasses.dataclass
 class RoadSegmentBuildPoint(BuildPoint):
     """Build point on a bezier point of a spline from a road segment"""
+
     position: mathutils.Vector = dataclasses.field(init=False)
     segment: road_network.RoadSegment
     point_idx: int
@@ -63,8 +67,9 @@ class RoadSegmentBuildPoint(BuildPoint):
 
     def __post_init__(self):
         self.position = self.segment.spline.bezier_points[self.point_idx].co
-        self.is_any_endpoint = self.point_idx == 0 or \
-            self.point_idx == len(self.segment.spline.bezier_points) - 1
+        self.is_any_endpoint = (
+            self.point_idx == 0 or self.point_idx == len(self.segment.spline.bezier_points) - 1
+        )
         self.is_start_endpoint = self.point_idx == 0
 
     def get_point(self):
@@ -72,9 +77,7 @@ class RoadSegmentBuildPoint(BuildPoint):
 
 
 def move_point_towards_other_point(
-    p1: mathutils.Vector,
-    p2: mathutils.Vector,
-    s: float
+    p1: mathutils.Vector, p2: mathutils.Vector, s: float
 ) -> mathutils.Vector:
     """Offsets 'p1' towards 'p2' by 's'"""
     dir_ = p2 - p1
@@ -94,6 +97,7 @@ class ProvisionalCrossroadInfo:
     This is used when we split road segment and start creating a new crossroad, but we do not
     know where the new adjacency will be located, as the segment was not build yet.
     """
+
     adjacencies: typing.List[road_network.SegmentAdjacency]
     midpoint: mathutils.Vector
     adj_point: typing.Optional[mathutils.Vector]
@@ -102,6 +106,7 @@ class ProvisionalCrossroadInfo:
 @dataclasses.dataclass
 class ProvisionalSegment:
     """Segment that started building, but its final position is not decided yet"""
+
     curve_obj: bpy.types.Object
     spline: bpy.types.Spline
     endpoint_idx: int
@@ -129,7 +134,7 @@ class RoadBuilder:
         self,
         main_collection: bpy.types.Collection,
         cx_builder: crossroad_builder.CrossroadBuilder,
-        lib_path: str
+        lib_path: str,
     ):
         self.road_network = road_network.RoadNetwork()
         self.main_collection = main_collection
@@ -149,9 +154,7 @@ class RoadBuilder:
         bpy.data.batch_remove(c for c in self.main_collection.children if len(c.all_objects) == 0)
 
     def init_from_scene(
-        self,
-        scene: bpy.types.Scene,
-        loader: road_type.RoadTypeBlendLoader
+        self, scene: bpy.types.Scene, loader: road_type.RoadTypeBlendLoader
     ) -> None:
         """Initializes road network based on content of current scene"""
         for obj in scene.objects:
@@ -166,11 +169,14 @@ class RoadBuilder:
 
                 # Only consider world positions, otherwise geometry nodes for crossroads don't
                 # work correctly.
-                if not (math.isclose(obj.location.x, 0.0, rel_tol=1e-6) and
-                   math.isclose(obj.location.y, 0.0, rel_tol=1e-6) and
-                   math.isclose(obj.location.z, 0.0, rel_tol=1e-6)):
+                if not (
+                    math.isclose(obj.location.x, 0.0, rel_tol=1e-6)
+                    and math.isclose(obj.location.y, 0.0, rel_tol=1e-6)
+                    and math.isclose(obj.location.z, 0.0, rel_tol=1e-6)
+                ):
                     logger.warning(
-                        f"Skipping road curve {obj.name}, because it is not at center location!")
+                        f"Skipping road curve {obj.name}, because it is not at center location!"
+                    )
                     continue
                 type_.curve_obj = obj
                 for spline in obj.data.splines:
@@ -178,7 +184,7 @@ class RoadBuilder:
 
             if obj.type == 'MESH' and asset_helpers.is_crossroad_obj(obj):
                 _, id_ = obj.name.split("-")
-                id_ = int(id_)
+                id_ = int(polib.utils_bpy.remove_object_duplicate_suffix(id_))
                 coll = bpy.data.collections.get(obj.name)
                 if coll is None:
                     continue
@@ -204,18 +210,24 @@ class RoadBuilder:
                 cx_adjacencies = []
                 for curve in searched_curves:
                     type_ = loader.get_road_type_by_name(
-                        curve.get(asset_helpers.ROAD_TYPE_PROPERTY))
+                        curve.get(asset_helpers.ROAD_TYPE_PROPERTY)
+                    )
                     if type_ is None:
                         logger.warning(f"Unknown road type present on curve: '{curve.name}'")
                         continue
                     for spline in curve.data.splines:
                         for i, bp in enumerate(spline.bezier_points):
                             for pos in searched_positions:
-                                if math.isclose(bp.co[0], pos[0], rel_tol=1e-6) and \
-                                   math.isclose(bp.co[1], pos[1], rel_tol=1e-6) and \
-                                   math.isclose(bp.co[2], pos[2], rel_tol=1e-6):
-                                    cx_adjacencies.append(road_network.SegmentAdjacency(
-                                        road_network.RoadSegment(curve, spline, type_), i))
+                                if (
+                                    math.isclose(bp.co[0], pos[0], rel_tol=1e-6)
+                                    and math.isclose(bp.co[1], pos[1], rel_tol=1e-6)
+                                    and math.isclose(bp.co[2], pos[2], rel_tol=1e-6)
+                                ):
+                                    cx_adjacencies.append(
+                                        road_network.SegmentAdjacency(
+                                            road_network.RoadSegment(curve, spline, type_), i
+                                        )
+                                    )
 
                 if len(cx_adjacencies) >= 2:
                     # If the position of crossroad is stored we reuse it. Otherwise calculate
@@ -224,21 +236,20 @@ class RoadBuilder:
                         position = mathutils.Vector(obj[asset_helpers.CROSSROAD_POSITION_PROPERTY])
                     else:
                         position = polib.linalg_bpy.mean_position(
-                            adj.adjacent_point.co for adj in cx_adjacencies)
+                            adj.adjacent_point.co for adj in cx_adjacencies
+                        )
                     self.road_network.add_crossroad(
-                        road_network.Crossroad(id_, coll, obj, set(cx_adjacencies), position))
+                        road_network.Crossroad(id_, coll, obj, set(cx_adjacencies), position)
+                    )
 
                     crossroad_builder.CrossroadBuilder.crossroad_count = max(
-                        id_, crossroad_builder.CrossroadBuilder.crossroad_count)
+                        id_, crossroad_builder.CrossroadBuilder.crossroad_count
+                    )
                     crossroad_builder.CrossroadBuilder.crossroad_count += 1
                 else:
                     logger.error("Not enough adjacencies found for this crossroad!")
 
-    def start_segment(
-        self,
-        start_build_point: BuildPoint,
-        type_: road_type.RoadType
-    ) -> None:
+    def start_segment(self, start_build_point: BuildPoint, type_: road_type.RoadType) -> None:
         """Start building segment on 'start_build_point' with a specific 'type_'"""
         self.start_build_point = start_build_point
         self.is_building = True
@@ -255,12 +266,14 @@ class RoadBuilder:
                     self._start_followup_segment(start_build_point, this_curve_obj, type_)
                 else:
                     self._start_road_type_merge(
-                        start_build_point, this_curve_obj, this_curve_data, type_)
+                        start_build_point, this_curve_obj, this_curve_data, type_
+                    )
             else:
                 self._start_crossroad(start_build_point, this_curve_obj, this_curve_data, type_)
         elif isinstance(start_build_point, CrossroadBuildPoint):
             self._start_new_crossroad_input(
-                start_build_point, this_curve_obj, this_curve_data, type_)
+                start_build_point, this_curve_obj, this_curve_data, type_
+            )
         else:
             raise ValueError("Unknown start point!")
 
@@ -277,9 +290,7 @@ class RoadBuilder:
                 spline.bezier_points[idx].co = point.position
             if self.provisional_cx:
                 self.provisional_cx.adj_point = move_point_towards_other_point(
-                    self.provisional_cx.midpoint,
-                    point.position,
-                    self._get_crossroad_point_offset()
+                    self.provisional_cx.midpoint, point.position, self._get_crossroad_point_offset()
                 )
                 spline.bezier_points[-1 if idx == 0 else 0].co = self.provisional_cx.adj_point
 
@@ -304,15 +315,20 @@ class RoadBuilder:
                 if is_same_spline and not adj.is_first_point and i == len(spline.bezier_points) - 1:
                     return True
 
-        return (spline, i) == (self.provisional_segment.spline, self.provisional_segment.endpoint_idx)
+        return (spline, i) == (
+            self.provisional_segment.spline,
+            self.provisional_segment.endpoint_idx,
+        )
 
     def get_spline_build_points(
-        self
+        self,
     ) -> typing.Iterable[typing.Tuple[road_network.RoadSegment, bpy.types.BezierSplinePoint]]:
         for segment in self.road_network.segments:
             # Don't allow connecting to the same spline
-            if isinstance(self.start_build_point, RoadSegmentBuildPoint) and \
-               self.start_build_point.segment.spline == segment.spline:
+            if (
+                isinstance(self.start_build_point, RoadSegmentBuildPoint)
+                and self.start_build_point.segment.spline == segment.spline
+            ):
                 continue
             else:
                 yield (segment, segment.spline.bezier_points)
@@ -330,12 +346,17 @@ class RoadBuilder:
         assert self.provisional_segment is not None
         assert self.start_build_point is not None
 
-        this_curve_obj, this_spline, this_type_ = self.provisional_segment.curve_obj, self.provisional_segment.spline, self.provisional_segment.road_type
+        this_curve_obj, this_spline, this_type_ = (
+            self.provisional_segment.curve_obj,
+            self.provisional_segment.spline,
+            self.provisional_segment.road_type,
+        )
         if isinstance(end_build_point, EmptyBuildPoint):
             # Add the segment into road_network, the position was updated in
             # 'update_provisional_end_point' dynamically
             self.road_network.add_segment(
-                road_network.RoadSegment(this_curve_obj, this_spline, this_type_))
+                road_network.RoadSegment(this_curve_obj, this_spline, this_type_)
+            )
         elif isinstance(end_build_point, RoadSegmentBuildPoint):
             if end_build_point.is_any_endpoint:
                 if end_build_point.segment.type_ == this_type_:
@@ -357,7 +378,7 @@ class RoadBuilder:
     def _begin_provisional_cx(
         self,
         adjacencies: typing.List[road_network.SegmentAdjacency],
-        position: typing.Optional[mathutils.Vector] = None
+        position: typing.Optional[mathutils.Vector] = None,
     ) -> None:
         """Begins provisional crossroad, which geometry isn't constructed yet.
 
@@ -368,8 +389,7 @@ class RoadBuilder:
         else:
             position = polib.linalg_bpy.mean_position(adj.adjacent_point.co for adj in adjacencies)
 
-        self.provisional_cx = ProvisionalCrossroadInfo(
-            adjacencies, position, None)
+        self.provisional_cx = ProvisionalCrossroadInfo(adjacencies, position, None)
 
     def _finish_provisional_cx(self, end_point: BuildPoint) -> None:
         """Construct geometry for previously saved provisional crossroad"""
@@ -377,9 +397,9 @@ class RoadBuilder:
 
         self.road_network.add_crossroad(
             self.cx_builder.build_crossroad(
-                self.provisional_cx.adjacencies,
-                self.provisional_cx.midpoint
-            ))
+                self.provisional_cx.adjacencies, self.provisional_cx.midpoint
+            )
+        )
 
         self.provisional_cx = None
 
@@ -388,7 +408,7 @@ class RoadBuilder:
         build_point: EmptyBuildPoint,
         curve_obj: bpy.types.Object,
         curve: bpy.types.Curve,
-        type_: road_type.RoadType
+        type_: road_type.RoadType,
     ) -> None:
         # Starting a fresh spline
         spline, _ = polib.spline_utils_bpy.new_bezier_spline(curve, build_point.position, 'VECTOR')
@@ -399,26 +419,25 @@ class RoadBuilder:
         self,
         build_point: RoadSegmentBuildPoint,
         curve_obj: bpy.types.Object,
-        type_: road_type.RoadType
+        type_: road_type.RoadType,
     ) -> None:
         # Adding point to a existing spline
         polib.spline_utils_bpy.add_bezier_point_to_spline(
-            build_point.segment.spline,
-            build_point.position,
-            prepend=build_point.point_idx == 0
+            build_point.segment.spline, build_point.position, prepend=build_point.point_idx == 0
         )
         # In case of point_idx, the provisional index is 0, because the point
         # was prepended.
         idx = 0 if build_point.point_idx == 0 else build_point.point_idx + 1
         self.provisional_segment = ProvisionalSegment(
-            curve_obj, build_point.segment.spline, idx, type_)
+            curve_obj, build_point.segment.spline, idx, type_
+        )
 
     def _start_road_type_merge(
         self,
         build_point: RoadSegmentBuildPoint,
         curve_obj: bpy.types.Object,
         curve: bpy.types.Curve,
-        type_: road_type.RoadType
+        type_: road_type.RoadType,
     ) -> None:
         # Endpoint but different road type
         start_bezier_point = build_point.get_point()
@@ -430,7 +449,7 @@ class RoadBuilder:
         start_bezier_point.co = move_point_towards_other_point(
             start_bezier_point.co,
             build_point.segment.spline.bezier_points[neighbor_idx].co,
-            crossroad_point_offset
+            crossroad_point_offset,
         )
 
         # Create the connecting object
@@ -441,31 +460,35 @@ class RoadBuilder:
                 build_point.segment.spline.bezier_points[neighbor_idx].co,
                 # Offset 2 times backwards, so the future crossroad location is exactly
                 # in the expected middle.
-                -2 * crossroad_point_offset
+                -2 * crossroad_point_offset,
             ),
-            'VECTOR'
+            'VECTOR',
         )
         polib.spline_utils_bpy.add_bezier_point_to_spline(spline, build_point.position)
         self.provisional_segment = ProvisionalSegment(curve_obj, spline, 1, type_)
 
-        self._begin_provisional_cx([
-            road_network.SegmentAdjacency(build_point.segment, build_point.point_idx),
-            road_network.SegmentAdjacency(road_network.RoadSegment(
-                curve_obj, spline, type_), 0),
-        ])
+        self._begin_provisional_cx(
+            [
+                road_network.SegmentAdjacency(build_point.segment, build_point.point_idx),
+                road_network.SegmentAdjacency(
+                    road_network.RoadSegment(curve_obj, spline, type_), 0
+                ),
+            ]
+        )
 
     def _start_crossroad(
         self,
         build_point: RoadSegmentBuildPoint,
         curve_obj: bpy.types.Object,
         curve: bpy.types.Curve,
-        type_: road_type.RoadType
+        type_: road_type.RoadType,
     ) -> None:
         # Splitting original spline and creating a crossing
         s12_curve_obj = build_point.segment.curve_object
         original_spline = build_point.segment.spline
-        s1, s2 = polib.spline_utils_bpy.split_spline(s12_curve_obj.data,
-                                                     build_point.segment.spline, build_point.point_idx)
+        s1, s2 = polib.spline_utils_bpy.split_spline(
+            s12_curve_obj.data, build_point.segment.spline, build_point.point_idx
+        )
 
         seg1 = road_network.RoadSegment(s12_curve_obj, s1, build_point.segment.type_)
         seg2 = road_network.RoadSegment(s12_curve_obj, s2, build_point.segment.type_)
@@ -475,32 +498,37 @@ class RoadBuilder:
         spline2_point = s2.bezier_points[0]
 
         # Replace the original segment with two new ones
-        self.road_network.add_segment(road_network.RoadSegment(
-            build_point.segment.curve_object, s1, build_point.segment.type_))
-        self.road_network.add_segment(road_network.RoadSegment(
-            build_point.segment.curve_object, s2, build_point.segment.type_))
+        self.road_network.add_segment(
+            road_network.RoadSegment(
+                build_point.segment.curve_object, s1, build_point.segment.type_
+            )
+        )
+        self.road_network.add_segment(
+            road_network.RoadSegment(
+                build_point.segment.curve_object, s2, build_point.segment.type_
+            )
+        )
 
         # Create the 3rd spline connecting to the crossroad
         s3, spline3_point = polib.spline_utils_bpy.new_bezier_spline(
-            curve, build_point.position, 'VECTOR')
+            curve, build_point.position, 'VECTOR'
+        )
         crossroad_point_offset = self._get_crossroad_point_offset()
         spline1_point.co = move_point_towards_other_point(
-            spline1_point.co,
-            s1.bezier_points[len(s1.bezier_points) - 2].co,
-            crossroad_point_offset
+            spline1_point.co, s1.bezier_points[len(s1.bezier_points) - 2].co, crossroad_point_offset
         )
         spline2_point.co = move_point_towards_other_point(
-            spline2_point.co,
-            s2.bezier_points[1].co,
-            crossroad_point_offset
+            spline2_point.co, s2.bezier_points[1].co, crossroad_point_offset
         )
 
-        self._begin_provisional_cx([
-            road_network.SegmentAdjacency(seg1, len(s1.bezier_points) - 1),
-            road_network.SegmentAdjacency(seg2, 0),
-            road_network.SegmentAdjacency(road_network.RoadSegment(
-                curve_obj, s3, type_), 0)
-        ], build_point.position)
+        self._begin_provisional_cx(
+            [
+                road_network.SegmentAdjacency(seg1, len(s1.bezier_points) - 1),
+                road_network.SegmentAdjacency(seg2, 0),
+                road_network.SegmentAdjacency(road_network.RoadSegment(curve_obj, s3, type_), 0),
+            ],
+            build_point.position,
+        )
 
         polib.spline_utils_bpy.add_bezier_point_to_spline(s3, spline3_point.co)
         self.provisional_segment = ProvisionalSegment(curve_obj, s3, 1, type_)
@@ -514,20 +542,20 @@ class RoadBuilder:
         build_point: CrossroadBuildPoint,
         curve_obj: bpy.types.Object,
         curve: bpy.types.Curve,
-        type_: road_type.RoadType
+        type_: road_type.RoadType,
     ) -> None:
         # Add input to existing crossroad
         spline, _ = polib.spline_utils_bpy.new_bezier_spline(curve, build_point.position, 'VECTOR')
         existing_adjacencies = list(build_point.crossroad.adjacencies)
-        existing_adjacencies.append(road_network.SegmentAdjacency(road_network.RoadSegment(
-            curve_obj, spline, type_), 0))
+        existing_adjacencies.append(
+            road_network.SegmentAdjacency(road_network.RoadSegment(curve_obj, spline, type_), 0)
+        )
         self.road_network.remove_crossroad(build_point.crossroad)
         bpy.data.objects.remove(build_point.crossroad.obj)
 
         polib.spline_utils_bpy.add_bezier_point_to_spline(spline, build_point.position)
         self.provisional_segment = ProvisionalSegment(curve_obj, spline, 1, type_)
-        self._begin_provisional_cx(
-            existing_adjacencies, build_point.crossroad.position)
+        self._begin_provisional_cx(existing_adjacencies, build_point.crossroad.position)
 
     def _end_join_same_segments(self, build_point: RoadSegmentBuildPoint) -> None:
         assert self.provisional_segment is not None
@@ -550,30 +578,35 @@ class RoadBuilder:
             reverse = True
             if isinstance(self.start_build_point, RoadSegmentBuildPoint):
                 start_cx = self.road_network.get_endpoints_connections(
-                    self.start_build_point.segment)[0]
+                    self.start_build_point.segment
+                )[0]
             end_cx = self.road_network.get_endpoints_connections(build_point.segment)[0]
         elif not s1_is_end and s2_is_end:
             s1, s2 = s2, s1
             if isinstance(self.start_build_point, RoadSegmentBuildPoint):
                 end_cx = self.road_network.get_endpoints_connections(
-                    self.start_build_point.segment)[1]
+                    self.start_build_point.segment
+                )[1]
             start_cx = self.road_network.get_endpoints_connections(build_point.segment)[0]
 
         elif s1_is_end and not s2_is_end:
             reverse, prepend = False, False
             if isinstance(self.start_build_point, RoadSegmentBuildPoint):
                 start_cx = self.road_network.get_endpoints_connections(
-                    self.start_build_point.segment)[0]
+                    self.start_build_point.segment
+                )[0]
             end_cx = self.road_network.get_endpoints_connections(build_point.segment)[1]
         else:
             reverse, prepend = True, True
             if isinstance(self.start_build_point, RoadSegmentBuildPoint):
                 start_cx = self.road_network.get_endpoints_connections(
-                    self.start_build_point.segment)[1]
+                    self.start_build_point.segment
+                )[1]
             end_cx = self.road_network.get_endpoints_connections(build_point.segment)[1]
 
         new_spline = polib.spline_utils_bpy.join_splines(
-            started_curve_obj.data, s1, s2, reverse, prepend)
+            started_curve_obj.data, s1, s2, reverse, prepend
+        )
         new_segment = road_network.RoadSegment(started_curve_obj, new_spline, started_type)
         self.road_network.add_segment(new_segment)
         # If provisional CX is already built, we need to replace the last provisional adjacency
@@ -581,8 +614,9 @@ class RoadBuilder:
         if self.provisional_cx is not None and self.provisional_segment is not None:
             old_adj = self.provisional_cx.adjacencies[-1]
             self.provisional_cx.adjacencies.remove(old_adj)
-            self.provisional_cx.adjacencies.append(road_network.SegmentAdjacency(
-                new_segment, first_point=True))
+            self.provisional_cx.adjacencies.append(
+                road_network.SegmentAdjacency(new_segment, first_point=True)
+            )
             if isinstance(self.start_build_point, RoadSegmentBuildPoint):
                 # In case the start segment was the same as the end segment, we need to replace
                 # one more adjacency, because the crossroad will be connected with one adjacent
@@ -590,18 +624,21 @@ class RoadBuilder:
                 assert self.start_build_point.segment.type_ == build_point.segment.type_
                 old_adj_next = self.provisional_cx.adjacencies[-2]
                 self.provisional_cx.adjacencies.remove(old_adj_next)
-                self.provisional_cx.adjacencies.append(road_network.SegmentAdjacency(
-                    new_segment, first_point=False))
+                self.provisional_cx.adjacencies.append(
+                    road_network.SegmentAdjacency(new_segment, first_point=False)
+                )
             self.road_network.remove_segment(build_point.segment)
         elif isinstance(self.start_build_point, RoadSegmentBuildPoint):
             self.road_network.remove_segment(self.start_build_point.segment)
             self.road_network.remove_segment(build_point.segment)
             if start_cx:
                 self.road_network.add_adjacency(
-                    start_cx, road_network.SegmentAdjacency(new_segment, first_point=True))
+                    start_cx, road_network.SegmentAdjacency(new_segment, first_point=True)
+                )
             if end_cx:
                 self.road_network.add_adjacency(
-                    end_cx, road_network.SegmentAdjacency(new_segment, first_point=False))
+                    end_cx, road_network.SegmentAdjacency(new_segment, first_point=False)
+                )
         else:
             self.road_network.replace_segment(build_point.segment, new_segment, reverse)
 
@@ -611,37 +648,49 @@ class RoadBuilder:
 
     def _end_road_type_merge(self, build_point: RoadSegmentBuildPoint) -> None:
         assert self.provisional_segment is not None
-        started_curve_obj, started_type = self.provisional_segment.curve_obj, self.provisional_segment.road_type
+        started_curve_obj, started_type = (
+            self.provisional_segment.curve_obj,
+            self.provisional_segment.road_type,
+        )
         position = build_point.position.copy()
         bp1 = build_point.get_point()
         neighbor_idx = get_endpoint_neighbor_idx(build_point.point_idx)
         bp1.co = move_point_towards_other_point(
             bp1.co,
             build_point.segment.spline.bezier_points[neighbor_idx].co,
-            self._get_crossroad_point_offset()
+            self._get_crossroad_point_offset(),
         )
         s2, i = self.provisional_segment.spline, self.provisional_segment.endpoint_idx
         s2.bezier_points[i].co = move_point_towards_other_point(
             s2.bezier_points[i].co,
             self.start_build_point.position,
-            self._get_crossroad_point_offset()
+            self._get_crossroad_point_offset(),
         )
 
-        self.road_network.add_crossroad(self.cx_builder.build_crossroad([
-            road_network.SegmentAdjacency(
-                build_point.segment, build_point.point_idx),
-            road_network.SegmentAdjacency(road_network.RoadSegment(
-                started_curve_obj, s2, started_type), i),
-        ], position))
+        self.road_network.add_crossroad(
+            self.cx_builder.build_crossroad(
+                [
+                    road_network.SegmentAdjacency(build_point.segment, build_point.point_idx),
+                    road_network.SegmentAdjacency(
+                        road_network.RoadSegment(started_curve_obj, s2, started_type), i
+                    ),
+                ],
+                position,
+            )
+        )
 
     def _end_create_crossroad(self, build_point: RoadSegmentBuildPoint) -> None:
         assert self.provisional_segment is not None
         # Splitting original spline and creating a crossing
-        started_curve_obj, started_type = self.provisional_segment.curve_obj, self.provisional_segment.road_type
+        started_curve_obj, started_type = (
+            self.provisional_segment.curve_obj,
+            self.provisional_segment.road_type,
+        )
         s12_curve_obj = build_point.segment.curve_object
         original_spline = build_point.segment.spline
         s1, s2 = polib.spline_utils_bpy.split_spline(
-            s12_curve_obj.data, original_spline, build_point.point_idx)
+            s12_curve_obj.data, original_spline, build_point.point_idx
+        )
         seg1 = road_network.RoadSegment(s12_curve_obj, s1, build_point.segment.type_)
         seg2 = road_network.RoadSegment(s12_curve_obj, s2, build_point.segment.type_)
         self.road_network.split_segment(build_point.segment, seg1, seg2)
@@ -652,13 +701,15 @@ class RoadBuilder:
             end_adj = road_network.SegmentAdjacency(build_point.segment, first_point=False)
             if start_adj in self.provisional_cx.adjacencies:
                 self.provisional_cx.adjacencies.remove(start_adj)
-                self.provisional_cx.adjacencies.append(road_network.SegmentAdjacency(
-                    seg1, first_point=True))
+                self.provisional_cx.adjacencies.append(
+                    road_network.SegmentAdjacency(seg1, first_point=True)
+                )
 
             if end_adj in self.provisional_cx.adjacencies:
                 self.provisional_cx.adjacencies.remove(end_adj)
-                self.provisional_cx.adjacencies.append(road_network.SegmentAdjacency(
-                    seg1, first_point=False))
+                self.provisional_cx.adjacencies.append(
+                    road_network.SegmentAdjacency(seg1, first_point=False)
+                )
 
         spline1_point = s1.bezier_points[len(s1.bezier_points) - 1]
         spline2_point = s2.bezier_points[0]
@@ -667,27 +718,26 @@ class RoadBuilder:
         s3, i = self.provisional_segment.spline, self.provisional_segment.endpoint_idx
         point_offset = self._get_crossroad_point_offset()
         spline1_point.co = move_point_towards_other_point(
-            spline1_point.co,
-            s1.bezier_points[len(s1.bezier_points) - 2].co,
-            point_offset
+            spline1_point.co, s1.bezier_points[len(s1.bezier_points) - 2].co, point_offset
         )
         spline2_point.co = move_point_towards_other_point(
-            spline2_point.co,
-            s2.bezier_points[1].co,
-            point_offset
+            spline2_point.co, s2.bezier_points[1].co, point_offset
         )
         s3.bezier_points[i].co = move_point_towards_other_point(
-            s3.bezier_points[i].co,
-            s3.bezier_points[get_endpoint_neighbor_idx(i)].co,
-            point_offset
+            s3.bezier_points[i].co, s3.bezier_points[get_endpoint_neighbor_idx(i)].co, point_offset
         )
 
-        self.road_network.add_crossroad(self.cx_builder.build_crossroad([
-            road_network.SegmentAdjacency(seg1, len(s1.bezier_points) - 1),
-            road_network.SegmentAdjacency(seg2, 0),
-            road_network.SegmentAdjacency(road_network.RoadSegment(
-                started_curve_obj, s3, started_type), i)
-        ]))
+        self.road_network.add_crossroad(
+            self.cx_builder.build_crossroad(
+                [
+                    road_network.SegmentAdjacency(seg1, len(s1.bezier_points) - 1),
+                    road_network.SegmentAdjacency(seg2, 0),
+                    road_network.SegmentAdjacency(
+                        road_network.RoadSegment(started_curve_obj, s3, started_type), i
+                    ),
+                ]
+            )
+        )
 
         # Remove the original spline after all modifications to road network happened,
         # otherwise there can be ReferenceErrors
@@ -696,20 +746,25 @@ class RoadBuilder:
     def _end_add_new_crossroad_input(self, build_point: CrossroadBuildPoint) -> None:
         # add input to crossroad
         assert self.provisional_segment is not None
-        started_curve_obj, started_type = self.provisional_segment.curve_obj, self.provisional_segment.road_type
+        started_curve_obj, started_type = (
+            self.provisional_segment.curve_obj,
+            self.provisional_segment.road_type,
+        )
         spline, idx = self.provisional_segment.spline, self.provisional_segment.endpoint_idx
         neighbor_point = spline.bezier_points[get_endpoint_neighbor_idx(idx)]
         spline.bezier_points[idx].co = move_point_towards_other_point(
-            spline.bezier_points[idx].co,
-            neighbor_point.co,
-            self._get_crossroad_point_offset()
+            spline.bezier_points[idx].co, neighbor_point.co, self._get_crossroad_point_offset()
         )
         adjacencies = list(build_point.crossroad.adjacencies)
-        adjacencies.append(road_network.SegmentAdjacency(road_network.RoadSegment(
-            started_curve_obj, spline, started_type), idx))
+        adjacencies.append(
+            road_network.SegmentAdjacency(
+                road_network.RoadSegment(started_curve_obj, spline, started_type), idx
+            )
+        )
         self.road_network.remove_crossroad(build_point.crossroad)
         self.road_network.add_crossroad(
-            self.cx_builder.build_crossroad(adjacencies, build_point.crossroad.position))
+            self.cx_builder.build_crossroad(adjacencies, build_point.crossroad.position)
+        )
         bpy.data.objects.remove(build_point.crossroad.obj)
 
     def _get_crossroad_point_offset(self):

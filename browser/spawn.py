@@ -21,15 +21,16 @@
 import bpy
 import typing
 import logging
-import polib
-import mapr
 import math
 import mathutils
-import hatchery
+from .. import polib
+from .. import mapr
+from .. import hatchery
 from . import filters
 from .. import preferences
 from .. import asset_registry
 from .. import asset_helpers
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 SPAWN_ALL_DISPLAYED_ASSETS_WARNING_LIMIT = 30
@@ -39,10 +40,7 @@ MODULE_CLASSES: typing.List[typing.Any] = []
 
 
 class MAPR_SpawnAssetBase(bpy.types.Operator):
-    asset_id: bpy.props.StringProperty(
-        name="Asset ID",
-        description="ID of asset to spawn"
-    )
+    asset_id: bpy.props.StringProperty(name="Asset ID", description="ID of asset to spawn")
 
     @classmethod
     def description(cls, context: bpy.types.Context, props: bpy.types.OperatorProperties) -> str:
@@ -90,7 +88,7 @@ class MAPR_SpawnAssetBase(bpy.types.Operator):
         self,
         context: bpy.types.Context,
         asset: mapr.asset.Asset,
-        spawn_options: hatchery.spawn.DatablockSpawnOptions
+        spawn_options: hatchery.spawn.DatablockSpawnOptions,
     ) -> typing.Optional[hatchery.spawn.SpawnedData]:
         asset_provider = asset_registry.instance.master_asset_provider
         file_provider = asset_registry.instance.master_file_provider
@@ -101,11 +99,14 @@ class MAPR_SpawnAssetBase(bpy.types.Operator):
         pack_paths = asset_registry.instance.get_packs_paths()
         filters = [polib.remove_duplicates_bpy.polygoniq_duplicate_data_filter]
         polib.remove_duplicates_bpy.remove_duplicate_datablocks(
-            bpy.data.materials, filters, pack_paths)
+            bpy.data.materials, filters, pack_paths
+        )
         polib.remove_duplicates_bpy.remove_duplicate_datablocks(
-            bpy.data.images, filters, pack_paths)
+            bpy.data.images, filters, pack_paths
+        )
         polib.remove_duplicates_bpy.remove_duplicate_datablocks(
-            bpy.data.node_groups, filters, pack_paths)
+            bpy.data.node_groups, filters, pack_paths
+        )
 
     def _get_asset(self) -> typing.Optional[mapr.asset.Asset]:
         return asset_registry.instance.master_asset_provider.get_asset(self.asset_id)
@@ -125,7 +126,10 @@ class MAPR_BrowserSpawnAsset(MAPR_SpawnAssetBase):
             return {'CANCELLED'}
 
         # If no object is selected we will spawn a sphere and assign material on it
-        if asset.type_ == mapr.asset_data.AssetDataType.blender_material and len(context.selected_objects) == 0:
+        if (
+            asset.type_ == mapr.asset_data.AssetDataType.blender_material
+            and len(context.selected_objects) == 0
+        ):
             bpy.ops.mesh.primitive_uv_sphere_add()
             bpy.ops.object.shade_smooth()
             bpy.ops.object.material_slot_add()
@@ -134,15 +138,20 @@ class MAPR_BrowserSpawnAsset(MAPR_SpawnAssetBase):
         # Make editable and remove duplicates is currently out of hatchery and works based on
         # assumption of correct context, which is suboptimal, but at current time the functions
         # either don't support passing the right context, or we don't have it.
-        if asset.type_ == mapr.asset_data.AssetDataType.blender_model and \
-           prefs.spawn_options.use_collection == 'PARTICLE_SYSTEM':
+        if (
+            asset.type_ == mapr.asset_data.AssetDataType.blender_model
+            and prefs.spawn_options.use_collection == 'PARTICLE_SYSTEM'
+        ):
             # When spawning blender model to PARTICLE_SYSTEM collection we always convert to
             # editable as particle systems wouldn't be able to instance collection.
             polib.asset_pack_bpy.make_selection_editable(
-                context, True, keep_selection=True, keep_active=True)
+                context, True, keep_selection=True, keep_active=True
+            )
 
-            if context.active_object is not None and \
-                    context.active_object.particle_systems.active is not None:
+            if (
+                context.active_object is not None
+                and context.active_object.particle_systems.active is not None
+            ):
                 ps = context.active_object.particle_systems.active
                 if ps.settings.instance_collection is not None:
                     # Update instance collection to propagate changes
@@ -150,7 +159,8 @@ class MAPR_BrowserSpawnAsset(MAPR_SpawnAssetBase):
 
         elif prefs.spawn_options.make_editable:
             polib.asset_pack_bpy.make_selection_editable(
-                context, True, keep_selection=True, keep_active=True)
+                context, True, keep_selection=True, keep_active=True
+            )
 
         if prefs.spawn_options.remove_duplicates:
             self._remove_duplicates()
@@ -176,7 +186,8 @@ class MAPR_BrowserSpawnAllDisplayed(bpy.types.Operator):
     def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         layout.label(
-            text=f"This operation will spawn {len(filters.asset_repository.current_assets)} assets, continue?")
+            text=f"This operation will spawn {len(filters.asset_repository.current_assets)} assets, continue?"
+        )
 
     @polib.utils_bpy.blender_cursor('WAIT')
     def execute(self, context: bpy.types.Context):
@@ -184,7 +195,8 @@ class MAPR_BrowserSpawnAllDisplayed(bpy.types.Operator):
         assets = filters.asset_repository.current_assets
         for asset in assets:
             MAPR_SpawnAssetBase._spawn(
-                self, context, asset, prefs.spawn_options.get_spawn_options(asset, context))
+                self, context, asset, prefs.spawn_options.get_spawn_options(asset, context)
+            )
         return {'FINISHED'}
 
 
@@ -204,8 +216,10 @@ class MAPR_BrowserDrawGeometryNodesAsset(MAPR_SpawnAssetBase):
         if asset is None:
             return f"Asset with id {props.asset_id} cannot be spawned"
 
-        return f"Spawn and draw the '{asset.title}' geometry nodes asset. " \
+        return (
+            f"Spawn and draw the '{asset.title}' geometry nodes asset. "
             f"Switches to Edit mode to draw the asset"
+        )
 
     @polib.utils_bpy.blender_cursor('WAIT')
     def execute(self, context: bpy.types.Context):
@@ -219,11 +233,13 @@ class MAPR_BrowserDrawGeometryNodesAsset(MAPR_SpawnAssetBase):
             return {'CANCELLED'}
 
         spawned_data = self._spawn(
-            context, asset, prefs.spawn_options.get_spawn_options(asset, context))
+            context, asset, prefs.spawn_options.get_spawn_options(asset, context)
+        )
 
         assert asset.type_ == mapr.asset_data.AssetDataType.blender_geometry_nodes
         assert spawned_data is not None and isinstance(
-            spawned_data, hatchery.spawn.GeometryNodesSpawnedData)
+            spawned_data, hatchery.spawn.GeometryNodesSpawnedData
+        )
 
         container_obj = spawned_data.container_obj
         # We remove the splines of the original object, so user starts with blank space
@@ -273,8 +289,11 @@ class MAPR_BrowserSpawnModelIntoParticleSystem(MAPR_SpawnAssetBase):
 
     @classmethod
     def poll(cls, context: bpy.types.Context):
-        return asset_helpers.has_active_object_with_pps(context) and \
-            context.active_object.particle_systems.active.settings.instance_collection is not None
+        return (
+            asset_helpers.has_active_object_with_particle_system(context)
+            and context.active_object.particle_systems.active.settings.instance_collection
+            is not None
+        )
 
     def execute(self, context: bpy.types.Context):
         prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
@@ -286,7 +305,9 @@ class MAPR_BrowserSpawnModelIntoParticleSystem(MAPR_SpawnAssetBase):
         # Override the spawn options to link the model directly into the instance collection
         # and then convert it to editable below.
         spawn_options = prefs.spawn_options.get_spawn_options(asset, context)
-        instance_collection = context.active_object.particle_systems.active.settings.instance_collection
+        instance_collection = (
+            context.active_object.particle_systems.active.settings.instance_collection
+        )
 
         assert instance_collection is not None
         spawn_options.parent_collection = instance_collection
@@ -294,19 +315,24 @@ class MAPR_BrowserSpawnModelIntoParticleSystem(MAPR_SpawnAssetBase):
 
         assert asset.type_ == mapr.asset_data.AssetDataType.blender_model
         assert spawned_data is not None and isinstance(
-            spawned_data, hatchery.spawn.ModelSpawnedData)
+            spawned_data, hatchery.spawn.ModelSpawnedData
+        )
 
-        spawned_data.instancer.location = context.active_object.location - \
-            mathutils.Vector((0, 0, 10))
+        spawned_data.instancer.location = context.active_object.location - mathutils.Vector(
+            (0, 0, 10)
+        )
         spawned_data.instancer.rotation_euler = mathutils.Euler((0, math.radians(90), 0), 'XYZ')
         polib.asset_pack_bpy.make_selection_editable(
-            context, True, keep_selection=True, keep_active=True)
+            context, True, keep_selection=True, keep_active=True
+        )
 
         if prefs.spawn_options.remove_duplicates:
             self._remove_duplicates()
 
         # This refreshes the particle system's dupli weights collection
-        context.active_object.particle_systems.active.settings.instance_collection = instance_collection
+        context.active_object.particle_systems.active.settings.instance_collection = (
+            instance_collection
+        )
 
         return {'FINISHED'}
 
@@ -335,7 +361,7 @@ class SpawnOptionsPopoverPanel(bpy.types.Panel):
         col.prop(spawning_options, "use_collection", text="")
         col.separator()
 
-        col.label(text="Materials", icon='MATERIAL')
+        col.label(text="materialiq Materials", icon='MATERIAL')
         # Creating row with 'use_property_split' makes the enum item align more nicely
         row = col.row()
         row.use_property_split = True

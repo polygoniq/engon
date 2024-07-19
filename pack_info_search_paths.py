@@ -25,6 +25,7 @@ import functools
 import typing
 import logging
 from . import asset_registry
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -48,24 +49,40 @@ class PackInfoSearchPath(bpy.types.PropertyGroup):
     enabled: bpy.props.BoolProperty(
         name="Enabled",
         default=True,
-        description="If set to false this path will be entirely skipped"
+        description="If set to false this path will be entirely skipped",
     )
 
     path_type: bpy.props.EnumProperty(
         name="Type",
         items=(
-            (PackInfoSearchPathType.INSTALL_DIRECTORY, "Install Directory",
-             "Path to a directory containing Asset Pack folders. Only direct child folders are checked!", 'ANIM_DATA', 1
-             ),
-            (PackInfoSearchPathType.RECURSIVE_SEARCH, "Recursive Search",
-             "Finds all Asset Packs inside the path's folder hierarchy", 'INFO', 2
-             ),
-            (PackInfoSearchPathType.SINGLE_FILE, "Single File",
-             "Direct path to an Asset Pack's '.pack-info' file", 'DUPLICATE', 3
-             ),
-            (PackInfoSearchPathType.GLOB, "Glob Expression",
-             "Glob for matching '.pack-info' files of Asset Packs. For power users only!", 'TRASH', 4
-             ),
+            (
+                PackInfoSearchPathType.INSTALL_DIRECTORY,
+                "Install Directory",
+                "Path to a directory containing Asset Pack folders. Only direct child folders are checked!",
+                'ANIM_DATA',
+                1,
+            ),
+            (
+                PackInfoSearchPathType.RECURSIVE_SEARCH,
+                "Recursive Search",
+                "Finds all Asset Packs inside the path's folder hierarchy",
+                'INFO',
+                2,
+            ),
+            (
+                PackInfoSearchPathType.SINGLE_FILE,
+                "Single File",
+                "Direct path to an Asset Pack's '.pack-info' file",
+                'DUPLICATE',
+                3,
+            ),
+            (
+                PackInfoSearchPathType.GLOB,
+                "Glob Expression",
+                "Glob for matching '.pack-info' files of Asset Packs. For power users only!",
+                'TRASH',
+                4,
+            ),
         ),
         default=PackInfoSearchPathType.INSTALL_DIRECTORY,
     )
@@ -73,18 +90,15 @@ class PackInfoSearchPath(bpy.types.PropertyGroup):
     file_path: bpy.props.StringProperty(
         name="file path",
         subtype="FILE_PATH",
-        default=os.path.join(DEFAULT_PACK_INSTALL_PATH, "botaniq", "botaniq_full.pack-info")
+        default=os.path.join(DEFAULT_PACK_INSTALL_PATH, "botaniq", "botaniq_full.pack-info"),
     )
 
     directory_path: bpy.props.StringProperty(
-        name="directory path",
-        subtype="DIR_PATH",
-        default=DEFAULT_PACK_INSTALL_PATH
+        name="directory path", subtype="DIR_PATH", default=DEFAULT_PACK_INSTALL_PATH
     )
 
     glob_expression: bpy.props.StringProperty(
-        name="glob expression",
-        default=os.path.join(DEFAULT_PACK_INSTALL_PATH, "*", "*.pack-info")
+        name="glob expression", default=os.path.join(DEFAULT_PACK_INSTALL_PATH, "*", "*.pack-info")
     )
 
     def as_dict(self) -> typing.Dict[str, str]:
@@ -104,7 +118,8 @@ class PackInfoSearchPath(bpy.types.PropertyGroup):
         if not isinstance(enabled, bool):
             raise ValueError(
                 f"Given json dict contains enabled but its type is '{type(enabled)}' "
-                f"instead of the expected 'bool'!")
+                f"instead of the expected 'bool'!"
+            )
         self.enabled = enabled
 
         path_type = info_dict.get("path_type", None)
@@ -113,7 +128,8 @@ class PackInfoSearchPath(bpy.types.PropertyGroup):
         if not isinstance(path_type, str):
             raise ValueError(
                 f"Given json dict contains path_type but its type is '{type(path_type)}' "
-                f"instead of the expected 'str'!")
+                f"instead of the expected 'str'!"
+            )
         self.path_type = path_type
 
         file_path = info_dict.get("file_path", None)
@@ -122,7 +138,8 @@ class PackInfoSearchPath(bpy.types.PropertyGroup):
         if not isinstance(file_path, str):
             raise ValueError(
                 f"Given json dict contains file_path but its type is '{type(file_path)}' "
-                f"instead of the expected 'str'!")
+                f"instead of the expected 'str'!"
+            )
         self.file_path = file_path
 
         directory_path = info_dict.get("directory_path", None)
@@ -131,7 +148,8 @@ class PackInfoSearchPath(bpy.types.PropertyGroup):
         if not isinstance(directory_path, str):
             raise ValueError(
                 f"Given json dict contains directory_path but its type is '{type(directory_path)}' "
-                f"instead of the expected 'str'!")
+                f"instead of the expected 'str'!"
+            )
         self.directory_path = directory_path
 
         glob_expression = info_dict.get("glob_expression", None)
@@ -140,7 +158,8 @@ class PackInfoSearchPath(bpy.types.PropertyGroup):
         if not isinstance(glob_expression, str):
             raise ValueError(
                 f"Given json dict contains glob_expression but its type is '{type(glob_expression)}' "
-                f"instead of the expected 'str'!")
+                f"instead of the expected 'str'!"
+            )
         self.glob_expression = glob_expression
 
     def get_path_or_expression_by_type(self) -> str:
@@ -159,7 +178,8 @@ class PackInfoSearchPath(bpy.types.PropertyGroup):
         if not self.enabled:
             return []
         return PackInfoSearchPath._get_discovered_asset_packs(
-            self.path_type, self.file_path, self.directory_path, self.glob_expression)
+            self.path_type, self.file_path, self.directory_path, self.glob_expression
+        )
 
     @staticmethod
     def clear_discovered_packs_cache():
@@ -182,14 +202,12 @@ class PackInfoSearchPath(bpy.types.PropertyGroup):
     @staticmethod
     @functools.lru_cache(maxsize=100)
     def _get_discovered_asset_packs(
-        path_type: str,
-        file_path: str,
-        directory_path: str,
-        glob_expression: str
+        path_type: str, file_path: str, directory_path: str, glob_expression: str
     ) -> typing.List[asset_registry.AssetPack]:
         discovered_packs: typing.List[asset_registry.AssetPack] = []
         generated_glob = PackInfoSearchPath._generate_glob(
-            path_type, file_path, directory_path, glob_expression)
+            path_type, file_path, directory_path, glob_expression
+        )
         pack_info_files = glob.glob(generated_glob, recursive=True)
         for pack_info_file in pack_info_files:
             try:
@@ -230,10 +248,14 @@ class ShowDiscoveredPacks(bpy.types.Operator):
 
         if len(discovered_packs) == 0:
             context.window_manager.popup_menu(
-                _draw_discovered_packs, title="No Asset Packs Found in the Search Path!", icon='INFO')
+                _draw_discovered_packs,
+                title="No Asset Packs Found in the Search Path!",
+                icon='INFO',
+            )
         else:
             context.window_manager.popup_menu(
-                _draw_discovered_packs, title="Discovered Asset Packs", icon='INFO')
+                _draw_discovered_packs, title="Discovered Asset Packs", icon='INFO'
+            )
         return {'FINISHED'}
 
 
@@ -243,8 +265,17 @@ MODULE_CLASSES.append(ShowDiscoveredPacks)
 class MY_UL_PackInfoSearchPathList(bpy.types.UIList):
     """UI list for managing pack-info search paths"""
 
-    def draw_item(self, context: bpy.types.Context, layout: bpy.types.UILayout, data,
-                  item: PackInfoSearchPath, icon, active_data, active_propname, index):
+    def draw_item(
+        self,
+        context: bpy.types.Context,
+        layout: bpy.types.UILayout,
+        data,
+        item: PackInfoSearchPath,
+        icon,
+        active_data,
+        active_propname,
+        index,
+    ):
 
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             split = layout.split(factor=0.35, align=True)
@@ -254,7 +285,10 @@ class MY_UL_PackInfoSearchPathList(bpy.types.UIList):
             split = split.split(factor=0.75, align=True)
             if item.path_type == PackInfoSearchPathType.SINGLE_FILE:
                 split.prop(item, "file_path", text="")
-            elif item.path_type in {PackInfoSearchPathType.INSTALL_DIRECTORY, PackInfoSearchPathType.RECURSIVE_SEARCH}:
+            elif item.path_type in {
+                PackInfoSearchPathType.INSTALL_DIRECTORY,
+                PackInfoSearchPathType.RECURSIVE_SEARCH,
+            }:
                 split.prop(item, "directory_path", text="")
             elif item.path_type == PackInfoSearchPathType.GLOB:
                 split.prop(item, "glob_expression", text="")
@@ -268,8 +302,7 @@ class MY_UL_PackInfoSearchPathList(bpy.types.UIList):
             if discovered_packs_count != 1:
                 label_text += "s"
             row.label(text=f"{str(discovered_packs_count)} {label_text}")
-            op = row.operator(
-                ShowDiscoveredPacks.bl_idname, icon='PRESET', text="")
+            op = row.operator(ShowDiscoveredPacks.bl_idname, icon='PRESET', text="")
             # We cannot assign the whole item into pack_info_search_path
             # because PointerProperty inside an Operator is read-only
             # We have to assign each property manually

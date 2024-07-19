@@ -25,11 +25,16 @@ import sys
 import tempfile
 import logging
 import logging.handlers
+import importlib
+import typing
+
 root_logger = logging.getLogger("polygoniq")
 logger = logging.getLogger(f"polygoniq.{__name__}")
 if not getattr(root_logger, "polygoniq_initialized", False):
     root_logger_formatter = logging.Formatter(
-        "P%(process)d:%(asctime)s:%(name)s:%(levelname)s: [%(filename)s:%(lineno)d] %(message)s", "%H:%M:%S")
+        "P%(process)d:%(asctime)s:%(name)s:%(levelname)s: [%(filename)s:%(lineno)d] %(message)s",
+        "%H:%M:%S",
+    )
     try:
         root_logger.setLevel(int(os.environ.get("POLYGONIQ_LOG_LEVEL", "20")))
     except (ValueError, TypeError):
@@ -46,40 +51,55 @@ if not getattr(root_logger, "polygoniq_initialized", False):
             when="h",
             interval=1,
             backupCount=2,
-            utc=True
+            utc=True,
         )
         root_logger_handler.setFormatter(root_logger_formatter)
         root_logger.addHandler(root_logger_handler)
     except:
         logger.exception(
             f"Can't create rotating log handler for polygoniq root logger "
-            f"in module \"{__name__}\", file \"{__file__}\"")
+            f"in module \"{__name__}\", file \"{__file__}\""
+        )
     setattr(root_logger, "polygoniq_initialized", True)
     logger.info(
-        f"polygoniq root logger initialized in module \"{__name__}\", file \"{__file__}\" -----")
+        f"polygoniq root logger initialized in module \"{__name__}\", file \"{__file__}\" -----"
+    )
 
 
+# To comply with extension encapsulation, after the addon initialization:
+# - sys.path needs to stay the same as before the initialization
+# - global namespace can not contain any additional modules outside of __package__
+
+# Dependencies for all 'production' addons are shipped in folder `./python_deps`
+# So we do the following:
+# - Add `./python_deps` to sys.path
+# - Import all dependencies to global namespace
+# - Manually remap the dependencies from global namespace in sys.modules to a subpackage of __package__
+# - Clear global namespace of remapped dependencies
+# - Remove `./python_deps` from sys.path
+# - For developer experience, import "real" dependencies again, only if TYPE_CHECKING is True
+
+# See https://docs.blender.org/manual/en/4.2/extensions/addons.html#extensions-and-namespace
+# for more details
 ADDITIONAL_DEPS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "python_deps"))
 try:
     if os.path.isdir(ADDITIONAL_DEPS_DIR) and ADDITIONAL_DEPS_DIR not in sys.path:
         sys.path.insert(0, ADDITIONAL_DEPS_DIR)
 
+    dependencies = {"polib", "hatchery", "mapr"}
+    for dependency in dependencies:
+        logger.debug(f"Importing additional dependency {dependency}")
+        dependency_module = importlib.import_module(dependency)
+        local_module_name = f"{__package__}.{dependency}"
+        sys.modules[local_module_name] = dependency_module
     for module_name in list(sys.modules.keys()):
-        # delete the already loaded polib module from python module cache to make sure we load
-        # the right one from scratch. this prevents the dreaded "polib-issue"
-        if module_name.startswith("polib"):
-            del sys.modules[module_name]
-        # same trick for all the other dependencies
-        if module_name.startswith("mapr"):
-            del sys.modules[module_name]
-        if module_name.startswith("hatchery"):
+        if module_name.startswith(tuple(dependencies)):
             del sys.modules[module_name]
 
-    # we don't use this module in this file but we use it elsewhere in engon, we import
-    # it here to make sure we handle module cache reloads correctly
-    import hatchery
-    import mapr
-    import polib
+    from . import polib
+    from . import hatchery
+    from . import mapr
+
     from . import ui_utils
     from . import asset_registry
     from . import pack_info_search_paths
@@ -97,21 +117,26 @@ try:
     from . import scatter
 
     from . import keymaps
+
+    if typing.TYPE_CHECKING:
+        import polib
+        import hatchery
+        import mapr
+
 finally:
     if ADDITIONAL_DEPS_DIR in sys.path:
         sys.path.remove(ADDITIONAL_DEPS_DIR)
 
-
 bl_info = {
     "name": "engon",
     "author": "polygoniq xyz s.r.o.",
-    "version": (1, 2, 0),  # bump doc_url as well!
+    "version": (1, 2, 1),  # bump doc_url and version in register as well!
     "blender": (3, 3, 0),
     "location": "polygoniq tab in the sidebar of the 3D View window",
     "description": "",
     "category": "Object",
-    "doc_url": "https://docs.polygoniq.com/engon/1.2.0/",
-    "tracker_url": "https://polygoniq.com/discord/"
+    "doc_url": "https://docs.polygoniq.com/engon/1.2.1/",
+    "tracker_url": "https://polygoniq.com/discord/",
 }
 
 
@@ -119,8 +144,19 @@ telemetry = polib.get_telemetry("engon")
 telemetry.report_addon(bl_info, __file__)
 
 
+def _post_register():
+    prefs = preferences.prefs_utils.get_preferences(bpy.context)
+    prefs.general_preferences.refresh_packs()
+    # Make engon preferences open after first registration
+    if prefs.first_time_register:
+        polib.ui_bpy.expand_addon_prefs(__package__)
+        prefs.first_time_register = False
+
+
 def register():
-    addon_updater_ops.register(bl_info)
+    # We pass mock "bl_info" to the updater, as from Blender 4.2.0, the "bl_info" is
+    # no longer available in this scope.
+    addon_updater_ops.register({"version": (1, 2, 1)})
 
     ui_utils.register()
     pack_info_search_paths.register()
@@ -136,23 +172,15 @@ def register():
     traffiq.register()
     keymaps.register()
 
-    # We need to call the first pack refresh manually, then it's called when paths change
     bpy.app.timers.register(
-        lambda: preferences.prefs_utils.get_preferences(
-            bpy.context).general_preferences.refresh_packs(),
+        _post_register,
         first_interval=0,
         # This is important. If an existing blend file is opened with double-click or on command
         # line with e.g. "blender.exe path/to/blend", this register() is called in the startup blend
         # file but right after the target blend file is opened which would discards the callback
         # without persistent=True.
-        persistent=True
+        persistent=True,
     )
-
-    # Make engon preferences open after first registration
-    prefs = preferences.prefs_utils.get_preferences(bpy.context)
-    if prefs.first_time_register:
-        polib.ui_bpy.expand_addon_prefs(__package__)
-        prefs.first_time_register = False
 
 
 def unregister():

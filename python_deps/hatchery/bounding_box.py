@@ -9,13 +9,12 @@ import typing
 
 
 class AlignedBox:
-    """Axis-aligned bounding box
-    """
+    """Axis-aligned bounding box"""
 
     def __init__(
         self,
         min: typing.Optional[mathutils.Vector] = None,
-        max: typing.Optional[mathutils.Vector] = None
+        max: typing.Optional[mathutils.Vector] = None,
     ):
         self.min = min if min is not None else mathutils.Vector((math.inf,) * 3)
         self.max = max if max is not None else mathutils.Vector((-math.inf,) * 3)
@@ -48,7 +47,7 @@ class AlignedBox:
     def extend_by_object(
         self,
         obj: bpy.types.Object,
-        parent_collection_matrix: mathutils.Matrix = mathutils.Matrix.Identity(4)
+        parent_collection_matrix: mathutils.Matrix = mathutils.Matrix.Identity(4),
     ) -> None:
         """Extend the bounding box to cover given object
 
@@ -80,8 +79,7 @@ class AlignedBox:
                 self.extend_by_point(obj_matrix @ mathutils.Vector(corner))
 
     def get_eccentricity(self) -> mathutils.Vector:
-        """Returns relative eccentricity in each axis.
-        """
+        """Returns relative eccentricity in each axis."""
         return (self.max - self.min) / 2.0
 
     def get_center(self) -> mathutils.Vector:

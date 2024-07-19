@@ -32,15 +32,17 @@ ADDON_KEYMAPS: typing.List[typing.Tuple[bpy.types.KeyMap, bpy.types.KeyMapItem]]
 KeymapDefinition = collections.namedtuple("KeymapDefinition", ["name", "space_type", "region_type"])
 # The name should match the label of the operator with the bl_idname
 KeymapItemDefinition = collections.namedtuple(
-    "KeymapItemDefinition", ["name", "bl_idname", "key", "action", "ctrl", "shift", "alt"])
+    "KeymapItemDefinition", ["name", "bl_idname", "key", "action", "ctrl", "shift", "alt"]
+)
 
 
 # TODO: Ideally we would import here the MAPR_ToggleArea and get the bl_idname, but this
 # would introduce circular deps and other dependency hell
 KEYMAP_DEFINITIONS: typing.Dict[KeymapDefinition, typing.List[KeymapItemDefinition]] = {
     KeymapDefinition('Window', 'EMPTY', 'WINDOW'): [
-        KeymapItemDefinition("Toggle engon Browser", "engon.browser_toggle_area",
-                             'E', 'PRESS', False, False, False),
+        KeymapItemDefinition(
+            "Toggle engon Browser", "engon.browser_toggle_area", 'E', 'PRESS', False, False, False
+        ),
     ]
 }
 
@@ -90,7 +92,8 @@ def _register_keymaps():
 
     for km_def, km_items_def in KEYMAP_DEFINITIONS.items():
         km = wm.keyconfigs.addon.keymaps.new(
-            name=km_def.name, space_type=km_def.space_type, region_type=km_def.region_type)
+            name=km_def.name, space_type=km_def.space_type, region_type=km_def.region_type
+        )
 
         for _, bl_idname, key, action, ctrl, shift, alt in km_items_def:
             kmi = km.keymap_items.new(bl_idname, key, action, ctrl=ctrl, shift=shift, alt=alt)

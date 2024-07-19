@@ -8,6 +8,7 @@ from . import blender_asset_data
 from . import file_provider
 from . import asset_provider
 import logging
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 try:
@@ -25,9 +26,7 @@ ASSET_DATA_ID_PROP_NAME = "mapr_asset_data_id"
 
 
 def mark_datablock_with_ids(
-    datablock: bpy.types.ID,
-    asset_id: asset.AssetID,
-    asset_data_id: asset_data.AssetDataID
+    datablock: bpy.types.ID, asset_id: asset.AssetID, asset_data_id: asset_data.AssetDataID
 ) -> None:
     datablock[ASSET_ID_PROP_NAME] = asset_id
     datablock[ASSET_DATA_ID_PROP_NAME] = asset_data_id
@@ -46,7 +45,7 @@ class AssetSpawner:
         self,
         context: bpy.types.Context,
         asset_: asset.Asset,
-        options: hatchery.spawn.DatablockSpawnOptions
+        options: hatchery.spawn.DatablockSpawnOptions,
     ) -> typing.Optional[hatchery.spawn.SpawnedData]:
         """Tries to spawn first asset data, materializes required files and dependencies."""
         for asset_data_ in self.asset_provider_.list_asset_data(asset_.id_):
@@ -59,10 +58,7 @@ class AssetSpawner:
 
         return None
 
-    def _materialize_files(
-        self,
-        asset_data_: blender_asset_data.BlenderAssetData
-    ) -> str:
+    def _materialize_files(self, asset_data_: blender_asset_data.BlenderAssetData) -> str:
         # 1. Materialize dependencies
         for dep_id in asset_data_.dependency_files:
             if dep_id == "<builtin>":

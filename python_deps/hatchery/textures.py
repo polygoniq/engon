@@ -5,6 +5,7 @@ import bpy
 import os
 import typing
 import logging
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 TEXTURE_EXTENSIONS = {".png", ".jpg"}
@@ -55,7 +56,9 @@ def change_texture_size(max_size: int, image: bpy.types.Image):
     image.name = os.path.basename(new_path)
 
 
-def change_texture_sizes(max_size: int, only_textures: typing.Optional[typing.Set[bpy.types.Image]] = None):
+def change_texture_sizes(
+    max_size: int, only_textures: typing.Optional[typing.Set[bpy.types.Image]] = None
+):
     logger.debug(f"mq: changing textures to {max_size}...")
 
     if only_textures is not None:
@@ -87,7 +90,8 @@ def get_used_textures(material: bpy.types.Material) -> typing.Set[bpy.types.Imag
     if not material.use_nodes:
         logger.warning(
             f"Can't get used textures from material '{material.name}' that is not using "
-            f"the node system!")
+            f"the node system!"
+        )
         return set()
 
     assert material.node_tree is not None, "use_nodes is True, yet node_tree is None"

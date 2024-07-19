@@ -382,7 +382,9 @@ class SplitFileReader(io.RawIOBase):
         except StopIteration:
             self._current_file_desc = None
 
-    def _generate_next_file(self, direction: int = _FORWARD) -> typing.Generator[typing.BinaryIO, int, None]:
+    def _generate_next_file(
+        self, direction: int = _FORWARD
+    ) -> typing.Generator[typing.BinaryIO, int, None]:
         # Only call from `_advance_file_desc`, or, `_seek_to_head` for shortcut operation.
         # Only create in `__init__`
         # `send()` the direction of travel to this generator.  Backward -1, Stationary 0, Forward 1, or Closing 2.
@@ -500,7 +502,12 @@ class SplitFileReader(io.RawIOBase):
             cdesc = 0
 
         return "<{cls}, {id}: Tell: {tell}, File Desc: {fdesc}, File Name: {fname}, File Tell: {ftell}>".format(
-            cls=self.__class__.__name__, id=hex(id(self)), tell=self.tell(), fdesc=cdesc, fname=cfile, ftell=ctell
+            cls=self.__class__.__name__,
+            id=hex(id(self)),
+            tell=self.tell(),
+            fdesc=cdesc,
+            fname=cfile,
+            ftell=ctell,
         )
 
     # The following methods exist to support the io.RawIO behavior, and mostly disables their use.
@@ -537,8 +544,10 @@ class SplitFileReader(io.RawIOBase):
 
     def readline(self, size: int = 0) -> bytes:
         raise io.UnsupportedOperation(
-            f"{self.__class__.__name__} cannot decode text; use io.TextIOWrapper.")
+            f"{self.__class__.__name__} cannot decode text; use io.TextIOWrapper."
+        )
 
     def readlines(self, hint: int = 0) -> typing.List[bytes]:
         raise io.UnsupportedOperation(
-            f"{self.__class__.__name__} cannot decode text; use io.TextIOWrapper.")
+            f"{self.__class__.__name__} cannot decode text; use io.TextIOWrapper."
+        )

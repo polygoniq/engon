@@ -1,39 +1,20 @@
 schema_version = "1.0.0"
 
-# Example of manifest file for a Blender extension
-# Change the values according to your extension
 id = "engon"
-version = "1.2.0"
+version = "1.2.1"
 name = "engon"
 tagline = "Browse assets, filter and sort them, scatter, animate, manipulate rigs"
 maintainer = "polygoniq <ahoy@polygoniq.com>"
-# Supported types: "add-on", "theme"
 type = "add-on"
 
-# Optional: add-ons can list which resources they will require:
-# * "files" (for access of any filesystem operations)
-# * "network" (for internet access)
-# * "camera" (to capture photos and videos)
-# * "microphone" (to capture audio)
 permissions = ["files", "network"]
-
-# Optional link to documentation, support, source files, etc
-website = "https://docs.polygoniq.com/engon/1.0.3/"
-
-# Optional list defined by Blender and server, see:
-# https://docs.blender.org/manual/en/dev/extensions/tags.html
+website = "https://docs.polygoniq.com/engon/1.2.1/"
 tags = ["Add Mesh", "Animation", "Material", "Mesh", "Object", "Scene", "User Interface"]
-
 blender_version_min = "4.2.0"
-# Optional: maximum supported Blender version
-# blender_version_max = "5.1.0"
 
-# License conforming to https://spdx.org/licenses/ (use "SPDX: prefix)
-# https://docs.blender.org/manual/en/dev/extensions/licenses.html
 license = [
   "SPDX:GPL-3.0-or-later",
 ]
-# Optional: required by some licenses.
 copyright = [
   "2018- polygoniq xyz s.r.o",
 ]

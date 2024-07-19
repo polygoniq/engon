@@ -2,6 +2,7 @@
 # copyright (c) 2018- polygoniq xyz s.r.o.
 
 import logging
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -40,10 +41,7 @@ if "asset_pack_bpy" not in locals():
             global telemetry_module_bpy
 
             if not hasattr(bpy, "polygoniq_global"):
-                bpy.polygoniq_global = {
-                    "telemetry": {},  # deprecated!
-                    "telemetry_module_bpy": {}
-                }
+                bpy.polygoniq_global = {"telemetry": {}, "telemetry_module_bpy": {}}  # deprecated!
 
             if "telemetry_module_bpy" not in bpy.polygoniq_global:
                 bpy.polygoniq_global["telemetry_module_bpy"] = {}
@@ -51,10 +49,14 @@ if "asset_pack_bpy" not in locals():
             # another polygoniq addon might have already initialized telemetry!
             # we want to use just one instance unless it's a different API version
             if telemetry_native_module.API_VERSION in bpy.polygoniq_global["telemetry_module_bpy"]:
-                telemetry_module_bpy = bpy.polygoniq_global["telemetry_module_bpy"][telemetry_native_module.API_VERSION]
+                telemetry_module_bpy = bpy.polygoniq_global["telemetry_module_bpy"][
+                    telemetry_native_module.API_VERSION
+                ]
             else:
                 telemetry_module_bpy = telemetry_native_module
-                bpy.polygoniq_global["telemetry_module_bpy"][telemetry_native_module.API_VERSION] = telemetry_module_bpy
+                bpy.polygoniq_global["telemetry_module_bpy"][
+                    telemetry_native_module.API_VERSION
+                ] = telemetry_module_bpy
                 telemetry_module_bpy.bootstrap_telemetry()
 
         init_polygoniq_global()
@@ -67,7 +69,8 @@ if "asset_pack_bpy" not in locals():
             raise
 
         logger.info(
-            f"polib has been initialized without bpy, all polib modules that use bpy are imported as dummies only.")
+            f"polib has been initialized without bpy, all polib modules that use bpy are imported as dummies only."
+        )
 
         import types
 
@@ -94,6 +97,7 @@ if "asset_pack_bpy" not in locals():
 
 else:
     import importlib
+
     try:
         asset_pack = importlib.reload(asset_pack)
         asset_pack_bpy = importlib.reload(asset_pack_bpy)
@@ -127,6 +131,14 @@ bl_info = {
 }
 
 
+def register():  # stub just to avoid an AttributeError when using blender_vscode extension
+    pass
+
+
+def unregister():  # stub just to avoid an AttributeError when using blender_vscode extension
+    pass
+
+
 __all__ = [
     "asset_pack_bpy",
     "asset_pack",
@@ -149,5 +161,5 @@ __all__ = [
     "split_file_reader",
     # telemetry_module_bpy intentionally missing, you should interact with it via get_telemetry
     "ui_bpy",
-    "utils_bpy"
+    "utils_bpy",
 ]

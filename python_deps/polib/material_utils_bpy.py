@@ -6,7 +6,9 @@ import typing
 from . import node_utils_bpy
 
 
-def safe_get_active_material(obj: typing.Optional[bpy.types.Object]) -> typing.Optional[bpy.types.Material]:
+def safe_get_active_material(
+    obj: typing.Optional[bpy.types.Object],
+) -> typing.Optional[bpy.types.Material]:
     """Returns active material of object. Returns None if object is None"""
     if obj is None:
         return None
@@ -17,7 +19,7 @@ def safe_get_active_material(obj: typing.Optional[bpy.types.Object]) -> typing.O
 def is_material_slot_used_on_geometry(
     obj: bpy.types.Object,
     material_index: int,
-    used_indices: typing.Optional[typing.FrozenSet[int]] = None
+    used_indices: typing.Optional[typing.FrozenSet[int]] = None,
 ) -> bool:
     """Returns whether a material slot on given index contains a material that is used
     by a given Object's geometry.
@@ -43,7 +45,7 @@ def is_material_slot_used_on_geometry(
 def is_material_used_on_geonodes(
     obj: bpy.types.Object,
     material_index: int,
-    geonode_materials: typing.Optional[typing.FrozenSet[bpy.types.Material]] = None
+    geonode_materials: typing.Optional[typing.FrozenSet[bpy.types.Material]] = None,
 ) -> bool:
     """Returns whether a material slot on given index contains a material that is used
     by a given Object's geometry nodes modifiers.
@@ -58,7 +60,7 @@ def is_material_used_on_geonodes(
     if slot.material is None:
         return False
 
-    if (geonode_materials is None):
+    if geonode_materials is None:
         geonode_materials = get_materials_used_by_geonodes(obj)
 
     obj_mat_name = slot.material.name
@@ -113,7 +115,7 @@ def get_materials_used_by_geonodes(obj: bpy.types.Object) -> typing.FrozenSet[bp
             continue
 
         # Scan modifier inputs
-        for input_ in node_utils_bpy.get_node_tree_inputs(mod.node_group):
+        for input_ in node_utils_bpy.get_node_tree_inputs_map(mod.node_group).values():
             if node_utils_bpy.get_socket_type(input_) == 'NodeSocketMaterial':
                 mat = mod[input_.identifier]
                 if mat is not None:
@@ -121,10 +123,10 @@ def get_materials_used_by_geonodes(obj: bpy.types.Object) -> typing.FrozenSet[bp
 
         for node in node_utils_bpy.find_nodes_in_tree(mod.node_group):
             for node_input in filter(lambda i: i.type == 'MATERIAL', node.inputs):
-                if (node_input.default_value is not None):
+                if node_input.default_value is not None:
                     used_materials.add(node_input.default_value)
-            if (hasattr(node, 'material')):
-                if (node.material is not None):
+            if hasattr(node, 'material'):
+                if node.material is not None:
                     used_materials.add(node.material)
 
     return frozenset(used_materials)

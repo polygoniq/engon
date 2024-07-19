@@ -31,7 +31,7 @@ class AquatiqPreferences(bpy.types.PropertyGroup):
         description="Value of 1 means visible, value of 0 means hidden",
         update=lambda self, context: self.update_mask_factor(context),
         soft_max=1.0,
-        soft_min=0.0
+        soft_min=0.0,
     )
 
     def update_mask_factor(self, context: bpy.types.Context):

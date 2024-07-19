@@ -11,7 +11,7 @@ import typing
 
 
 def _get_top_level_material_outputs(
-    node_tree: bpy.types.NodeTree
+    node_tree: bpy.types.NodeTree,
 ) -> typing.Set[bpy.types.ShaderNodeOutputMaterial]:
     ret = set()
     for node in node_tree.nodes:
@@ -22,7 +22,7 @@ def _get_top_level_material_outputs(
 
 
 def _get_displacement_nodegroups(
-    node_tree: bpy.types.NodeTree
+    node_tree: bpy.types.NodeTree,
 ) -> typing.Set[bpy.types.ShaderNodeGroup]:
     ret = set()
     for node in node_tree.nodes:
@@ -74,7 +74,8 @@ def link_displacement(material: bpy.types.Material) -> None:
     if len(displacement_nodegroups) != 1:
         raise RuntimeError(
             f"Tried to link materialiq displacement in {material.name} which does not have the "
-            f"mq_Displacement node or there are multiple such nodes.")
+            f"mq_Displacement node or there are multiple such nodes."
+        )
 
     displacement_nodegroup = displacement_nodegroups.pop()
 
@@ -83,5 +84,5 @@ def link_displacement(material: bpy.types.Material) -> None:
     for material_output_node in material_output_nodes:
         material.node_tree.links.new(
             displacement_nodegroup.outputs["Displacement"],
-            material_output_node.inputs["Displacement"]
+            material_output_node.inputs["Displacement"],
         )

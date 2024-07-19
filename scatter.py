@@ -24,11 +24,12 @@ import itertools
 import logging
 import math
 import mathutils
-import polib
-import hatchery
+from . import polib
+from . import hatchery
 from . import asset_helpers
 from . import panel
 from . import preferences
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -38,15 +39,14 @@ WEIGHT_PAINT_VERTICES_WARNING_THRESHOLD = 16
 
 
 def find_modifier_containing_particle_system(
-    modifiers: typing.Iterable[bpy.types.Modifier],
-    particle_system_name: str
+    modifiers: typing.Iterable[bpy.types.Modifier], particle_system: bpy.types.ParticleSystem
 ) -> bpy.types.ParticleSystemModifier:
     found_modifier = None
     for modifier in modifiers:
         if modifier.type != 'PARTICLE_SYSTEM':
             continue
 
-        if modifier.particle_system.name == particle_system_name:
+        if modifier.particle_system == particle_system:
             found_modifier = modifier
             break
 
@@ -70,13 +70,13 @@ class AddEmptyScatter(bpy.types.Operator):
         description="If true, this setting links particle system instance collection to scene. "
         "Objects from instance collection are spawned on (0, -10, 0).",
         name="Link Instance Collection To Scene",
-        default=True
+        default=True,
     )
 
     name: bpy.props.StringProperty(
         name="Particle System Name",
         description="Name of custom particle system",
-        default="Particle System"
+        default="Particle System",
     )
 
     count: bpy.props.IntProperty(
@@ -113,7 +113,8 @@ class AddEmptyScatter(bpy.types.Operator):
         active_object = context.active_object
         logger.info(f"Working on {active_object.name}")
         modifier = active_object.modifiers.new(
-            f"{asset_helpers.PARTICLE_SYSTEM_PREFIX}{self.name}", type='PARTICLE_SYSTEM')
+            f"{asset_helpers.PARTICLE_SYSTEM_PREFIX}{self.name}", type='PARTICLE_SYSTEM'
+        )
         particle_system = modifier.particle_system
         particle_system.settings.name = modifier.name
         particle_system.settings.count = self.count
@@ -130,7 +131,8 @@ class AddEmptyScatter(bpy.types.Operator):
 
             if self.link_instance_collection:
                 particle_systems_coll = polib.asset_pack_bpy.collection_get(
-                    context, asset_helpers.PARTICLE_SYSTEMS_COLLECTION,
+                    context,
+                    asset_helpers.PARTICLE_SYSTEMS_COLLECTION,
                 )
                 particle_systems_coll.children.link(instance_collection)
 
@@ -166,19 +168,18 @@ MODULE_CLASSES.append(AddEmptyScatter)
 class MakeParticleDataUnique(bpy.types.Operator):
     bl_idname = "engon.scatter_make_particle_data_unique"
     bl_label = "Make Particle System Unique"
-    bl_description = "Displays number of users of current data " \
-        "(Click to create new unique instance of data)"
+    bl_description = (
+        "Displays number of users of current data " "(Click to create new unique instance of data)"
+    )
     bl_options = {'REGISTER', 'UNDO'}
 
     particle_system_name: bpy.props.StringProperty(
-        name="particle_system_name",
-        default="",
-        options={'HIDDEN'}
+        name="particle_system_name", default="", options={'HIDDEN'}
     )
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        return asset_helpers.has_active_object_with_pps(context)
+        return asset_helpers.has_active_object_with_particle_system(context)
 
     def execute(self, context: bpy.types.Context):
         particle_system = context.active_object.particle_systems[self.particle_system_name]
@@ -187,15 +188,17 @@ class MakeParticleDataUnique(bpy.types.Operator):
         if ps_settings_copy.instance_collection is not None:
             ps_settings_copy.instance_collection = ps_settings_copy.instance_collection.copy()
             coll = polib.asset_pack_bpy.collection_get(
-                context, asset_helpers.PARTICLE_SYSTEMS_COLLECTION,
+                context,
+                asset_helpers.PARTICLE_SYSTEMS_COLLECTION,
             )
             coll.children.link(ps_settings_copy.instance_collection)
 
         particle_system.settings = ps_settings_copy
         hatchery.utils.ensure_particle_naming_consistency(
             find_modifier_containing_particle_system(
-                context.active_object.modifiers, particle_system.name),
-            particle_system
+                context.active_object.modifiers, particle_system
+            ),
+            particle_system,
         )
         return {'FINISHED'}
 
@@ -225,25 +228,24 @@ MODULE_CLASSES.append(ENGON_UL_ScatterAssetsList)
 
 class ENGON_UL_ScatterParticlesList(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        # Do not draw non polygoniq particle systems
-        if not polib.asset_pack_bpy.is_pps(item.name):
-            layout.label(text="Non polygoniq particle system")
-            return
-
         ps_settings = item.settings
-        _, _, name = ps_settings.name.split("_", 2)
+        # TODO:
+        if ps_settings.name.startswith(asset_helpers.PARTICLE_SYSTEM_PREFIX):
+            _, _, name = ps_settings.name.split("_", 2)
+        else:
+            name = ps_settings.name
 
         row = layout.row(align=True)
         row.label(text=name)
-        if item.name in data.modifiers:
-            modifier = data.modifiers[item.name]
-            if ps_settings.users > 1:
-                col = row.column()
-                col.scale_x = 0.5
-                col.operator(MakeParticleDataUnique.bl_idname,
-                             text=f"{ps_settings.users}").particle_system_name = item.name
-            row.prop(modifier, "show_viewport", icon_only=True)
-            row.prop(modifier, "show_render", icon_only=True)
+        modifier = find_modifier_containing_particle_system(data.modifiers, item)
+        if ps_settings.users > 1:
+            col = row.column()
+            col.scale_x = 0.5
+            col.operator(
+                MakeParticleDataUnique.bl_idname, text=f"{ps_settings.users}"
+            ).particle_system_name = item.name
+        row.prop(modifier, "show_viewport", icon_only=True)
+        row.prop(modifier, "show_render", icon_only=True)
 
 
 MODULE_CLASSES.append(ENGON_UL_ScatterParticlesList)
@@ -258,12 +260,12 @@ class ScatterWeightPaint(bpy.types.Operator):
 
     target: bpy.props.StringProperty(
         name="Target Vertex Group",
-        description="Target vertex group name (density, length, ...) from particle system settings"
+        description="Target vertex group name (density, length, ...) from particle system settings",
     )
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        return asset_helpers.has_active_object_with_pps(context)
+        return asset_helpers.has_active_object_with_particle_system(context)
 
     def execute(self, context: bpy.types.Context):
         active_object = context.active_object
@@ -274,9 +276,7 @@ class ScatterWeightPaint(bpy.types.Operator):
 
         target_vertex_group_prop = f"vertex_group_{self.target}"
         if not hasattr(particle_system, target_vertex_group_prop):
-            logger.error(
-                f"Invalid vertex group '{target_vertex_group_prop}' for weight paint!"
-            )
+            logger.error(f"Invalid vertex group '{target_vertex_group_prop}' for weight paint!")
             return {'CANCELLED'}
 
         # Default name of polygoniq vertex group is inherited from the particle system name
@@ -295,7 +295,8 @@ class ScatterWeightPaint(bpy.types.Operator):
 
         logger.info(
             f"Weight painting target {active_object.name}, using particles "
-            f"{particle_system.name}, vertex group {vertex_group.name}")
+            f"{particle_system.name}, vertex group {vertex_group.name}"
+        )
 
         return {'FINISHED'}
 
@@ -311,8 +312,7 @@ class RenameParticleSystem(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     new_name: bpy.props.StringProperty(
-        name="New Name",
-        description="This is going to be particle system new name"
+        name="New Name", description="This is going to be particle system new name"
     )
 
     def draw(self, context: bpy.types.Context) -> None:
@@ -329,33 +329,30 @@ class RenameParticleSystem(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        return asset_helpers.has_active_object_with_pps(context)
+        return asset_helpers.has_active_object_with_particle_system(context)
 
     def execute(self, context: bpy.types.Context):
         if self.old_name == self.new_name:
             return {'FINISHED'}
 
         if not polib.asset_pack_bpy.is_pps(self.new_name):
-            self.new_name = f"{asset_helpers.PARTICLE_SYSTEM_PREFIX}{self.new_name}"\
-
+            self.new_name = f"{asset_helpers.PARTICLE_SYSTEM_PREFIX}{self.new_name}"
         active_object = context.active_object
         active_particle_system = active_object.particle_systems.active
         instance_collection = active_particle_system.settings.instance_collection
         modifier = find_modifier_containing_particle_system(
-            active_object.modifiers,
-            active_particle_system.name
+            active_object.modifiers, active_particle_system
         )
         if modifier is None:
             self.report(
                 {'WARNING'},
-                f"Failed to find corresponding particles modifier with name {active_particle_system.name}"
+                f"Failed to find corresponding particles modifier with name {active_particle_system.name}",
             )
             return {'CANCELLED'}
 
         if instance_collection is None:
             self.report(
-                {'WARNING'},
-                f"No related instance collection in {active_particle_system.name}"
+                {'WARNING'}, f"No related instance collection in {active_particle_system.name}"
             )
             return {'CANCELLED'}
 
@@ -369,8 +366,13 @@ class RenameParticleSystem(bpy.types.Operator):
         return {'FINISHED'}
 
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
-        # we can split because poll method assures that this is pps - we have 'prefix', 'pps', 'name'
-        _, _, name = context.active_object.particle_systems.active.name.split("_", 2)
+        # If the particle system contains prefix "engon_pps", then we know its ours and we
+        # treat it without prefix. Otherwise take the full name.
+        if polib.asset_pack_bpy.is_pps(context.active_object.particle_systems.active.name):
+            _, _, name = context.active_object.particle_systems.active.name.split("_", 2)
+        else:
+            name = context.active_object.particle_systems.active.name
+
         self.old_name = name
         self.new_name = name
         return context.window_manager.invoke_props_dialog(self)
@@ -410,7 +412,7 @@ class RemoveParticleSystem(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        return asset_helpers.has_active_object_with_pps(context)
+        return asset_helpers.has_active_object_with_particle_system(context)
 
     def execute(self, context: bpy.types.Context):
         active_object = context.active_object
@@ -439,10 +441,7 @@ class RemoveParticleSystem(bpy.types.Operator):
                 polib.asset_pack_bpy.get_hierarchy(obj) for obj in instance_collection.all_objects
             ]
         else:
-            self.report(
-                {'WARNING'},
-                f"No related instance collection in {ps_to_remove.name}"
-            )
+            self.report({'WARNING'}, f"No related instance collection in {ps_to_remove.name}")
 
         # If the empties collection is present, consider it too.
         if asset_helpers.ANIMATION_EMPTIES_COLL_NAME in bpy.data.collections:
@@ -467,8 +466,7 @@ class RemoveParticleSystem(bpy.types.Operator):
 
         # Find particle system modifier which contains current particle system as data
         found_modifier = find_modifier_containing_particle_system(
-            active_object.modifiers,
-            ps_to_remove.name
+            active_object.modifiers, ps_to_remove
         )
 
         if found_modifier is not None:
@@ -495,14 +493,10 @@ class ParticleSystemAppendSelection(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        active_object = context.active_object
-        if active_object is None:
+        if not asset_helpers.has_active_object_with_particle_system(context):
             return False
 
-        if not asset_helpers.has_active_pps(active_object):
-            return False
-
-        if active_object.particle_systems.active.settings.instance_collection is None:
+        if context.active_object.particle_systems.active.settings.instance_collection is None:
             return False
 
         return True
@@ -556,7 +550,7 @@ class ParticleSystemRemoveAsset(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        if not asset_helpers.has_active_object_with_pps(context):
+        if not asset_helpers.has_active_object_with_particle_system(context):
             return False
 
         settings = context.active_object.particle_systems.active.settings
@@ -569,7 +563,9 @@ class ParticleSystemRemoveAsset(bpy.types.Operator):
         return True
 
     def execute(self, context: bpy.types.Context):
-        particle_settings: bpy.types.ParticleSettings = context.active_object.particle_systems.active.settings
+        particle_settings: bpy.types.ParticleSettings = (
+            context.active_object.particle_systems.active.settings
+        )
         instance_collection = particle_settings.instance_collection
         prev_index = particle_settings.active_instanceweight_index
         # instanceweight.name stores "name: COUNT" for some reason
@@ -598,7 +594,8 @@ class ParticleSystemRemoveAsset(bpy.types.Operator):
         # Update the active instance weight index for better UX (so after removing assets the
         # index doesn't isn't set to zero).
         particle_settings.active_instanceweight_index = max(
-            0, min(prev_index, len(instance_collection.all_objects)) - 1)
+            0, min(prev_index, len(instance_collection.all_objects)) - 1
+        )
 
         logger.info(
             f"Removed {unlinked_object_names} from particle system {particle_settings.name} on "
@@ -619,8 +616,11 @@ class ParticleSystemRecalculateDensity(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        return context.mode in {'OBJECT', 'PAINT_WEIGHT'} and context.active_object is not None and \
-            context.active_object.particle_systems.active is not None
+        return (
+            context.mode in {'OBJECT', 'PAINT_WEIGHT'}
+            and context.active_object is not None
+            and context.active_object.particle_systems.active is not None
+        )
 
     def execute(self, context: bpy.types.Context):
         particle_system = context.active_object.particle_systems.active
@@ -629,8 +629,9 @@ class ParticleSystemRecalculateDensity(bpy.types.Operator):
             context.active_object,
             ps_settings.pps_density,
             preferences.prefs_utils.get_preferences(
-                context).general_preferences.scatter_props.max_particle_count,
-            include_weights=particle_system.vertex_group_density != ""
+                context
+            ).general_preferences.scatter_props.max_particle_count,
+            include_weights=particle_system.vertex_group_density != "",
         )
         if overflow > 0:
             self.report({'WARNING'}, f"Particle system exceeded maximum by: {int(overflow)}")
@@ -680,8 +681,9 @@ MODULE_CLASSES.append(ParticleSystemRefresh)
 class ParticlesChangeDisplay(bpy.types.Operator):
     bl_idname = "engon.scatter_particles_change_display"
     bl_label = "Change Display"
-    bl_description = "Changes visibility of all polygoniq particle systems " \
-        "on active object or in whole scene"
+    bl_description = (
+        "Changes visibility of all polygoniq particle systems " "on active object or in whole scene"
+    )
     bl_options = {'REGISTER'}
 
     class Behavior:
@@ -695,15 +697,21 @@ class ParticlesChangeDisplay(bpy.types.Operator):
         items=[
             (Behavior.ACTIVE, "Active", "Only active object"),
             (Behavior.SELECTED, "Selected", "All selected objects"),
-            (Behavior.SCENE, "Scene", "All objects in the scene")
+            (Behavior.SCENE, "Scene", "All objects in the scene"),
         ],
-        default=Behavior.ACTIVE
+        default=Behavior.ACTIVE,
     )
 
     all_systems: bpy.props.BoolProperty(
         name="Influence All Particle Systems",
         description="If true this operator influences all particle systems on found objects. "
         "Active particle system is influenced if this is False",
+        default=True,
+    )
+
+    only_pps: bpy.props.BoolProperty(
+        name="Only engon_pps_",
+        description="If true this operator influences only polygoniq particle systems",
         default=True,
     )
 
@@ -718,18 +726,29 @@ class ParticlesChangeDisplay(bpy.types.Operator):
         layout = self.layout
         props = preferences.prefs_utils.get_preferences(context).general_preferences.scatter_props
         layout.prop(self, "all_systems")
+        layout.prop(self, "only_pps")
         layout.prop(self, "behavior", text="Objects")
         layout.prop(props, "display_type")
         layout.prop(props, "display_percentage", text="Viewport Display Percentage")
 
-    def find_pps(self, obj: bpy.types.Object) -> typing.List[bpy.types.ParticleSystem]:
+    def find_particle_systems(self, obj: bpy.types.Object) -> typing.List[bpy.types.ParticleSystem]:
         if self.all_systems:
-            return list(filter(lambda x: polib.asset_pack_bpy.is_pps(x.name), obj.particle_systems))
+            return list(
+                filter(
+                    lambda x: polib.asset_pack_bpy.is_pps(x.name) if self.only_pps else True,
+                    obj.particle_systems,
+                )
+            )
         else:
             active_system = obj.particle_systems.active
             if active_system is None:
                 return []
-            return [active_system] if polib.asset_pack_bpy.is_pps(active_system.name) else []
+            if self.only_pps and polib.asset_pack_bpy.is_pps(active_system.name):
+                return [active_system]
+            elif not polib.asset_pack_bpy.is_pps(active_system.name):
+                return [active_system]
+            else:
+                return []
 
     def execute(self, context: bpy.types.Context):
         props = preferences.prefs_utils.get_preferences(context).general_preferences.scatter_props
@@ -737,22 +756,23 @@ class ParticlesChangeDisplay(bpy.types.Operator):
 
         if self.behavior == self.Behavior.ACTIVE:
             if context.active_object is not None:
-                particle_systems.extend(self.find_pps(context.active_object))
+                particle_systems.extend(self.find_particle_systems(context.active_object))
         elif self.behavior == self.Behavior.SELECTED:
             for obj in context.selected_objects:
-                particle_systems.extend(self.find_pps(obj))
+                particle_systems.extend(self.find_particle_systems(obj))
         elif self.behavior == self.Behavior.SCENE:
             for obj in context.scene.objects:
-                particle_systems.extend(self.find_pps(obj))
+                particle_systems.extend(self.find_particle_systems(obj))
         else:
             raise RuntimeError(f"Invalid behavior enum value: {self.behavior}")
 
         for particle_system in particle_systems:
+            particle_system.settings.display_percentage = props.display_percentage
+
             instance_collection = particle_system.settings.instance_collection
             if instance_collection is None:
                 continue
 
-            particle_system.settings.display_percentage = props.display_percentage
             for obj in instance_collection.all_objects:
                 obj.display_type = props.display_type
 
@@ -795,9 +815,7 @@ class ScatterPanel(panel.EngonPanelMixin, bpy.types.Panel):
         layout = self.layout
         row = layout.row(align=True)
         polib.ui_bpy.scaled_row(row, 1.3, align=True).prop_search(
-            context.view_layer.objects, "active",
-            context.collection, "objects",
-            text="Target"
+            context.view_layer.objects, "active", context.collection, "objects", text="Target"
         )
         self.draw_emitter_visibility(row, context.active_object)
 
@@ -821,7 +839,7 @@ class ScatterPanel(panel.EngonPanelMixin, bpy.types.Panel):
             context.active_object,
             "particle_systems",
             context.active_object.particle_systems,
-            "active_index"
+            "active_index",
         )
 
     def draw(self, context: bpy.types.Context) -> None:
@@ -840,8 +858,11 @@ class ScatterParticlesSettingsPanel(panel.EngonPanelMixin, bpy.types.Panel):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        return context.mode == 'OBJECT' and context.active_object is not None and \
-            asset_helpers.has_active_pps(context.active_object)
+        return (
+            context.mode == 'OBJECT'
+            and context.active_object is not None
+            and asset_helpers.has_active_particle_system(context.active_object)
+        )
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon='PARTICLES')
@@ -874,7 +895,8 @@ class ScatterParticlesSettingsPanel(panel.EngonPanelMixin, bpy.types.Panel):
         col.prop(props, "max_particle_count", text="Max Particles")
         polib.ui_bpy.scaled_row(col, 1.5).operator(
             ParticleSystemRecalculateDensity.bl_idname,
-            icon="OUTLINER_OB_LIGHTPROBE", text="Recalculate Density"
+            icon="OUTLINER_OB_LIGHTPROBE",
+            text="Recalculate Density",
         )
 
 
@@ -899,13 +921,14 @@ class ScatterVisibilitySettingsPanel(panel.EngonPanelMixin, bpy.types.Panel):
         props = preferences.prefs_utils.get_preferences(context).general_preferences.scatter_props
         polib.ui_bpy.scaled_row(layout, 1.5).operator(
             ParticlesChangeDisplay.bl_idname,
-            icon='RESTRICT_VIEW_OFF', text="Manage Viewport Display"
+            icon='RESTRICT_VIEW_OFF',
+            text="Manage Viewport Display",
         )
 
         if context.active_object is None:
             return
 
-        if not asset_helpers.has_active_pps(context.active_object):
+        if not asset_helpers.has_active_particle_system(context.active_object):
             return
 
         layout.separator()
@@ -917,20 +940,26 @@ class ScatterVisibilitySettingsPanel(panel.EngonPanelMixin, bpy.types.Panel):
 
         # update active display type
         instance_collection = particle_system.settings.instance_collection
-        if instance_collection is not None and len(instance_collection.all_objects) > 0:
-            display_type = instance_collection.all_objects[0].display_type
-            if display_type != props.active_display_type:
-                props.active_display_type = display_type
-        row.prop(props, "active_display_type", text="")
+        if instance_collection is not None:
+            if len(instance_collection.all_objects) > 0:
+                display_type = instance_collection.all_objects[0].display_type
+                if display_type != props.active_display_type:
+                    props.active_display_type = display_type
+            row.prop(props, "active_display_type", text="")
 
         col = layout.column()
-        displayed_particles = particle_system.settings.count * \
-            particle_system.settings.display_percentage // 100
+        displayed_particles = (
+            particle_system.settings.count * particle_system.settings.display_percentage // 100
+        )
         if displayed_particles <= props.max_particle_count:
-            col.label(text=f"Displayed particles: {displayed_particles}",)
+            col.label(
+                text=f"Displayed particles: {displayed_particles}",
+            )
         else:
             overflow = displayed_particles - props.max_particle_count
-            col.label(text=f"Displayed particles: {props.max_particle_count}",)
+            col.label(
+                text=f"Displayed particles: {props.max_particle_count}",
+            )
             row = col.row()
             row.alert = True
             row.label(text=f"Warning: Overflow by: {overflow}", icon='ERROR')
@@ -947,8 +976,11 @@ class ScatterWeightPaintPanel(panel.EngonPanelMixin, bpy.types.Panel):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        return context.mode in {'OBJECT', 'PAINT_WEIGHT'} and context.active_object is not None and \
-            asset_helpers.has_active_pps(context.active_object)
+        return (
+            context.mode in {'OBJECT', 'PAINT_WEIGHT'}
+            and context.active_object is not None
+            and asset_helpers.has_active_particle_system(context.active_object)
+        )
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon='BRUSH_DATA')
@@ -970,9 +1002,7 @@ class ScatterWeightPaintPanel(panel.EngonPanelMixin, bpy.types.Panel):
             "vertex_groups",
             text="",
         )
-        row.operator(
-            ScatterWeightPaint.bl_idname, text="", icon='BRUSH_DATA'
-        ).target = target_group
+        row.operator(ScatterWeightPaint.bl_idname, text="", icon='BRUSH_DATA').target = target_group
 
     def draw_object_mode_ui(self, context: bpy.types.Context) -> None:
         layout = self.layout
@@ -980,10 +1010,7 @@ class ScatterWeightPaintPanel(panel.EngonPanelMixin, bpy.types.Panel):
         if len(active_object.data.vertices) <= WEIGHT_PAINT_VERTICES_WARNING_THRESHOLD:
             row = layout.row()
             row.alert = True
-            row.label(
-                text="Subdivide the mesh for better weight paint results!",
-                icon='ERROR'
-            )
+            row.label(text="Subdivide the mesh for better weight paint results!", icon='ERROR')
 
         particle_system = active_object.particle_systems.active
         self.draw_vertex_group_ui(
@@ -999,10 +1026,8 @@ class ScatterWeightPaintPanel(panel.EngonPanelMixin, bpy.types.Panel):
         if active_object is not None and active_object.vertex_groups.active is not None:
             layout.label(text=f"{active_object.vertex_groups.active.name}", icon='GROUP_VERTEX')
 
-        layout.operator(ParticleSystemRecalculateDensity.bl_idname,
-                        icon='OUTLINER_OB_LIGHTPROBE')
-        layout.operator(ReturnToObjectMode.bl_idname,
-                        icon='LOOP_BACK', text="Go Back")
+        layout.operator(ParticleSystemRecalculateDensity.bl_idname, icon='OUTLINER_OB_LIGHTPROBE')
+        layout.operator(ReturnToObjectMode.bl_idname, icon='LOOP_BACK', text="Go Back")
 
     def draw(self, context: bpy.types.Context) -> None:
         if context.mode == 'OBJECT':
@@ -1023,8 +1048,11 @@ class ScatterInstancerDetailPanel(panel.EngonPanelMixin, bpy.types.Panel):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        return context.mode == 'OBJECT' and context.active_object is not None and \
-            asset_helpers.has_active_pps(context.active_object)
+        return (
+            context.active_object is not None
+            and context.mode == 'OBJECT'
+            and asset_helpers.has_active_particle_system(context.active_object)
+        )
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon='OUTLINER_OB_GROUP_INSTANCE')
@@ -1033,7 +1061,7 @@ class ScatterInstancerDetailPanel(panel.EngonPanelMixin, bpy.types.Panel):
         self,
         context: bpy.types.Context,
         layout: bpy.types.UILayout,
-        particle_system: bpy.types.ParticleSystem
+        particle_system: bpy.types.ParticleSystem,
     ) -> None:
         dupli_object = particle_system.settings.active_instanceweight
         if dupli_object is None:
@@ -1064,8 +1092,6 @@ class ScatterInstancerDetailPanel(panel.EngonPanelMixin, bpy.types.Panel):
     def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         particle_system = context.active_object.particle_systems.active
-        if particle_system.settings.render_type != 'COLLECTION':
-            return
 
         layout.prop(particle_system.settings, "instance_collection", text="")
         if particle_system.settings.instance_collection is None:
@@ -1076,8 +1102,7 @@ class ScatterInstancerDetailPanel(panel.EngonPanelMixin, bpy.types.Panel):
         row.operator(ParticleSystemRefresh.bl_idname, icon='FILE_REFRESH', text="")
 
         row = row.row(align=True)
-        row.operator(ParticleSystemAppendSelection.bl_idname,
-                     icon='STICKY_UVS_DISABLE', text="")
+        row.operator(ParticleSystemAppendSelection.bl_idname, icon='STICKY_UVS_DISABLE', text="")
         row.operator(ParticleSystemRemoveAsset.bl_idname, icon='REMOVE', text="")
 
         row = layout.row()
@@ -1087,7 +1112,7 @@ class ScatterInstancerDetailPanel(panel.EngonPanelMixin, bpy.types.Panel):
             particle_system.settings,
             "instance_weights",
             particle_system.settings,
-            "active_instanceweight_index"
+            "active_instanceweight_index",
         )
 
         self.draw_selected_asset_detail(context, layout, particle_system)

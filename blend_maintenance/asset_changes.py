@@ -28,62 +28,48 @@ class AssetPackMigrations(typing.NamedTuple):
 # versions in the names reflect the last version of asset pack without given changes
 botaniq_6_8_0_unify_bq_prefix = AssetPackMigration(
     [
+        RegexMapping(re.compile(r"^(?!bq_|Library_Botaniq)([^\\/]+)(\.blend$)"), r"bq_\1\2"),
         RegexMapping(
-            re.compile(r"^(?!bq_|Library_Botaniq)([^\\/]+)(\.blend$)"),
-            r"bq_\1\2"
+            re.compile("^Library_Botaniq_Materials.blend$"), r"bq_Library_Materials.blend"
         ),
-        RegexMapping(
-            re.compile("^Library_Botaniq_Materials.blend$"),
-            r"bq_Library_Materials.blend"
-        )
     ],
     {
-        "collections":  [RegexMapping(re.compile(r"^(?!bq_)(.*)"), r"bq_\1")],
-        "meshes":       [RegexMapping(re.compile(r"^(?!bq_)(.*)"), r"bq_\1")],
-        "objects":      [RegexMapping(re.compile(r"^(?!bq_)(.*)"), r"bq_\1")],
-        "images":       [RegexMapping(re.compile(r"^(?!bq_)(.*)"), r"bq_\1")],
-        "node_groups":  [RegexMapping(re.compile("^(-bqn---)(.*)(_bqn)$"), r"bq_\2")],
-    }
+        "collections": [RegexMapping(re.compile(r"^(?!bq_)(.*)"), r"bq_\1")],
+        "meshes": [RegexMapping(re.compile(r"^(?!bq_)(.*)"), r"bq_\1")],
+        "objects": [RegexMapping(re.compile(r"^(?!bq_)(.*)"), r"bq_\1")],
+        "images": [RegexMapping(re.compile(r"^(?!bq_)(.*)"), r"bq_\1")],
+        "node_groups": [RegexMapping(re.compile("^(-bqn---)(.*)(_bqn)$"), r"bq_\2")],
+    },
 )
 
 _botaniq_6_8_0_rename_vases_to_pots_mappings = {
-    r"^bq_Vase_Circular-Simple-Glazed-Ceramics_([AB])_spring-summer-autumn":
-        r"bq_Pot_Circular-Simple-Glazed-Ceramics_\1_spring-summer-autumn",
-    r"^bq_Vase_Circular-Simple-Wooden-Pedestal_([AB])_spring-summer-autumn":
-        r"bq_Pot_Circular-Simple-Wooden-Pedestal_\1_spring-summer-autumn",
-    r"^bq_Vase_Circular-Widening-Glazed-Ceramics_([AB])_spring-summer-autumn":
-        r"bq_Pot_Circular-Widening-Glazed-Ceramics_\1_spring-summer-autumn",
-    r"^bq_Vase_Diamond-Pattern-Glazed-Ceramics_([AB])_spring-summer-autumn":
-        r"bq_Pot_Diamond-Pattern-Glazed-Ceramics_\1_spring-summer-autumn",
-    r"^bq_Vase_Hemispheric-Steel-Pedestal_([AB])_spring-summer-autumn":
-        r"bq_Pot_Hemispheric-Steel-Pedestal_\1_spring-summer-autumn",
-    r"^bq_Vase_Weaved-Wicker-Shell_A_spring-summer-autumn":
-        r"bq_Pot_Weaved-Wicker-Shell_A_spring-summer-autumn",
+    r"^bq_Vase_Circular-Simple-Glazed-Ceramics_([AB])_spring-summer-autumn": r"bq_Pot_Circular-Simple-Glazed-Ceramics_\1_spring-summer-autumn",
+    r"^bq_Vase_Circular-Simple-Wooden-Pedestal_([AB])_spring-summer-autumn": r"bq_Pot_Circular-Simple-Wooden-Pedestal_\1_spring-summer-autumn",
+    r"^bq_Vase_Circular-Widening-Glazed-Ceramics_([AB])_spring-summer-autumn": r"bq_Pot_Circular-Widening-Glazed-Ceramics_\1_spring-summer-autumn",
+    r"^bq_Vase_Diamond-Pattern-Glazed-Ceramics_([AB])_spring-summer-autumn": r"bq_Pot_Diamond-Pattern-Glazed-Ceramics_\1_spring-summer-autumn",
+    r"^bq_Vase_Hemispheric-Steel-Pedestal_([AB])_spring-summer-autumn": r"bq_Pot_Hemispheric-Steel-Pedestal_\1_spring-summer-autumn",
+    r"^bq_Vase_Weaved-Wicker-Shell_A_spring-summer-autumn": r"bq_Pot_Weaved-Wicker-Shell_A_spring-summer-autumn",
 }
 
 botaniq_6_8_0_rename_vases_to_pots = AssetPackMigration(
     [
         RegexMapping(re.compile(f"{pattern}.blend$"), f"{replacement}.blend")
-        for pattern, replacement
-        in _botaniq_6_8_0_rename_vases_to_pots_mappings.items()
+        for pattern, replacement in _botaniq_6_8_0_rename_vases_to_pots_mappings.items()
     ],
     {
         "collections": [
             RegexMapping(re.compile(pattern), replacement)
-            for pattern, replacement
-            in _botaniq_6_8_0_rename_vases_to_pots_mappings.items()
+            for pattern, replacement in _botaniq_6_8_0_rename_vases_to_pots_mappings.items()
         ],
         "meshes": [
             RegexMapping(re.compile(pattern), replacement)
-            for pattern, replacement
-            in _botaniq_6_8_0_rename_vases_to_pots_mappings.items()
+            for pattern, replacement in _botaniq_6_8_0_rename_vases_to_pots_mappings.items()
         ],
         "objects": [
             RegexMapping(re.compile(pattern), replacement)
-            for pattern, replacement
-            in _botaniq_6_8_0_rename_vases_to_pots_mappings.items()
+            for pattern, replacement in _botaniq_6_8_0_rename_vases_to_pots_mappings.items()
         ],
-    }
+    },
 )
 
 _botaniq_6_8_0_english_names_to_latin_mappings = {
@@ -190,127 +176,112 @@ _botaniq_6_8_0_english_names_to_latin_mappings = {
 botaniq_6_8_0_english_names_to_latin = AssetPackMigration(
     [
         RegexMapping(re.compile(f"{pattern}.blend$"), f"{replacement}.blend")
-        for pattern, replacement
-        in _botaniq_6_8_0_english_names_to_latin_mappings.items()
+        for pattern, replacement in _botaniq_6_8_0_english_names_to_latin_mappings.items()
     ],
     {
         "collections": [
             RegexMapping(re.compile(pattern), replacement)
-            for pattern, replacement
-            in _botaniq_6_8_0_english_names_to_latin_mappings.items()
+            for pattern, replacement in _botaniq_6_8_0_english_names_to_latin_mappings.items()
         ],
         "meshes": [
             RegexMapping(re.compile(pattern), replacement)
-            for pattern, replacement
-            in _botaniq_6_8_0_english_names_to_latin_mappings.items()
+            for pattern, replacement in _botaniq_6_8_0_english_names_to_latin_mappings.items()
         ],
         "objects": [
             RegexMapping(re.compile(pattern), replacement)
-            for pattern, replacement
-            in _botaniq_6_8_0_english_names_to_latin_mappings.items()
+            for pattern, replacement in _botaniq_6_8_0_english_names_to_latin_mappings.items()
         ],
-    }
+    },
 )
 
 _botaniq_6_8_0_decapitalize_cortaderia_mapping = RegexMapping(
     re.compile(r"^bq_Grass_Cortaderia-Selloana_([ABCDEFHG])_spring-summer"),
-    r"bq_Grass_Cortaderia-selloana_\1_spring-summer"
+    r"bq_Grass_Cortaderia-selloana_\1_spring-summer",
 )
 
 botaniq_6_8_0_decapitalize_cortaderia = AssetPackMigration(
     [
         RegexMapping(
             re.compile(r"^bq_Grass_Cortaderia-Selloana_([ABCDEFHG])_spring-summer.blend"),
-            r"bq_Grass_Cortaderia-selloana_\1_spring-summer.blend"
+            r"bq_Grass_Cortaderia-selloana_\1_spring-summer.blend",
         )
     ],
     {
         "collections": [_botaniq_6_8_0_decapitalize_cortaderia_mapping],
         "meshes": [_botaniq_6_8_0_decapitalize_cortaderia_mapping],
-        "objects": [_botaniq_6_8_0_decapitalize_cortaderia_mapping]
-    }
+        "objects": [_botaniq_6_8_0_decapitalize_cortaderia_mapping],
+    },
 )
 
 evermotion_am154_1_3_0_am154_prefix = AssetPackMigration(
     [
-        RegexMapping(
-            re.compile(r"^(AM154-)([^\\/]+)(\.blend)$"),
-            r"am154_\2\3"
-        ),
+        RegexMapping(re.compile(r"^(AM154-)([^\\/]+)(\.blend)$"), r"am154_\2\3"),
         RegexMapping(
             re.compile("^Library_Evermotion-AM154_Materials.blend$"),
-            r"am154_Library_Materials.blend"
-        )
+            r"am154_Library_Materials.blend",
+        ),
     ],
     {
-        "collections":  [RegexMapping(re.compile("^(AM154-)(.*)"), r"am154_\2")],
-        "meshes":       [RegexMapping(re.compile("^(AM154-)(.*)"), r"am154_\2")],
-        "objects":      [RegexMapping(re.compile("^(AM154-)(.*)"), r"am154_\2")],
-        "materials":    [
+        "collections": [RegexMapping(re.compile("^(AM154-)(.*)"), r"am154_\2")],
+        "meshes": [RegexMapping(re.compile("^(AM154-)(.*)"), r"am154_\2")],
+        "objects": [RegexMapping(re.compile("^(AM154-)(.*)"), r"am154_\2")],
+        "materials": [
             RegexMapping(re.compile("^(bq_)(.*)"), r"am154_\2"),
-            RegexMapping(re.compile("(.*)(_bqm)$"), r"am154_\1")
+            RegexMapping(re.compile("(.*)(_bqm)$"), r"am154_\1"),
         ],
-        "node_groups":  [RegexMapping(re.compile("^(bq_)(.*)"), r"am154_\2")],
-    }
+        "node_groups": [RegexMapping(re.compile("^(bq_)(.*)"), r"am154_\2")],
+    },
 )
 
 
 evermotion_am176_1_2_0_am176_prefix = AssetPackMigration(
     [
-        RegexMapping(
-            re.compile(r"^(AM176-)([^\\/]+)(\.blend)$"),
-            r"am176_\2\3"
-        ),
+        RegexMapping(re.compile(r"^(AM176-)([^\\/]+)(\.blend)$"), r"am176_\2\3"),
         RegexMapping(
             re.compile("^Library_Evermotion-AM176_Materials.blend$"),
-            r"am176_Library_Materials.blend"
-        )
+            r"am176_Library_Materials.blend",
+        ),
     ],
     {
         "collections": [RegexMapping(re.compile("^(AM176-)(.*)"), r"am176_\2")],
-        "meshes":      [RegexMapping(re.compile("^(AM176-)(.*)"), r"am176_\2")],
-        "objects":     [RegexMapping(re.compile("^(AM176-)(.*)"), r"am176_\2")],
-        "materials":   [RegexMapping(re.compile("^(bq_)(.*)"), r"am176_\2")],
+        "meshes": [RegexMapping(re.compile("^(AM176-)(.*)"), r"am176_\2")],
+        "objects": [RegexMapping(re.compile("^(AM176-)(.*)"), r"am176_\2")],
+        "materials": [RegexMapping(re.compile("^(bq_)(.*)"), r"am176_\2")],
         "node_groups": [RegexMapping(re.compile("^(bq_)(.*)"), r"am176_\2")],
-    }
+    },
 )
 
 traffiq_1_7_0_tq_prefix = AssetPackMigration(
     [
-        RegexMapping(
-            re.compile(r"^(?!tq_|Library_Traffiq)([^\\/]+)(\.blend$)"),
-            r"tq_\1\2"
-        ),
-        RegexMapping(
-            re.compile(r"^(Library_Traffiq_)([^\\/]+)(\.blend$)"),
-            r"tq_Library_\2\3"
-        )
+        RegexMapping(re.compile(r"^(?!tq_|Library_Traffiq)([^\\/]+)(\.blend$)"), r"tq_\1\2"),
+        RegexMapping(re.compile(r"^(Library_Traffiq_)([^\\/]+)(\.blend$)"), r"tq_Library_\2\3"),
     ],
     {
-        "collections":  [RegexMapping(re.compile(r"^(?!tq_)(.*)"), r"tq_\1")],
-        "meshes":       [RegexMapping(re.compile(r"^(?!tq_)(.*)"), r"tq_\1")],
-        "objects":      [RegexMapping(re.compile(r"^(?!tq_)(.*)"), r"tq_\1")],
-        "images":       [RegexMapping(re.compile(r"^(?!tq_)(.*)"), r"tq_\1")],
-        "node_groups":  [RegexMapping(re.compile(r"^(.*)(_tqn)$"), r"tq_\1")],
-    }
+        "collections": [RegexMapping(re.compile(r"^(?!tq_)(.*)"), r"tq_\1")],
+        "meshes": [RegexMapping(re.compile(r"^(?!tq_)(.*)"), r"tq_\1")],
+        "objects": [RegexMapping(re.compile(r"^(?!tq_)(.*)"), r"tq_\1")],
+        "images": [RegexMapping(re.compile(r"^(?!tq_)(.*)"), r"tq_\1")],
+        "node_groups": [RegexMapping(re.compile(r"^(.*)(_tqn)$"), r"tq_\1")],
+    },
 )
 
 
 _traffiq_2_0_0_remove_percent_from_incline_sign_mapping = RegexMapping(
-    re.compile(r"^tq_StreetSign_Warning_Incline-12%$"), r"tq_StreetSign_Warning_Incline-12")
+    re.compile(r"^tq_StreetSign_Warning_Incline-12%$"), r"tq_StreetSign_Warning_Incline-12"
+)
 
 traffiq_2_0_0_remove_percent_from_incline_sign = AssetPackMigration(
     [
         RegexMapping(
             re.compile(r"^tq_StreetSign_Warning_Incline-12%\.blend$"),
-            r"tq_StreetSign_Warning_Incline-12.blend"
+            r"tq_StreetSign_Warning_Incline-12.blend",
         )
     ],
     {
         "collections": [_traffiq_2_0_0_remove_percent_from_incline_sign_mapping],
         "meshes": [_traffiq_2_0_0_remove_percent_from_incline_sign_mapping],
         "objects": [_traffiq_2_0_0_remove_percent_from_incline_sign_mapping],
-    }
+    },
 )
 
 ASSET_PACK_MIGRATIONS = [
@@ -320,28 +291,19 @@ ASSET_PACK_MIGRATIONS = [
             botaniq_6_8_0_unify_bq_prefix,
             botaniq_6_8_0_rename_vases_to_pots,
             botaniq_6_8_0_english_names_to_latin,
-            botaniq_6_8_0_decapitalize_cortaderia
-        ]
+            botaniq_6_8_0_decapitalize_cortaderia,
+        ],
     ),
     AssetPackMigrations(
-        pack_name="evermotion_am154",
-        migrations=[
-            evermotion_am154_1_3_0_am154_prefix
-        ]
+        pack_name="evermotion_am154", migrations=[evermotion_am154_1_3_0_am154_prefix]
     ),
     AssetPackMigrations(
-        pack_name="evermotion_am176",
-        migrations=[
-            evermotion_am176_1_2_0_am176_prefix
-        ]
+        pack_name="evermotion_am176", migrations=[evermotion_am176_1_2_0_am176_prefix]
     ),
     AssetPackMigrations(
         pack_name="traffiq",
-        migrations=[
-            traffiq_1_7_0_tq_prefix,
-            traffiq_2_0_0_remove_percent_from_incline_sign
-        ]
-    )
+        migrations=[traffiq_1_7_0_tq_prefix, traffiq_2_0_0_remove_percent_from_incline_sign],
+    ),
 ]
 
 
@@ -603,7 +565,7 @@ MQ4_NODE_TREES_TO_MQ = {
     "VK_Steel_Cable_mqn": "/materialiq/ML_Metal/mq_ML060_STEEL-Stainless-Cable",
     "VL_Paper_Crumbled_mqn": "/materialiq/WD_Wood/mq_WD890_VARIOUS-Paper-Crumbled",
     "VM_Wood_Filled-Frame_mqn": "/materialiq/WD_Wood/mq_WD635_ENGINEERED-Wood-Filled-Frame",
-    "VN_Snow_mqn": None
+    "VN_Snow_mqn": None,
 }
 
 MQ4_MATERIAL_NAMES_TO_MQ = {

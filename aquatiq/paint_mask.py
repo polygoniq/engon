@@ -22,9 +22,10 @@
 import bpy
 import typing
 import logging
-import polib
+from .. import polib
 from .. import preferences
 from .. import asset_helpers
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -35,8 +36,10 @@ MODULE_CLASSES: typing.List[typing.Type] = []
 class EnterVertexPaintMode(bpy.types.Operator):
     bl_idname = "engon.aquatiq_enter_vertex_paint"
     bl_label = "Paint Mask"
-    bl_description = "Enters vertex paint mode and allows you to paint vertex colors of " \
+    bl_description = (
+        "Enters vertex paint mode and allows you to paint vertex colors of "
         f"'{asset_helpers.AQ_MASK_NAME}' mask"
+    )
     bl_options = {'REGISTER'}
 
     def __init__(self) -> None:
@@ -57,7 +60,8 @@ class EnterVertexPaintMode(bpy.types.Operator):
             col = layout.column(align=True)
             col.label(text="Mask is not present on active object.")
             col.label(
-                text=f"Do you want to create '{asset_helpers.AQ_MASK_NAME}' vertex color layer?")
+                text=f"Do you want to create '{asset_helpers.AQ_MASK_NAME}' vertex color layer?"
+            )
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
@@ -65,8 +69,9 @@ class EnterVertexPaintMode(bpy.types.Operator):
             return False
 
         # Applicable only to data that has vertex colors to paint on
-        if context.active_object.data is None or \
-                not hasattr(context.active_object.data, "vertex_colors"):
+        if context.active_object.data is None or not hasattr(
+            context.active_object.data, "vertex_colors"
+        ):
             return False
 
         return True
@@ -82,8 +87,11 @@ class EnterVertexPaintMode(bpy.types.Operator):
             if self.should_create_mask:
                 mask = active_object.data.vertex_colors.new(name=asset_helpers.AQ_MASK_NAME)
             else:
-                self.report({'ERROR'}, f"Vertex color layer '{asset_helpers.AQ_MASK_NAME}' is missing "
-                            "from active object!")
+                self.report(
+                    {'ERROR'},
+                    f"Vertex color layer '{asset_helpers.AQ_MASK_NAME}' is missing "
+                    "from active object!",
+                )
                 return {'CANCELLED'}
 
         active_object.data.vertex_colors.active = mask
@@ -105,8 +113,7 @@ class EnterVertexPaintMode(bpy.types.Operator):
         self.should_create_mask = False
 
         maskable_node_groups = polib.node_utils_bpy.get_top_level_material_nodes_with_name(
-            context.active_object,
-            asset_helpers.AQ_MASKABLE_NODE_GROUP_NAMES
+            context.active_object, asset_helpers.AQ_MASKABLE_NODE_GROUP_NAMES
         )
         if next(maskable_node_groups, None) is None:
             self.display_mask_warning = True
@@ -133,13 +140,16 @@ class ApplyMask(bpy.types.Operator):
     only_boundaries: bpy.props.BoolProperty(
         name="Select Only Boundaries",
         description="If true only the boundaries are selected",
-        default=False
+        default=False,
     )
 
     @classmethod
     def poll(cls, context: bpy.types.Context):
-        return context.mode == 'PAINT_VERTEX' and context.vertex_paint_object is not None \
+        return (
+            context.mode == 'PAINT_VERTEX'
+            and context.vertex_paint_object is not None
             and context.vertex_paint_object.data is not None
+        )
 
     def execute(self, context: bpy.types.Context):
         assert context.vertex_paint_object is not None

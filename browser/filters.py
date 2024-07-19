@@ -27,15 +27,16 @@
 import bpy
 import typing
 import logging
-import mapr
 import math
 import mathutils
-import polib
 import threading
+from .. import polib
+from .. import mapr
 from .. import asset_registry
 from .. import preferences
 from . import utils
 from . import previews
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -58,7 +59,7 @@ class DataRepository:
     def query(
         self,
         query: mapr.query.Query,
-        on_complete: typing.Optional[typing.Callable[[mapr.asset_provider.DataView], None]] = None
+        on_complete: typing.Optional[typing.Callable[[mapr.asset_provider.DataView], None]] = None,
     ) -> None:
         def _query():
             logger.debug(f"Performing query against category {query.category_id}")
@@ -90,8 +91,10 @@ class DataRepository:
         self.clear_cache()
 
         if self.last_view is not None:
-            self.query(self.last_view.used_query, lambda _: get_filters(
-                bpy.context).clear_and_reconstruct())
+            self.query(
+                self.last_view.used_query,
+                lambda _: get_filters(bpy.context).clear_and_reconstruct(),
+            )
 
     def clear_cache(self) -> None:
         if isinstance(self.asset_provider, mapr.asset_provider.CachedAssetProviderMultiplexer):
@@ -99,8 +102,11 @@ class DataRepository:
 
     @property
     def current_category_id(self) -> mapr.category.CategoryID:
-        return self.last_view.used_query.category_id if self.last_view is not None \
+        return (
+            self.last_view.used_query.category_id
+            if self.last_view is not None
             else mapr.category.DEFAULT_ROOT_CATEGORY.id_
+        )
 
     @property
     def current_view(self) -> mapr.asset_provider.DataView:
@@ -116,6 +122,7 @@ asset_repository = DataRepository(asset_registry.instance.master_asset_provider)
 
 class BrowserFilter:
     """Mixin adding frontend functionality and controls for mapr filters"""
+
     # Filter is enabled when it is relevant for the filtering - when the matching tags or
     # parameters are in the current view, or all the time - special case like SearchFilter or
     # AssetTypesFilter.
@@ -161,9 +168,9 @@ def filters_updated_bulk_query() -> None:
         mapr.query.Query(
             asset_repository.current_category_id,
             filters_properties.filters.values(),
-            filters_properties.sort_mode
+            filters_properties.sort_mode,
         ),
-        on_complete=lambda _: filters_properties.reenable()
+        on_complete=lambda _: filters_properties.reenable(),
     )
 
 
@@ -177,31 +184,29 @@ def _any_filter_updated_event():
 
 
 class BrowserNumericParameterFilter(
-    bpy.types.PropertyGroup,
-    mapr.filters.NumericParameterFilter,
-    BrowserFilter
+    bpy.types.PropertyGroup, mapr.filters.NumericParameterFilter, BrowserFilter
 ):
     is_int: bpy.props.BoolProperty()
     range_start_float: bpy.props.FloatProperty(
         get=lambda self: self.range_start,
         set=lambda self, value: self._range_start_set(value),
-        default=-1.0
+        default=-1.0,
     )
     range_end_float: bpy.props.FloatProperty(
         get=lambda self: self.range_end,
         set=lambda self, value: self._range_end_set(value),
-        default=1.0
+        default=1.0,
     )
 
     range_start_int: bpy.props.IntProperty(
         get=lambda self: self.range_start,
         set=lambda self, value: self._range_start_set(value),
-        default=-1
+        default=-1,
     )
     range_end_int: bpy.props.IntProperty(
         get=lambda self: self.range_end,
         set=lambda self, value: self._range_end_set(value),
-        default=1
+        default=1,
     )
 
     range_min: bpy.props.FloatProperty(options={'HIDDEN'})
@@ -234,10 +239,7 @@ class BrowserNumericParameterFilter(
         # Draw Reset button
         if self.is_applied() or self.enabled is False:
             row.operator(
-                MAPR_BrowserResetFilter.bl_idname,
-                text="",
-                icon='PANEL_CLOSE',
-                emboss=False
+                MAPR_BrowserResetFilter.bl_idname, text="", icon='PANEL_CLOSE', emboss=False
             ).filter_name = self.name
 
         row = col.row(align=True)
@@ -245,8 +247,9 @@ class BrowserNumericParameterFilter(
         row.prop(self, self._range_end_name(), text="Max")
 
     def is_default(self):
-        return math.isclose(self.range_start, self.range_min) and \
-            math.isclose(self.range_end, self.range_max)
+        return math.isclose(self.range_start, self.range_min) and math.isclose(
+            self.range_end, self.range_max
+        )
 
     def reset(self):
         super().reset()
@@ -304,15 +307,9 @@ class BrowserNumericParameterFilter(
 MODULE_CLASSES.append(BrowserNumericParameterFilter)
 
 
-class BrowserTagFilter(
-    bpy.types.PropertyGroup,
-    mapr.filters.TagFilter,
-    BrowserFilter
-):
+class BrowserTagFilter(bpy.types.PropertyGroup, mapr.filters.TagFilter, BrowserFilter):
     # OVERRIDES 'include' from 'mapr.filters.TagFilter'
-    include: bpy.props.BoolProperty(
-        update=lambda self, context: _any_filter_updated_event()
-    )
+    include: bpy.props.BoolProperty(update=lambda self, context: _any_filter_updated_event())
 
     def init(self, name: str):
         self.name = name
@@ -345,8 +342,7 @@ MODULE_CLASSES.append(BrowserTagFilter)
 class TextParameterValue(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty()
     include: bpy.props.BoolProperty(
-        update=lambda self, context: _any_filter_updated_event(),
-        default=False
+        update=lambda self, context: _any_filter_updated_event(), default=False
     )
 
 
@@ -354,9 +350,7 @@ MODULE_CLASSES.append(TextParameterValue)
 
 
 class BrowserTextParameterFilter(
-    bpy.types.PropertyGroup,
-    mapr.filters.TextParameterFilter,
-    BrowserFilter
+    bpy.types.PropertyGroup, mapr.filters.TextParameterFilter, BrowserFilter
 ):
     # Number of items when the text parameter filter becomes collapsible
     COLLAPSIBLE_DISPLAY_MIN_COUNT = 5
@@ -367,7 +361,7 @@ class BrowserTextParameterFilter(
     collapse: bpy.props.BoolProperty(
         name="Collapse",
         description="Collapses the text parameter display, not all values are shown in collapsed view",
-        default=True
+        default=True,
     )
 
     def init(self, parameter_meta: mapr.parameter_meta.TextParameterMeta):
@@ -389,14 +383,14 @@ class BrowserTextParameterFilter(
         # Draw reset button
         if self.is_applied() or self.enabled is False:
             row.operator(
-                MAPR_BrowserResetFilter.bl_idname,
-                text="",
-                icon='PANEL_CLOSE',
-                emboss=False
+                MAPR_BrowserResetFilter.bl_idname, text="", icon='PANEL_CLOSE', emboss=False
             ).filter_name = self.name
 
-        drawn_text_parameters = len(self.param_values) if not self.collapse else \
-            BrowserTextParameterFilter.COLLAPSIBLE_DISPLAY_MIN_COUNT
+        drawn_text_parameters = (
+            len(self.param_values)
+            if not self.collapse
+            else BrowserTextParameterFilter.COLLAPSIBLE_DISPLAY_MIN_COUNT
+        )
         not_shown_text_parameters_count = len(self.param_values) - drawn_text_parameters
 
         # Switch between row and column for small number of items
@@ -411,14 +405,17 @@ class BrowserTextParameterFilter(
         if not_shown_text_parameters_count > 0 or self.collapse is False:
             items_layout.separator()
             row = items_layout.row()
-            label = f"... and {not_shown_text_parameters_count} more" if \
-                not_shown_text_parameters_count > 0 else "collapse"
+            label = (
+                f"... and {not_shown_text_parameters_count} more"
+                if not_shown_text_parameters_count > 0
+                else "collapse"
+            )
             row.prop(
                 self,
                 "collapse",
                 text=label,
                 icon='RIGHTARROW' if self.collapse else 'MARKER',
-                emboss=False
+                emboss=False,
             )
 
     def is_default(self) -> bool:
@@ -445,9 +442,7 @@ MODULE_CLASSES.append(BrowserTextParameterFilter)
 
 
 class BrowserVectorParameterFilter(
-    bpy.types.PropertyGroup,
-    mapr.filters.VectorParameterFilter,
-    BrowserFilter
+    bpy.types.PropertyGroup, mapr.filters.VectorParameterFilter, BrowserFilter
 ):
     """Filters vector parameters. Provides user interface for various vector parameter types.
 
@@ -461,6 +456,7 @@ class BrowserVectorParameterFilter(
     properties matching the desired size and logic switching between them based on the actual
     parameter size.
     """
+
     DEFAULT_VALUE = (1.0, 1.0, 1.0)
     DEFAULT_DISTANCE = 0.2
 
@@ -471,7 +467,7 @@ class BrowserVectorParameterFilter(
             (mapr.known_metadata.VectorType.INT, "Integer", "Integer"),
             (mapr.known_metadata.VectorType.COLOR, "Color", "Color"),
         ],
-        options={'HIDDEN'}
+        options={'HIDDEN'},
     )
     color_value: bpy.props.FloatVectorProperty(
         name="Color",
@@ -479,7 +475,7 @@ class BrowserVectorParameterFilter(
         min=0.0,
         max=1.0,
         default=DEFAULT_VALUE,
-        update=lambda self, context: _any_filter_updated_event()
+        update=lambda self, context: _any_filter_updated_event(),
     )
     distance: bpy.props.FloatProperty(
         name="Tolerance",
@@ -497,7 +493,7 @@ class BrowserVectorParameterFilter(
     # we know the certain use cases.
     range_start: bpy.props.FloatVectorProperty(
         get=lambda self: self._range_start_get(),
-        set=lambda self, value: self._range_start_set(value)
+        set=lambda self, value: self._range_start_set(value),
     )
     range_end: bpy.props.FloatVectorProperty(
         get=lambda self: self._range_end_get(),
@@ -531,32 +527,39 @@ class BrowserVectorParameterFilter(
         # Draw reset button
         if self.is_applied() or self.enabled is False:
             row.operator(
-                MAPR_BrowserResetFilter.bl_idname,
-                text="",
-                icon='PANEL_CLOSE',
-                emboss=False
+                MAPR_BrowserResetFilter.bl_idname, text="", icon='PANEL_CLOSE', emboss=False
             ).filter_name = self.name
 
         if self.type_ == mapr.known_metadata.VectorType.COLOR:
             col.prop(self, "color_value", text="")
             col.prop(self, "distance")
-        elif self.type_ in {mapr.known_metadata.VectorType.FLOAT, mapr.known_metadata.VectorType.INT}:
+        elif self.type_ in {
+            mapr.known_metadata.VectorType.FLOAT,
+            mapr.known_metadata.VectorType.INT,
+        }:
             col.row(align=True).prop(self, "range_start", text="From")
             col.row(align=True).prop(self, "range_end", text="To")
 
     def is_default(self) -> bool:
         # For some reason I had to lower the 'rel_tol' for the self.distance 'isclose' check to pass
         if self.type_ == mapr.known_metadata.VectorType.COLOR:
-            return tuple(self.color_value) == BrowserVectorParameterFilter.DEFAULT_VALUE and \
-                math.isclose(
-                    self.distance, BrowserVectorParameterFilter.DEFAULT_DISTANCE, rel_tol=1e-6)
-        elif self.type_ in {mapr.known_metadata.VectorType.FLOAT, mapr.known_metadata.VectorType.INT}:
-            return math.isclose(self.range_start[0], self.range_min[0]) and \
-                math.isclose(self.range_start[1], self.range_min[1]) and \
-                math.isclose(self.range_start[2], self.range_min[2]) and \
-                math.isclose(self.range_end[0], self.range_max[0]) and \
-                math.isclose(self.range_end[1], self.range_max[1]) and \
-                math.isclose(self.range_end[2], self.range_max[2])
+            return tuple(
+                self.color_value
+            ) == BrowserVectorParameterFilter.DEFAULT_VALUE and math.isclose(
+                self.distance, BrowserVectorParameterFilter.DEFAULT_DISTANCE, rel_tol=1e-6
+            )
+        elif self.type_ in {
+            mapr.known_metadata.VectorType.FLOAT,
+            mapr.known_metadata.VectorType.INT,
+        }:
+            return (
+                math.isclose(self.range_start[0], self.range_min[0])
+                and math.isclose(self.range_start[1], self.range_min[1])
+                and math.isclose(self.range_start[2], self.range_min[2])
+                and math.isclose(self.range_end[0], self.range_max[0])
+                and math.isclose(self.range_end[1], self.range_max[1])
+                and math.isclose(self.range_end[2], self.range_max[2])
+            )
         else:
             raise ValueError(f"Unknown vector type {self.type_}")
 
@@ -595,7 +598,7 @@ class BrowserVectorParameterFilter(
             return mapr.filters.VectorDistanceComparator(
                 self.color_value,
                 self.distance,
-                (polib.color_utils.perceptual_color_distance, "perceptual_color")
+                (polib.color_utils.perceptual_color_distance, "perceptual_color"),
             )
         elif self.type_ == mapr.known_metadata.VectorType.INT:
             return mapr.filters.VectorLexicographicComparator(self.range_start, self.range_end)
@@ -609,50 +612,37 @@ MODULE_CLASSES.append(BrowserVectorParameterFilter)
 
 
 class BrowserAssetTypesFilter(
-    bpy.types.PropertyGroup,
-    mapr.filters.AssetTypesFilter,
-    BrowserFilter
+    bpy.types.PropertyGroup, mapr.filters.AssetTypesFilter, BrowserFilter
 ):
-    enabled: bpy.props.BoolProperty(
-        get=lambda _: True,
-        set=lambda _, __: None
-    )
+    enabled: bpy.props.BoolProperty(get=lambda _: True, set=lambda _, __: None)
 
     # OVERRIDES 'model' from 'mapr.filters.AssetTypesFilter'
     model: bpy.props.BoolProperty(
-        name="Model",
-        default=False,
-        update=lambda self, context: _any_filter_updated_event()
+        name="Model", default=False, update=lambda self, context: _any_filter_updated_event()
     )
     # OVERRIDES 'material' from 'mapr.filters.AssetTypesFilter'
     material: bpy.props.BoolProperty(
-        name="Material",
-        default=False,
-        update=lambda self, context: _any_filter_updated_event()
+        name="Material", default=False, update=lambda self, context: _any_filter_updated_event()
     )
     # OVERRIDES 'particle_system' from 'mapr.filters.AssetTypesFilter'
     particle_system: bpy.props.BoolProperty(
         name="Particle System",
         default=False,
-        update=lambda self, context: _any_filter_updated_event()
+        update=lambda self, context: _any_filter_updated_event(),
     )
     # OVERRIDES 'scene' from 'mapr.filters.AssetTypesFilter'
     scene: bpy.props.BoolProperty(
-        name="Scene",
-        default=False,
-        update=lambda self, context: _any_filter_updated_event()
+        name="Scene", default=False, update=lambda self, context: _any_filter_updated_event()
     )
     # OVERRIDES 'world' from 'mapr.filters.AssetTypesFilter'
     world: bpy.props.BoolProperty(
-        name="World",
-        default=False,
-        update=lambda self, context: _any_filter_updated_event()
+        name="World", default=False, update=lambda self, context: _any_filter_updated_event()
     )
     # OVERRIDES 'geometry_nodes' from 'mapr.filters.AssetTypesFilter'
     geometry_nodes: bpy.props.BoolProperty(
         name="Geometry Nodes",
         default=False,
-        update=lambda self, context: _any_filter_updated_event()
+        update=lambda self, context: _any_filter_updated_event(),
     )
 
     def init(self):
@@ -668,10 +658,7 @@ class BrowserAssetTypesFilter(
         layout.prop(self, "geometry_nodes", icon_only=True, icon='GEOMETRY_NODES')
         if self.is_applied():
             layout.operator(
-                MAPR_BrowserResetFilter.bl_idname,
-                text="",
-                icon='PANEL_CLOSE',
-                emboss=False
+                MAPR_BrowserResetFilter.bl_idname, text="", icon='PANEL_CLOSE', emboss=False
             ).filter_name = self.name
 
     def filter_(self, asset: mapr.asset.Asset) -> bool:
@@ -696,29 +683,23 @@ class BrowserAssetTypesFilter(
 MODULE_CLASSES.append(BrowserAssetTypesFilter)
 
 
-class BrowserSearchFilter(
-    bpy.types.PropertyGroup,
-    mapr.filters.SearchFilter,
-    BrowserFilter
-):
+class BrowserSearchFilter(bpy.types.PropertyGroup, mapr.filters.SearchFilter, BrowserFilter):
     """Filters out items based on text input from user"""
-    enabled: bpy.props.BoolProperty(
-        get=lambda _: True,
-        set=lambda _, __: None
-    )
+
+    enabled: bpy.props.BoolProperty(get=lambda _: True, set=lambda _, __: None)
 
     # OVERRIDES 'search' from 'mapr.filters.SearchFilter'
     search: bpy.props.StringProperty(
         name="Search",
         description="Space separated keywords to search for",
-        update=lambda self, context: self.search_updated(context)
+        update=lambda self, context: self.search_updated(context),
     )
 
     recent_search: bpy.props.EnumProperty(
         name="Recent Search",
         description="Recent searches history, select one to search it again",
         items=lambda self, context: self.get_recent_search_enum_items(context),
-        update=lambda self, context: self.recent_search_updated(context)
+        update=lambda self, context: self.recent_search_updated(context),
     )
 
     def init(self):
@@ -729,15 +710,16 @@ class BrowserSearchFilter(
         layout.prop_menu_enum(self, "recent_search", text="", icon='DOWNARROW_HLT')
         sub = layout.row(align=True)
         sub.scale_x = 1.2
-        sub.prop(self, "search", text="",
-                 icon_value=polib.ui_bpy.icon_manager.get_icon_id("icon_engon_search"))
+        sub.prop(
+            self,
+            "search",
+            text="",
+            icon_value=polib.ui_bpy.icon_manager.get_icon_id("icon_engon_search"),
+        )
 
         if self.is_applied():
             layout.operator(
-                MAPR_BrowserResetFilter.bl_idname,
-                text="",
-                icon='PANEL_CLOSE',
-                emboss=False
+                MAPR_BrowserResetFilter.bl_idname, text="", icon='PANEL_CLOSE', emboss=False
             ).filter_name = self.name
 
     def reset(self):
@@ -760,15 +742,15 @@ class BrowserSearchFilter(
 
         cls.search_history.append(self.search)
         history_count = preferences.prefs_utils.get_preferences(
-            context).mapr_preferences.search_history_count
+            context
+        ).mapr_preferences.search_history_count
         while len(type(self).search_history) > history_count:
             cls.search_history.pop(0)
 
         _any_filter_updated_event()
 
     def get_recent_search_enum_items(
-        self,
-        context: bpy.types.Context
+        self, context: bpy.types.Context
     ) -> typing.Iterable[typing.Tuple[str, str, str]]:
         ret = []
         for search in reversed(getattr(type(self), "search_history", [])):
@@ -798,6 +780,7 @@ class FilterGroup(bpy.types.PropertyGroup):
     Instances of Filter have to be retrieved separately in DynamicFilters, this only stores the
     group meta information and knows how to draw filter group given the filters.
     """
+
     # name is a default parameter of PropertyGroup, so we don't define it
     collapsed: bpy.props.BoolProperty(name="Collapsed", default=True)
 
@@ -808,7 +791,7 @@ class FilterGroup(bpy.types.PropertyGroup):
         self,
         context: bpy.types.Context,
         layout: bpy.types.UILayout,
-        filters_: typing.List[BrowserFilter]
+        filters_: typing.List[BrowserFilter],
     ) -> None:
         box = layout.box()
         row = box.row()
@@ -818,7 +801,7 @@ class FilterGroup(bpy.types.PropertyGroup):
             "collapsed",
             text=self.get_nice_name(),
             emboss=False,
-            icon='RIGHTARROW' if self.collapsed else 'DOWNARROW_HLT'
+            icon='RIGHTARROW' if self.collapsed else 'DOWNARROW_HLT',
         )
 
         # Skip drawing filters if group is collapsed
@@ -879,12 +862,22 @@ class DynamicFilters(bpy.types.PropertyGroup):
         name="Sort Mode",
         description="Select mode by which to sort the result",
         items=[
-            (mapr.query.SortMode.ALPHABETICAL_ASC, "Name (A to Z)",
-             "Alphabetical order from A to Z", 'SORT_ASC', 0),
-            (mapr.query.SortMode.ALPHABETICAL_DESC, "Name (Z to A)",
-             "Reversed alphabetical order from Z to A", 'SORT_DESC', 1),
+            (
+                mapr.query.SortMode.ALPHABETICAL_ASC,
+                "Name (A to Z)",
+                "Alphabetical order from A to Z",
+                'SORT_ASC',
+                0,
+            ),
+            (
+                mapr.query.SortMode.ALPHABETICAL_DESC,
+                "Name (Z to A)",
+                "Reversed alphabetical order from Z to A",
+                'SORT_DESC',
+                1,
+            ),
         ],
-        update=lambda self, _: self._sort_mode_updated()
+        update=lambda self, _: self._sort_mode_updated(),
     )
 
     def query_and_reconstruct(self, category_id: mapr.category.CategoryID) -> None:
@@ -893,12 +886,8 @@ class DynamicFilters(bpy.types.PropertyGroup):
             self.reenable()
 
         asset_repository.query(
-            mapr.query.Query(
-                category_id,
-                self.filters.values(),
-                self.sort_mode
-            ),
-            on_complete=_on_complete
+            mapr.query.Query(category_id, self.filters.values(), self.sort_mode),
+            on_complete=_on_complete,
         )
 
     def reconstruct(self):
@@ -918,7 +907,11 @@ class DynamicFilters(bpy.types.PropertyGroup):
             (current_view.parameters_meta.text, self.text_filters, "TEXT_PARAMETERS"),
             (current_view.parameters_meta.vector, self.vector_filters, "VECTOR_PARAMETERS"),
             # Convert set of tags to mapping tag: tag, so we can use the same API
-            ({tag: tag for tag in current_view.parameters_meta.unique_tags}, self.tag_filters, "TAGS")
+            (
+                {tag: tag for tag in current_view.parameters_meta.unique_tags},
+                self.tag_filters,
+                "TAGS",
+            ),
         ]
         for params_meta, collection, known_metadata_field in filters_def:
             known_params_dict = getattr(mapr.known_metadata, known_metadata_field)
@@ -1002,32 +995,30 @@ class DynamicFilters(bpy.types.PropertyGroup):
             self.asset_types.name: self.asset_types,
             self.search.name: self.search,
             **self.tag_filters,
-            **self.parametrization_filters
+            **self.parametrization_filters,
         }
 
     @property
     def parametrization_filters(self) -> typing.Dict[str, BrowserFilter]:
-        return {
-            **self.numeric_filters,
-            **self.text_filters,
-            **self.vector_filters
-        }
+        return {**self.numeric_filters, **self.text_filters, **self.vector_filters}
 
     def _sort_mode_updated(self) -> None:
         # We use previous query, and adjust the sort mode parameter, if there is no previous
         # query, we do nothing. This can only happen, if the sort mode would be updated before
         # the browser is initialized.
-        last_query = asset_repository.last_query
-        if last_query is None:
+        last_view = asset_repository.last_view
+        if last_view is None:
             return
 
         # Replicate last query with a different sorting method
-        asset_repository.query(mapr.query.Query(
-            last_query.category_id,
-            last_query.filters,
-            sort_mode=self.sort_mode,
-            recursive=last_query.recursive
-        ))
+        asset_repository.query(
+            mapr.query.Query(
+                last_view.used_query.category_id,
+                last_view.used_query.filters,
+                sort_mode=self.sort_mode,
+                recursive=last_view.used_query.recursive,
+            )
+        )
 
 
 MODULE_CLASSES.append(DynamicFilters)
@@ -1071,7 +1062,8 @@ def _draw_tags(context: bpy.types.Context, layout: bpy.types.UILayout):
     """Draws dynamic filter tags to 'layout' as pills that adjust width based on the region size"""
     dyn_filters = get_filters(context)
     tag_filters: typing.List[BrowserTagFilter] = [
-        x for x in dyn_filters.tag_filters if x.is_drawn()]
+        x for x in dyn_filters.tag_filters if x.is_drawn()
+    ]
 
     if len(tag_filters) == 0:
         row = layout.row()
@@ -1090,7 +1082,8 @@ def _draw_tags(context: bpy.types.Context, layout: bpy.types.UILayout):
     for tag_filter in tag_filters:
         # 20 is a margin for each drawn prop
         estimated_row_width_px += ui_scale * (
-            len(tag_filter.name_without_type) * utils.EST_LETTER_WIDTH_PX + 20)
+            len(tag_filter.name_without_type) * utils.EST_LETTER_WIDTH_PX + 20
+        )
 
         # 150 is a width from where we display tags always on a single row
         if estimated_row_width_px > context.region.width or context.region.width < 150:
@@ -1110,8 +1103,9 @@ def draw(context: bpy.types.Context, layout: bpy.types.UILayout) -> None:
         col = row.column()
         col.enabled = False
         col.label(text=f"Applied {applied_count} filter(s)")
-        row.operator(MAPR_BrowserResetFilter.bl_idname, text="",
-                     icon='PANEL_CLOSE').reset_all = True
+        row.operator(MAPR_BrowserResetFilter.bl_idname, text="", icon='PANEL_CLOSE').reset_all = (
+            True
+        )
 
     _draw_tags(context, layout)
 

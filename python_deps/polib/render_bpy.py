@@ -17,13 +17,17 @@ logger = logging.getLogger(f"polygoniq.{__name__}")
 
 if not bpy.app.background:
     # Blender 4.0 dropped the 3D_ and 2D_ prefixes from the shader names
-    SHADER_LINE_BUILTIN = \
-        gpu.shader.from_builtin('POLYLINE_UNIFORM_COLOR') if bpy.app.version >= (4, 0, 0) else \
-        gpu.shader.from_builtin('3D_POLYLINE_UNIFORM_COLOR')
+    SHADER_LINE_BUILTIN = (
+        gpu.shader.from_builtin('POLYLINE_UNIFORM_COLOR')
+        if bpy.app.version >= (4, 0, 0)
+        else gpu.shader.from_builtin('3D_POLYLINE_UNIFORM_COLOR')
+    )
 
-    SHADER_2D_UNIFORM_COLOR_BUILTIN = \
-        gpu.shader.from_builtin('UNIFORM_COLOR') if bpy.app.version >= (4, 0, 0) else \
-        gpu.shader.from_builtin('2D_UNIFORM_COLOR')
+    SHADER_2D_UNIFORM_COLOR_BUILTIN = (
+        gpu.shader.from_builtin('UNIFORM_COLOR')
+        if bpy.app.version >= (4, 0, 0)
+        else gpu.shader.from_builtin('2D_UNIFORM_COLOR')
+    )
 else:
     logger.info(f"'{__name__}' module is not available in background mode!")
 
@@ -53,14 +57,16 @@ def rectangle(pos: typing.Tuple[float, float], size: typing.Tuple[float, float],
     """Draws rectangle starting at 'pos' of width and height from 'size' of desired 'color'"""
     batch = gpu_extras.batch.batch_for_shader(
         SHADER_2D_UNIFORM_COLOR_BUILTIN,
-        'TRI_FAN', {
+        'TRI_FAN',
+        {
             "pos": [
                 (pos[0], pos[1]),
                 (pos[0] + size[0], pos[1]),
                 (pos[0] + size[0], pos[1] + size[1]),
-                (pos[0], pos[1] + size[1])
+                (pos[0], pos[1] + size[1]),
             ]
-        })
+        },
+    )
     SHADER_2D_UNIFORM_COLOR_BUILTIN.bind()
     SHADER_2D_UNIFORM_COLOR_BUILTIN.uniform_float("color", color)
     batch.draw(SHADER_2D_UNIFORM_COLOR_BUILTIN)
@@ -77,6 +83,7 @@ class TextStyle:
     If 'consider_ui_scale' is True, then actual 'font_size' is constructed
     on initialization based on preferences user interface scale
     """
+
     font_id: int = 0
     font_size: int = 15
     color: Color = (1.0, 1.0, 1.0, 1.0)
@@ -103,13 +110,9 @@ def text_3d(
     string: str,
     style: TextStyle,
     region: bpy.types.Region,
-    rv3d: bpy.types.RegionView3D
+    rv3d: bpy.types.RegionView3D,
 ) -> None:
-    pos_2d = bpy_extras.view3d_utils.location_3d_to_region_2d(
-        region,
-        rv3d,
-        world_pos
-    )
+    pos_2d = bpy_extras.view3d_utils.location_3d_to_region_2d(region, rv3d, world_pos)
     text(pos_2d, string, style)
 
 
@@ -119,7 +122,7 @@ def text_box(
     padding: int,
     text_margin: float,
     background: typing.Optional[Color],
-    texts: typing.List[typing.Tuple[str, TextStyle]]
+    texts: typing.List[typing.Tuple[str, TextStyle]],
 ) -> None:
     height = sum(t[1].font_size for t in texts) + (len(texts) - 1) * text_margin
     if background is not None:
@@ -140,12 +143,8 @@ def text_box_3d(
     background: typing.Optional[Color],
     texts: typing.List[typing.Tuple[str, TextStyle]],
     region: bpy.types.Region,
-    rv3d: bpy.types.RegionView3D
+    rv3d: bpy.types.RegionView3D,
 ) -> None:
     """Draws text box based on world position aligned to view"""
-    pos_2d = bpy_extras.view3d_utils.location_3d_to_region_2d(
-        region,
-        rv3d,
-        world_pos
-    )
+    pos_2d = bpy_extras.view3d_utils.location_3d_to_region_2d(region, rv3d, world_pos)
     text_box(pos_2d, width, padding, text_margin, background, texts)

@@ -86,7 +86,13 @@ class PlaneFittingTest(unittest.TestCase):
         # can't fit precisely! unit plane - (0, 0, 1), 0
         large = 100000000000
         normal, offset, _ = fit_plane_to_points(
-            [(-large, -large, 0.1), (-large, large, -0.1), (large, -large, 0.1), (large, large, -0.1)])
+            [
+                (-large, -large, 0.1),
+                (-large, large, -0.1),
+                (large, -large, 0.1),
+                (large, large, -0.1),
+            ]
+        )
         self.assertAlmostEqual(normal[0], 0)
         self.assertAlmostEqual(normal[1], 0)
         self.assertAlmostEqual(normal[2], 1)

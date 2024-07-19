@@ -5,6 +5,7 @@ import dataclasses
 import typing
 import logging
 from . import file_provider
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -21,9 +22,7 @@ class Category:
 DEFAULT_ROOT_CATEGORY = Category(id_="/", title="All")
 
 
-def infer_parent_category_id(
-    category_id: CategoryID
-) -> CategoryID:
+def infer_parent_category_id(category_id: CategoryID) -> CategoryID:
     """Infers parent category_id from 'category_id' by removing the last part.
 
     If root category provided then empty string is returned as there is nothing to split

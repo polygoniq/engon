@@ -21,8 +21,8 @@
 import bpy
 import gpu
 import typing
-import mapr
-import polib
+from .. import mapr
+from .. import polib
 from . import filters
 from . import previews
 from . import spawn
@@ -32,6 +32,7 @@ from . import utils
 from . import dev
 from .. import preferences
 from .. import asset_registry
+from .. import __package__ as base_package
 
 
 MODULE_CLASSES: typing.List[typing.Any] = []
@@ -85,11 +86,7 @@ class MAPR_BrowserPreferencesPopoverPanel(bpy.types.Panel):
     bl_space_type = 'PREFERENCES'
     bl_region_type = 'HEADER'
 
-    def draw_debug_info(
-        self,
-        layout: bpy.types.UILayout,
-        context: bpy.types.Context
-    ) -> None:
+    def draw_debug_info(self, layout: bpy.types.UILayout, context: bpy.types.Context) -> None:
         col = layout.column()
         col.operator(dev.MAPR_BrowserDeleteCache.bl_idname)
         col.operator(dev.MAPR_BrowserReconstructFilters.bl_idname)
@@ -134,14 +131,12 @@ class MAPR_ShowAssetDetail(bpy.types.Operator):
     bl_label = "Show Asset Detail"
 
     asset_id: bpy.props.StringProperty(
-        name="Asset ID",
-        description="ID of asset to spawn into scene",
-        options={'HIDDEN'}
+        name="Asset ID", description="ID of asset to spawn into scene", options={'HIDDEN'}
     )
 
     groups_collapse: bpy.props.BoolVectorProperty(
         size=len(mapr.known_metadata.PARAMETER_GROUPING),
-        default=[True] * len(mapr.known_metadata.PARAMETER_GROUPING)
+        default=[True] * len(mapr.known_metadata.PARAMETER_GROUPING),
     )
 
     def draw_parameters(self, layout: bpy.types.UILayout) -> None:
@@ -156,7 +151,9 @@ class MAPR_ShowAssetDetail(bpy.types.Operator):
 
         heading.label(text="Parameters")
         already_considered_parameters: typing.Set[str] = set()
-        for i, (group_name, group_parameters) in enumerate(mapr.known_metadata.PARAMETER_GROUPING.items()):
+        for i, (group_name, group_parameters) in enumerate(
+            mapr.known_metadata.PARAMETER_GROUPING.items()
+        ):
             asset_parameters: typing.List[str] = []
             for param_name in group_parameters:
                 param_name = mapr.parameter_meta.remove_type_from_name(param_name)
@@ -179,7 +176,7 @@ class MAPR_ShowAssetDetail(bpy.types.Operator):
                 index=i,
                 text=mapr.known_metadata.format_group_name(group_name),
                 emboss=False,
-                icon='RIGHTARROW' if collapse else 'DOWNARROW_HLT'
+                icon='RIGHTARROW' if collapse else 'DOWNARROW_HLT',
             )
             already_considered_parameters.update(asset_parameters)
             if collapse:
@@ -193,7 +190,8 @@ class MAPR_ShowAssetDetail(bpy.types.Operator):
                     # Format value with up to 2 decimal places without trailing zeros
                     value = int(value) if value % 1 == 0 else float(f"{value:.2f}")
                 col.label(
-                    text=f"{mapr.known_metadata.format_parameter_name(param_name)}: {value} {param_unit}")
+                    text=f"{mapr.known_metadata.format_parameter_name(param_name)}: {value} {param_unit}"
+                )
 
         not_yet_drawn = set(all_parameters) - already_considered_parameters
 
@@ -244,7 +242,7 @@ def draw_asset_buttons_row(
     context: bpy.types.Context,
     layout: bpy.types.UILayout,
     asset: mapr.asset.Asset,
-    preview_scale: float
+    preview_scale: float,
 ) -> None:
     # The columns scale based on the content, we need to trim the text so the width of assets
     # resizes correctly.
@@ -258,24 +256,22 @@ def draw_asset_buttons_row(
     row.operator(
         spawn.MAPR_BrowserSpawnAsset.bl_idname,
         text=asset_title,
-        icon=utils.get_icon_of_asset_data_type(asset.type_)
+        icon=utils.get_icon_of_asset_data_type(asset.type_),
     ).asset_id = str(asset.id_)
 
     use_separator = False
     if "Drawable" in asset.tags or asset.id_ in DRAWABLE_GEONODES_ASSET_IDS:
         row.operator(
-            spawn.MAPR_BrowserDrawGeometryNodesAsset.bl_idname,
-            text="",
-            icon='GREASEPENCIL'
+            spawn.MAPR_BrowserDrawGeometryNodesAsset.bl_idname, text="", icon='GREASEPENCIL'
         ).asset_id = str(asset.id_)
         use_separator = True
 
-    if asset.type_ == mapr.asset_data.AssetDataType.blender_model and \
-            spawn.MAPR_BrowserSpawnModelIntoParticleSystem.poll(context):
+    if (
+        asset.type_ == mapr.asset_data.AssetDataType.blender_model
+        and spawn.MAPR_BrowserSpawnModelIntoParticleSystem.poll(context)
+    ):
         row.operator(
-            spawn.MAPR_BrowserSpawnModelIntoParticleSystem.bl_idname,
-            text="",
-            icon='PARTICLES'
+            spawn.MAPR_BrowserSpawnModelIntoParticleSystem.bl_idname, text="", icon='PARTICLES'
         ).asset_id = str(asset.id_)
         use_separator = True
 
@@ -286,19 +282,16 @@ def draw_asset_buttons_row(
     if prefs.debug and dev.IS_DEV:
         row.separator()
         row.operator(
-            dev.MAPR_BrowserOpenAssetSourceBlend.bl_idname,
-            text="",
-            icon='HOME'
+            dev.MAPR_BrowserOpenAssetSourceBlend.bl_idname, text="", icon='HOME'
         ).asset_id = str(asset.id_)
 
-    row.operator(
-        MAPR_ShowAssetDetail.bl_idname, text="", icon='VIEWZOOM').asset_id = str(asset.id_)
+    row.operator(MAPR_ShowAssetDetail.bl_idname, text="", icon='VIEWZOOM').asset_id = str(asset.id_)
 
 
 def draw_asset_previews(
     context: bpy.types.Context,
     layout: bpy.types.UILayout,
-    mapr_prefs: preferences.mapr_preferences.MaprPreferences
+    mapr_prefs: preferences.mapr_preferences.MaprPreferences,
 ) -> None:
     pm = previews.preview_manager
     assets = filters.asset_repository.current_assets
@@ -334,7 +327,9 @@ def draw_asset_previews(
         row.alignment = 'CENTER'
         if filters.asset_repository.current_category_id != mapr.category.DEFAULT_ROOT_CATEGORY.id_:
             row.operator(
-                categories.MAPR_BrowserEnterCategory.bl_idname, text="Search All Categories", icon='LOOP_BACK'
+                categories.MAPR_BrowserEnterCategory.bl_idname,
+                text="Search All Categories",
+                icon='LOOP_BACK',
             ).category_id = mapr.category.DEFAULT_ROOT_CATEGORY.id_
         row.operator(
             filters.MAPR_BrowserResetFilter.bl_idname, text="Reset All Filters", icon='PANEL_CLOSE'
@@ -351,29 +346,16 @@ def draw_asset_previews(
         entry = grid_flow.box().column(align=True)
         # Convert percentages to Blender icon scale, 0% = 5.0, 100% = 12.5
         preview_scale = mapr_prefs.preview_scale_percentage / 100 * 7.5 + 5
-        entry.template_icon(
-            pm.get_icon_id(asset.id_),
-            scale=preview_scale
-        )
+        entry.template_icon(pm.get_icon_id(asset.id_), scale=preview_scale)
         draw_asset_buttons_row(context, entry, asset, preview_scale)
 
 
 def is_known_browser(window: bpy.types.Window) -> bool:
+    """Returns true if the given 'window' is a known browser window (It was opened by us)"""
     return bool(window.screen.get(IS_KNOWN_BROWSER, False))
 
 
-def override_wrap(self, context: bpy.types.Context, override: typing.Callable[..., None]) -> None:
-    panel_name_type = type(self).__name__
-    compatible_sections = {'ADDONS', 'KEYMAP', 'THEMES'}
-    # If user changed the active section in preferences, the browser will appear incorrect
-    # if not in compatible section.
-    MAPR_BrowserOpen.is_browser_override_correct = context.preferences.active_section in compatible_sections
-    if not is_known_browser(context.window):
-        return MAPR_BrowserOpen.USERPERF_prev_draw[panel_name_type](self, context)
-    return override(self, context)
-
-
-def prefs_content_draw_override(self, context: bpy.types.Context) -> None:
+def prefs_content_draw(self, context: bpy.types.Context) -> None:
     what_is_new_prefs = preferences.prefs_utils.get_preferences(context).what_is_new_preferences
     layout = self.layout
     if what_is_new_prefs.display_what_is_new:
@@ -388,13 +370,15 @@ def prefs_content_draw_override(self, context: bpy.types.Context) -> None:
     draw_asset_previews(context, layout, prefs)
 
 
-def prefs_navbar_draw_override(self, context: bpy.types.Context) -> None:
+def prefs_navbar_draw(self, context: bpy.types.Context) -> None:
     layout = self.layout
     prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
 
     row = layout.row(align=True)
-    row.label(text="engon browser",
-              icon_value=polib.ui_bpy.icon_manager.get_polygoniq_addon_icon_id("engon"))
+    row.label(
+        text="engon browser",
+        icon_value=polib.ui_bpy.icon_manager.get_polygoniq_addon_icon_id("engon"),
+    )
 
     sub = row.row()
     sub.alert = True
@@ -412,7 +396,7 @@ def prefs_navbar_draw_override(self, context: bpy.types.Context) -> None:
     filters.draw(context, layout)
 
 
-def prefs_header_draw_override(self, context: bpy.types.Context) -> None:
+def prefs_header_draw(self, context: bpy.types.Context) -> None:
     layout: bpy.types.UILayout = self.layout
     prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
     layout.scale_x, layout.scale_y = 1, 1
@@ -443,11 +427,40 @@ def prefs_header_draw_override(self, context: bpy.types.Context) -> None:
     )
 
 
+def _override_proxy(self, context: bpy.types.Context, override: typing.Callable[..., None]) -> None:
+    """Proxy to the override function so we can control whether we draw the browser."""
+    panel_name_type = type(self).__name__
+    compatible_sections = {'ADDONS', 'KEYMAP', 'THEMES'}
+    # If user changed the active section in preferences, the browser will appear incorrect
+    # if not in compatible section.
+    MAPR_BrowserOpen.is_browser_override_correct = (
+        context.preferences.active_section in compatible_sections
+    )
+    if not is_known_browser(context.window):
+        # If the browser is not known, we draw the original panel
+        return MAPR_BrowserOpen.USERPREF_prev_draw[panel_name_type](self, context)
+    return override(self, context)
+
+
+def _prefs_navbar_draw_override(self, context: bpy.types.Context) -> None:
+    _override_proxy(self, context, prefs_navbar_draw)
+
+
+def _prefs_header_draw_override(self, context: bpy.types.Context) -> None:
+    _override_proxy(self, context, prefs_header_draw)
+
+
+def _prefs_content_draw_override(self, context: bpy.types.Context) -> None:
+    _override_proxy(self, context, prefs_content_draw)
+
+
 @polib.log_helpers_bpy.logged_operator
 class MAPR_EnsureCorrectActivePrefSection(bpy.types.Operator):
     bl_idname = "engon.ensure_correct_active_perf_section"
-    bl_description = "After opening preferences and changing the section, the engon browser might "\
+    bl_description = (
+        "After opening preferences and changing the section, the engon browser might "
         "look unusual. This fixes the issue by changing to the 'ADDONS' section"
+    )
     bl_label = "Fix engon Browser Layout"
 
     def execute(self, context: bpy.types.Context):
@@ -466,19 +479,20 @@ class MAPR_BrowserOpen(bpy.types.Operator):
 
     # We store previous draw functions as class properties to be returned in
     # MAPR_ReturnPreferences
-    USERPERF_prev_draw: typing.Dict[str, typing.Callable[..., None]] = {}
+    USERPREF_prev_draw: typing.Dict[str, typing.Callable[..., None]] = {}
     prev_area_ui_types: typing.Dict[bpy.types.Area, str] = {}
     is_browser_override_correct: bpy.props.BoolProperty(
         options={'HIDDEN'},
         description="When user changes the active section in preferences to an incompatible one, "
-                    "the engon browser might appear incorrect and this property will be set to false",
-        default=True
+        "the engon browser might appear incorrect and this property will be set to false",
+        default=True,
     )
 
     def execute(self, context: bpy.types.Context):
         area = context.area
         existing_windows = [
-            w for w in context.window_manager.windows if w.screen.get(IS_KNOWN_BROWSER_POPUP, False)]
+            w for w in context.window_manager.windows if w.screen.get(IS_KNOWN_BROWSER_POPUP, False)
+        ]
         # If any windows are already open, close them and reopen one window again so it is
         # focused.
         for window in existing_windows:
@@ -496,28 +510,35 @@ class MAPR_BrowserOpen(bpy.types.Operator):
     @classmethod
     def hijack_preferences(cls, context: bpy.types.Context) -> None:
         context.preferences.active_section = 'ADDONS'
-        for userperf_type_name in filter(lambda t: t.startswith("USERPREF_"), dir(bpy.types)):
+        # We hijack the draw functions of preferences, to override it with our own.
+        for userpref_type_name in filter(lambda t: t.startswith("USERPREF_"), dir(bpy.types)):
             # Save previous overrides if any, so we can return them, save only if we did not hijack yet
-            if userperf_type_name in cls.USERPERF_prev_draw:
+            if userpref_type_name in cls.USERPREF_prev_draw:
                 continue
-            userperf_type = getattr(bpy.types, userperf_type_name)
-            if not hasattr(userperf_type, "draw"):
+            userpref_type = getattr(bpy.types, userpref_type_name)
+            if not hasattr(userpref_type, "draw"):
                 continue
-            cls.USERPERF_prev_draw[userperf_type_name] = userperf_type.draw
-            if userperf_type == bpy.types.USERPREF_PT_navigation_bar:
-                userperf_type.draw = lambda s, context: override_wrap(
-                    s, context, prefs_navbar_draw_override)
-            elif userperf_type == bpy.types.USERPREF_HT_header:
-                userperf_type.draw = lambda s, context: override_wrap(
-                    s, context, prefs_header_draw_override)
+            cls.USERPREF_prev_draw[userpref_type_name] = userpref_type.draw
+            _draw_funcs = getattr(userpref_type.draw, "_draw_funcs", None)
+            if userpref_type == bpy.types.USERPREF_PT_navigation_bar:
+                userpref_type.draw = _prefs_navbar_draw_override
+            elif userpref_type == bpy.types.USERPREF_HT_header:
+                userpref_type.draw = _prefs_header_draw_override
             else:
-                userperf_type.draw = lambda s, context: override_wrap(
-                    s, context, prefs_content_draw_override)
+                userpref_type.draw = _prefs_content_draw_override
+
+            # Since Blender 4.2 there can be multiple draw functions per panel, this needs to be
+            # retrieved and stored in our override draw function too, so other methods dependent
+            # on the _draw_funcs variable work correctly. (Like 'is_extended').
+            if _draw_funcs is not None:
+                userpref_type.draw._draw_funcs = _draw_funcs
 
         utils.tag_prefs_redraw(context)
 
     @classmethod
-    def open_browser(cls, context: bpy.types.Context, window: bpy.types.Window, area: bpy.types.Area) -> None:
+    def open_browser(
+        cls, context: bpy.types.Context, window: bpy.types.Window, area: bpy.types.Area
+    ) -> None:
         cls.prev_area_ui_types[area] = area.ui_type
         window.screen[IS_KNOWN_BROWSER] = True
         area.ui_type = 'PREFERENCES'
@@ -526,7 +547,8 @@ class MAPR_BrowserOpen(bpy.types.Operator):
         # query and reconstruct the filters manually within the root category.
         if filters.asset_repository.last_view is None:
             filters.get_filters(context).query_and_reconstruct(
-                mapr.category.DEFAULT_ROOT_CATEGORY.id_)
+                mapr.category.DEFAULT_ROOT_CATEGORY.id_
+            )
 
         cls.hijack_preferences(context)
 
@@ -569,7 +591,8 @@ class MAPR_BrowserChooseArea(bpy.types.Operator):
                 key = (space_type, region.type)
                 if key not in MAPR_BrowserChooseArea.handlers:
                     handle = space_type.draw_handler_add(
-                        self.draw_callback, (context,), region.type, 'POST_PIXEL')
+                        self.draw_callback, (context,), region.type, 'POST_PIXEL'
+                    )
                     MAPR_BrowserChooseArea.handlers[key] = handle
 
     def draw_handler_remove_all(self):
@@ -622,9 +645,10 @@ class MAPR_BrowserClose(bpy.types.Operator):
     def return_preferences(context: bpy.types.Context, store_state_to_prefs: bool = True) -> None:
         # We use the previously stored draw functions from MAPR_OpenBrowser. There can be other
         # addons overriding the functionality, so we return what was in the preferences before.
-        for userperf_type_str, prev_draw in MAPR_BrowserOpen.USERPERF_prev_draw.items():
-            getattr(bpy.types, userperf_type_str).draw = prev_draw
-        MAPR_BrowserOpen.USERPERF_prev_draw.clear()
+        for userpref_type_str, prev_draw in MAPR_BrowserOpen.USERPREF_prev_draw.items():
+            type_ = getattr(bpy.types, userpref_type_str)
+            type_.draw = prev_draw
+        MAPR_BrowserOpen.USERPREF_prev_draw.clear()
 
         # Return all areas that still exist and were open at runtime to previous state
         all_areas = {a for window in context.window_manager.windows for a in window.screen.areas}
@@ -658,14 +682,18 @@ MODULE_CLASSES.append(MAPR_BrowserClose)
 @polib.log_helpers_bpy.logged_operator
 class MAPR_BrowserToggleArea(bpy.types.Operator):
     bl_idname = "engon.browser_toggle_area"
-    bl_description = "Toggles area under mouse to engon browser and back. If the previous area " \
+    bl_description = (
+        "Toggles area under mouse to engon browser and back. If the previous area "
         "contained preferences, this does nothing"
+    )
     bl_label = "Toggle engon Browser"
 
     def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         col = layout.column(align=True)
-        col.label(text="Returning to preferences will close the browser in all other areas of this window.")
+        col.label(
+            text="Returning to preferences will close the browser in all other areas of this window."
+        )
         col.label(text="Do you want to continue?")
 
     def execute(self, context: bpy.types.Context):
@@ -710,10 +738,7 @@ class MAPR_BrowserOpenAssetPacksPreferences(bpy.types.Operator):
     bl_label = "Open Preferences"
 
     def execute(self, context: bpy.types.Context):
-        top_package = __package__.split(".", 1)[0]
-        assert top_package != "", \
-            f"Top package of hierarchy `{__package__}` cannot be an empty string!"
-        bpy.ops.preferences.addon_show(module=top_package)
+        bpy.ops.preferences.addon_show(module=base_package)
         gen_prefs = preferences.prefs_utils.get_preferences(context).general_preferences
         gen_prefs.show_asset_packs = True
         gen_prefs.show_pack_info_paths = False
@@ -737,7 +762,7 @@ def _subscribe_msg_bus():
         owner=_MSGBUS_OWNER,
         args=(),
         notify=_active_object_changed,
-        options={'PERSISTENT'}
+        options={'PERSISTENT'},
     )
 
 

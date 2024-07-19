@@ -21,8 +21,9 @@
 import bpy
 import typing
 import logging
-import polib
-import hatchery
+from .. import polib
+from .. import hatchery
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -70,11 +71,7 @@ class ReplaceMaterial(bpy.types.Operator):
         return context.window_manager.invoke_props_dialog(self)
 
     def replace_material(
-        self,
-        m1: str,
-        m2: str,
-        only_selected: bool = True,
-        update_selection: bool = False
+        self, m1: str, m2: str, only_selected: bool = True, update_selection: bool = False
     ) -> None:
         # replace material named m1 with material named m2
         # m1 is the name of original material
@@ -117,8 +114,9 @@ class ReplaceMaterial(bpy.types.Operator):
                 ob.select_set(changed)
 
     def execute(self, context: bpy.types.Context):
-        self.replace_material(self.mat_orig, self.mat_rep, self.only_selected,
-                              self.update_selection)
+        self.replace_material(
+            self.mat_orig, self.mat_rep, self.only_selected, self.update_selection
+        )
         logger.info(f"Replaced material {self.mat_orig} with material {self.mat_rep}")
         self.mat_orig = ""
         self.mat_rep = ""

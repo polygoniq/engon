@@ -3,10 +3,11 @@
 import bpy
 import typing
 import logging
-import polib
+from .. import polib
 from . import filters
 from .. import asset_registry
 from .. import preferences
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -24,15 +25,20 @@ def get_updated_asset_packs(context: bpy.types.Context) -> typing.Set[asset_regi
     return never_seen_packs
 
 
-def _draw_what_is_new_browser_operators(layout: bpy.types.UILayout, updated_packs: typing.Set[asset_registry.AssetPack]) -> None:
+def _draw_what_is_new_browser_operators(
+    layout: bpy.types.UILayout, updated_packs: typing.Set[asset_registry.AssetPack]
+) -> None:
     for asset_pack in updated_packs:
         category = asset_registry.instance.master_asset_provider.get_category_safe(
-            asset_pack.main_category_id)
+            asset_pack.main_category_id
+        )
         search_op = layout.operator(
             MAPR_BrowserDisplayNewAssets.bl_idname,
             text=category.title,
             **polib.ui_bpy.get_asset_pack_icon_parameters(
-                asset_pack.get_pack_icon_id(), 'ASSET_MANAGER'))
+                asset_pack.get_pack_icon_id(), 'ASSET_MANAGER'
+            ),
+        )
         search_op.category_id = category.id_
         search_op.pack_name = asset_pack.full_name
 
@@ -57,14 +63,11 @@ def draw_what_is_new_browser_prompt(context: bpy.types.Context, layout: bpy.type
         row.popover(
             MAPR_BrowserWhatIsNewPopoverPanel.bl_idname,
             icon='OUTLINER_OB_LIGHT',
-            text="See What's New!")
+            text="See What's New!",
+        )
 
     row.separator()
-    row.operator(
-        MAPR_BrowserDismissNewAssets.bl_idname,
-        text="",
-        icon='X'
-    )
+    row.operator(MAPR_BrowserDismissNewAssets.bl_idname, text="", icon='X')
 
     layout.separator()
 
@@ -72,7 +75,7 @@ def draw_what_is_new_browser_prompt(context: bpy.types.Context, layout: bpy.type
 def _ensure_asset_pack_known(
     what_is_new_pref: preferences.what_is_new_preferences.WhatIsNewPreferences,
     pack_full_name: str,
-    pack_version: typing.Tuple[int, int, int]
+    pack_version: typing.Tuple[int, int, int],
 ) -> None:
     # If an asset pack is not present seen_packs, it means that it's a completely new pack.
     # We don't want to display the 'what is new' filter for such asset pack,
@@ -110,16 +113,16 @@ MODULE_CLASSES.append(MAPR_BrowserWhatIsNewPopoverPanel)
 class MAPR_BrowserDisplayNewAssets(bpy.types.Operator):
     bl_idname = "engon.browser_display_new_assets"
     bl_label = "Display New Assets"
-    bl_description = "Resets all filters in engon " \
-                     "and searches for assets that were added since the seen asset pack version"
+    bl_description = (
+        "Resets all filters in engon "
+        "and searches for assets that were added since the seen asset pack version"
+    )
 
     pack_name: bpy.props.StringProperty(
-        name="Asset Pack Name",
-        description="Full name of the asset pack to search from"
+        name="Asset Pack Name", description="Full name of the asset pack to search from"
     )
     category_id: bpy.props.StringProperty(
-        name="Category ID",
-        description="Category ID belonging to the asset pack to search from"
+        name="Category ID", description="Category ID belonging to the asset pack to search from"
     )
 
     def execute(self, context: bpy.types.Context):
@@ -136,7 +139,8 @@ class MAPR_BrowserDisplayNewAssets(bpy.types.Operator):
         filter_ = dyn_filters.get_param_filter("vec:introduced_in")
         if filter_ is None:
             logger.error(
-                f"No mandatory 'vec:introduced_in' parameter in asset pack {self.pack_name}")
+                f"No mandatory 'vec:introduced_in' parameter in asset pack {self.pack_name}"
+            )
             return {'CANCELLED'}
         newest_version = asset_pack.version
         filter_.range_start = (old_major, old_minor, old_patch + 1)

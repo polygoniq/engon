@@ -22,7 +22,7 @@ import bpy
 import typing
 import math
 import mathutils
-import polib
+from ... import polib
 from . import road_network
 from . import props
 from . import asset_helpers
@@ -39,6 +39,7 @@ class CrossroadBuilder:
     - Crossroad objects have to have location set to (0, 0, 0)
     - If segment adjacent to crossroad is moved, it's no longer considered connected
     """
+
     # Class variable keeping track of current count of crossroads in the scene
     # this is used to create unique id.
     crossroad_count = 0
@@ -50,20 +51,23 @@ class CrossroadBuilder:
         cx_geonodes_lib_path: str,
     ):
         self.main_collection = main_collection
-        asset_helpers.load_geometry_nodes(cx_geonodes_lib_path, {
-            x.value for x in asset_helpers.CrossroadNodegroup
-        })
-        asset_helpers.load_geometry_nodes(geonodes_lib_path, {
-            x.value for x in asset_helpers.RoadNodegroup
-        })
+        asset_helpers.load_geometry_nodes(
+            cx_geonodes_lib_path, {x.value for x in asset_helpers.CrossroadNodegroup}
+        )
+        asset_helpers.load_geometry_nodes(
+            geonodes_lib_path, {x.value for x in asset_helpers.RoadNodegroup}
+        )
 
         self.cx_register_ng = bpy.data.node_groups.get(
-            asset_helpers.CrossroadNodegroup.Register.value)
+            asset_helpers.CrossroadNodegroup.Register.value
+        )
         self.cx_profile_ng = bpy.data.node_groups.get(
-            asset_helpers.CrossroadNodegroup.Profile.value)
+            asset_helpers.CrossroadNodegroup.Profile.value
+        )
         self.cx_build_ng = bpy.data.node_groups.get(asset_helpers.CrossroadNodegroup.Build.value)
         self.cx_instance_ng = bpy.data.node_groups.get(
-            asset_helpers.CrossroadNodegroup.Instance.value)
+            asset_helpers.CrossroadNodegroup.Instance.value
+        )
         self.road_markings_ng = bpy.data.node_groups.get(asset_helpers.RoadNodegroup.Markings.value)
         self.crosswalk_ng = bpy.data.node_groups.get(asset_helpers.RoadNodegroup.Crosswalk.value)
         self.cleanup_ng = bpy.data.node_groups.get(asset_helpers.RoadNodegroup.Cleanup.value)
@@ -71,7 +75,7 @@ class CrossroadBuilder:
     def build_crossroad(
         self,
         input_adjacencies: typing.List[road_network.SegmentAdjacency],
-        position: typing.Optional[mathutils.Vector] = None
+        position: typing.Optional[mathutils.Vector] = None,
     ) -> road_network.Crossroad:
         """Builds crossroad geometry out of 'input_adjacencies'
 
@@ -99,7 +103,8 @@ class CrossroadBuilder:
         # 2. For each input add input geonodes layer
         for i in range(len(ccw_adjacencies)):
             self._create_adjacency_nodes(
-                ccw_adjacencies[i], ccw_adjacencies[(i + 1) % len(ccw_adjacencies)], cx_root_obj, i)
+                ccw_adjacencies[i], ccw_adjacencies[(i + 1) % len(ccw_adjacencies)], cx_root_obj, i
+            )
 
         # 3. Add the Build CX node group
         mod: bpy.types.NodesModifier = cx_root_obj.modifiers.new(f"Build Crossroad", type='NODES')
@@ -127,9 +132,11 @@ class CrossroadBuilder:
 
         if position is None:
             position = polib.linalg_bpy.mean_position(
-                adj.adjacent_point.co for adj in input_adjacencies)
+                adj.adjacent_point.co for adj in input_adjacencies
+            )
         crossroad = road_network.Crossroad(
-            id_, cx_coll, cx_root_obj, set(input_adjacencies), position)
+            id_, cx_coll, cx_root_obj, set(input_adjacencies), position
+        )
 
         cleanup_mod = cx_root_obj.modifiers.new("Cleanup", type='NODES')
         cleanup_mod.node_group = self.cleanup_ng
@@ -140,8 +147,7 @@ class CrossroadBuilder:
         return crossroad
 
     def _sort_adjacencies_ccw(
-        self,
-        adjacencies: typing.List[road_network.SegmentAdjacency]
+        self, adjacencies: typing.List[road_network.SegmentAdjacency]
     ) -> typing.List[road_network.SegmentAdjacency]:
         """Sorts segment adjacencies counter-clockwise based on their mean position"""
 
@@ -164,7 +170,7 @@ class CrossroadBuilder:
         start_adjacency: road_network.SegmentAdjacency,
         end_adjacency: road_network.SegmentAdjacency,
         cx_root_obj: bpy.types.Object,
-        adj_idx: int
+        adj_idx: int,
     ) -> None:
         adj = start_adjacency.segment
         adj_next = end_adjacency.segment
@@ -172,7 +178,8 @@ class CrossroadBuilder:
         p_next_co = end_adjacency.adjacent_point.co
 
         mod: bpy.types.NodesModifier = cx_root_obj.modifiers.new(
-            f"Adjacent Road {adj_idx}", type='NODES')
+            f"Adjacent Road {adj_idx}", type='NODES'
+        )
         mod.node_group = self.cx_register_ng
         inputs_view = polib.geonodes_mod_utils_bpy.NodesModifierInputsNameView(mod)
         inputs_view.set_obj_input_value("Road 1", adj.curve_object.name)
@@ -194,14 +201,17 @@ class CrossroadBuilder:
 
         for j, profile in enumerate(adj.type_.outer_profiles):
             profile_mod: bpy.types.NodesModifier = cx_root_obj.modifiers.new(
-                f"Crossroad Profile {adj_idx}-{j}", type='NODES')
+                f"Crossroad Profile {adj_idx}-{j}", type='NODES'
+            )
             profile_mod.node_group = self.cx_profile_ng
             profile_inputs_view = polib.geonodes_mod_utils_bpy.NodesModifierInputsNameView(
-                profile_mod)
+                profile_mod
+            )
             profile_inputs_view.set_obj_input_value("Road 1", adj.curve_object.name)
             profile_inputs_view.set_obj_input_value("Road 2", adj_next.curve_object.name)
             profile_inputs_view.set_input_value(
-                "Adjacent Roads Snap", min(profile["Width"], profile["Height"]))
+                "Adjacent Roads Snap", min(profile["Width"], profile["Height"])
+            )
             for name, value in profile.items():
                 if name not in profile_inputs_view:
                     continue
@@ -216,32 +226,39 @@ class CrossroadBuilder:
             if not math.isclose(profile["Horizontal Offset"], 0.0):
                 profile_inputs_view.set_input_value(
                     "Horizontal Offset",
-                    adj.type_.road_surface_width / 2.0 - profile["Horizontal Offset"])
+                    adj.type_.road_surface_width / 2.0 - profile["Horizontal Offset"],
+                )
 
     def _add_road_markings(
         self,
         ccw_adjacencies: typing.List[road_network.SegmentAdjacency],
         base_segment: road_network.RoadSegment,
-        cx_root_obj: bpy.types.Object
+        cx_root_obj: bpy.types.Object,
     ) -> None:
         # Use road markings based on the widest road, only add markings if they are present in
         # all of adjacencies. Add after Build CX so the road markings snap to the built surface
-        if len(base_segment.type_.road_markings) > 0 and \
-           all(adj.segment.type_.has_outer_road_markings() for adj in ccw_adjacencies):
+        if len(base_segment.type_.road_markings) > 0 and all(
+            adj.segment.type_.has_outer_road_markings() for adj in ccw_adjacencies
+        ):
             base_road_markings = base_segment.type_.road_markings[-1]
             markings_mod: bpy.types.NodesModifier = cx_root_obj.modifiers.new(
-                "Road Markings", type='NODES')
+                "Road Markings", type='NODES'
+            )
             markings_mod.node_group = self.road_markings_ng
             markings_inputs_view = polib.geonodes_mod_utils_bpy.NodesModifierInputsNameView(
-                markings_mod)
+                markings_mod
+            )
             markings_inputs_view.set_input_value("Width", base_road_markings.get("Width", 0.1))
             markings_inputs_view.set_input_value(
-                "Marking Length", base_road_markings.get("Marking Length", 0.0))
+                "Marking Length", base_road_markings.get("Marking Length", 0.0)
+            )
             markings_inputs_view.set_input_value(
-                "Space Length", base_road_markings.get("Space Length", 0.0))
+                "Space Length", base_road_markings.get("Space Length", 0.0)
+            )
             markings_inputs_view.set_input_value(
                 "Offset",
-                base_segment.type_.road_surface_width / 2.0 - base_road_markings.get("Offset", 0.0))
+                base_segment.type_.road_surface_width / 2.0 - base_road_markings.get("Offset", 0.0),
+            )
             markings_inputs_view.set_input_value("Mirror", False)
 
             material = base_road_markings.get("Material")
@@ -264,48 +281,57 @@ class CrossroadBuilder:
         cx_root_obj: bpy.types.Object,
         adjacencies: typing.List[road_network.SegmentAdjacency],
         cx_type: props.CrossroadType,
-        yield_method: props.CrossroadYieldMethod
+        yield_method: props.CrossroadYieldMethod,
     ) -> None:
 
         sorted_adjacencies = list(enumerate(adjacencies))
         if yield_method == props.CrossroadYieldMethod.NARROW_ROAD:
             sorted_adjacencies = sorted(
-                sorted_adjacencies, key=lambda adj: adj[1].segment.type_.road_surface_width)
+                sorted_adjacencies, key=lambda adj: adj[1].segment.type_.road_surface_width
+            )
         elif yield_method == props.CrossroadYieldMethod.SHORTER_SEGMENT:
             sorted_adjacencies = sorted(
-                sorted_adjacencies, key=lambda adj: adj[1].segment.spline.calc_length())
+                sorted_adjacencies, key=lambda adj: adj[1].segment.spline.calc_length()
+            )
         else:
             raise ValueError(
-                f"Unsupported yield method for creating crossroad signs {yield_method}")
+                f"Unsupported yield method for creating crossroad signs {yield_method}"
+            )
 
         # First two of the sorted adjacencies are the major road, other are the second
         for i, adj in sorted_adjacencies:
             mod: bpy.types.NodesModifier = cx_root_obj.modifiers.new(
-                f"Control Sign {i}", type='NODES')
+                f"Control Sign {i}", type='NODES'
+            )
             mod.node_group = self.cx_instance_ng
             mod_inputs_view = polib.geonodes_mod_utils_bpy.NodesModifierInputsNameView(mod)
             # Offset by a meter of the road surface width
             mod_inputs_view.set_input_value(
-                "Offset", (adj.segment.type_.road_surface_width / 2.0) + 1)
+                "Offset", (adj.segment.type_.road_surface_width / 2.0) + 1
+            )
             mod_inputs_view.set_input_value("Point Index", len(sorted_adjacencies) - i - 1)
             # In case of traffic lights we put them on each of the adjacent roads
             if cx_type == props.CrossroadType.TRAFFIC_LIGHTS:
                 mod_inputs_view.set_collection_input_value(
-                    "Collection", "StreetElement_Traffic-Light_3+3-570cm")
+                    "Collection", "StreetElement_Traffic-Light_3+3-570cm"
+                )
                 continue
 
             # Add priority signs to the first two roads (as the other ones are narrower or
             # have smaller segments), and additional roads will have either yield or stop signs
             if i <= 1:
                 mod_inputs_view.set_collection_input_value(
-                    "Collection", "StreetSign_Priority_Priority-Road")
+                    "Collection", "StreetSign_Priority_Priority-Road"
+                )
             else:
                 if cx_type == props.CrossroadType.YIELD:
                     mod_inputs_view.set_collection_input_value(
-                        "Collection", "StreetSign_Priority_Yield")
+                        "Collection", "StreetSign_Priority_Yield"
+                    )
                 elif cx_type == props.CrossroadType.STOP:
                     mod_inputs_view.set_collection_input_value(
-                        "Collection", "StreetSign_Priority_Stop")
+                        "Collection", "StreetSign_Priority_Stop"
+                    )
                 # Traffic Lights should be already handled and skipped at this point
                 else:
                     raise ValueError(f"Unknown CrossroadType {cx_type}")

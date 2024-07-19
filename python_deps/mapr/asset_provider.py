@@ -10,6 +10,7 @@ from . import asset_data
 from . import query
 from . import parameter_meta
 import logging
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -30,8 +31,7 @@ class DataView:
         logger.debug(f"Created DataView {self}")
 
     def _get_sort_parameters(
-        self,
-        sort_mode: str
+        self, sort_mode: str
     ) -> typing.Tuple[typing.Callable[[asset.Asset], str], bool]:
         """Return lambda and reverse bool to pass into Python sort() based on sort mode
 
@@ -45,8 +45,10 @@ class DataView:
             raise NotImplementedError(f"Unknown sort mode {sort_mode}")
 
     def __repr__(self) -> str:
-        return f"DataView at {id(self)} based on query:\n {self.used_query} " \
+        return (
+            f"DataView at {id(self)} based on query:\n {self.used_query} "
             f"containing {len(self.assets)} assets"
+        )
 
 
 class EmptyDataView(DataView):
@@ -79,7 +81,9 @@ class AssetProvider(abc.ABC):
         return "/"
 
     @abc.abstractmethod
-    def list_child_category_ids(self, parent_id: category.CategoryID) -> typing.Iterable[category.CategoryID]:
+    def list_child_category_ids(
+        self, parent_id: category.CategoryID
+    ) -> typing.Iterable[category.CategoryID]:
         """Lists IDs of all categories that are direct children of given parent category
 
         This is low level API, consider using list_categories instead of this.
@@ -87,7 +91,9 @@ class AssetProvider(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def list_child_asset_ids(self, parent_id: category.CategoryID) -> typing.Iterable[asset.AssetID]:
+    def list_child_asset_ids(
+        self, parent_id: category.CategoryID
+    ) -> typing.Iterable[asset.AssetID]:
         """Lists IDs of all assets that are direct children of given parent category
 
         This is low level API, consider using list_assets instead of this.
@@ -95,7 +101,9 @@ class AssetProvider(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def list_asset_data_ids(self, asset_id: asset.AssetID) -> typing.Iterable[asset_data.AssetDataID]:
+    def list_asset_data_ids(
+        self, asset_id: asset.AssetID
+    ) -> typing.Iterable[asset_data.AssetDataID]:
         """List all asset data IDs of given asset ID.
 
         This is low level API, consider using list_asset_data instead of this.
@@ -104,20 +112,19 @@ class AssetProvider(abc.ABC):
 
     @abc.abstractmethod
     def get_category(self, category_id: category.CategoryID) -> typing.Optional[category.Category]:
-        """Returns metadata of a category with given ID
-        """
+        """Returns metadata of a category with given ID"""
         pass
 
     @abc.abstractmethod
     def get_asset(self, asset_id: asset.AssetID) -> typing.Optional[asset.Asset]:
-        """Returns metadata of an asset with given ID
-        """
+        """Returns metadata of an asset with given ID"""
         pass
 
     @abc.abstractmethod
-    def get_asset_data(self, asset_data_id: asset_data.AssetDataID) -> typing.Optional[asset_data.AssetData]:
-        """Returns metadata of asset data with given ID
-        """
+    def get_asset_data(
+        self, asset_data_id: asset_data.AssetDataID
+    ) -> typing.Optional[asset_data.AssetData]:
+        """Returns metadata of asset data with given ID"""
         pass
 
     def query(self, query_: query.Query) -> DataView:
@@ -127,7 +134,9 @@ class AssetProvider(abc.ABC):
         """
         return DataView(self, query_)
 
-    def list_categories(self, parent_id: category.CategoryID, recursive: bool = False) -> typing.Iterable[category.Category]:
+    def list_categories(
+        self, parent_id: category.CategoryID, recursive: bool = False
+    ) -> typing.Iterable[category.Category]:
         """List child categories of a given parent category
 
         parent_id: ID of the parent category, see get_root_category_id
@@ -141,14 +150,9 @@ class AssetProvider(abc.ABC):
                 yield from self.list_categories(id_, True)
 
     def list_sorted_categories(
-        self,
-        parent_id: category.CategoryID,
-        recursive: bool = False
+        self, parent_id: category.CategoryID, recursive: bool = False
     ) -> typing.Iterable[category.Category]:
-        yield from sorted(
-            self.list_categories(parent_id),
-            key=lambda x: x.title
-        )
+        yield from sorted(self.list_categories(parent_id), key=lambda x: x.title)
 
     def get_category_id_from_string(self, category_id_str: str) -> category.CategoryID:
         """Finds category ID provided based on given 'category_id_str'
@@ -180,7 +184,9 @@ class AssetProvider(abc.ABC):
 
         return category_
 
-    def list_assets(self, parent_id: category.CategoryID, recursive: bool = False) -> typing.Iterable[asset.Asset]:
+    def list_assets(
+        self, parent_id: category.CategoryID, recursive: bool = False
+    ) -> typing.Iterable[asset.Asset]:
         """List child assets of a given parent category
 
         parent_id: ID of the parent category, see get_root_category_id
@@ -197,8 +203,7 @@ class AssetProvider(abc.ABC):
                 yield from self.list_assets(id_, True)
 
     def list_asset_data(self, asset_id: asset.AssetID) -> typing.Iterable[asset_data.AssetData]:
-        """Lists asset data of given asset
-        """
+        """Lists asset data of given asset"""
         for id_ in self.list_asset_data_ids(asset_id):
             asset_data_ = self.get_asset_data(id_)
             if asset_data_ is not None:
@@ -225,7 +230,9 @@ class AssetProviderMultiplexer(AssetProvider):
     def clear_providers(self) -> None:
         self._asset_providers.clear()
 
-    def list_child_category_ids(self, parent_id: category.CategoryID) -> typing.Iterable[category.CategoryID]:
+    def list_child_category_ids(
+        self, parent_id: category.CategoryID
+    ) -> typing.Iterable[category.CategoryID]:
         # Two different asset providers can provide the same CategoryID, for example
         # botaniq/deciduous coming from core botaniq and an asset pack. That's why we have to
         # deduplicate the result.
@@ -234,7 +241,9 @@ class AssetProviderMultiplexer(AssetProvider):
             ret.update(asset_provider.list_child_category_ids(parent_id))
         yield from ret
 
-    def list_child_asset_ids(self, parent_id: category.CategoryID) -> typing.Iterable[asset.AssetID]:
+    def list_child_asset_ids(
+        self, parent_id: category.CategoryID
+    ) -> typing.Iterable[asset.AssetID]:
         # We assume no two asset providers provide the same AssetID
         for asset_provider in self._asset_providers:
             yield from asset_provider.list_child_asset_ids(parent_id)
@@ -260,7 +269,9 @@ class AssetProviderMultiplexer(AssetProvider):
                 return ret
         return None
 
-    def get_asset_data(self, asset_data_id: asset_data.AssetDataID) -> typing.Optional[asset_data.AssetData]:
+    def get_asset_data(
+        self, asset_data_id: asset_data.AssetDataID
+    ) -> typing.Optional[asset_data.AssetData]:
         # TODO: reversed because providers added later override, does that make sense?
         for asset_provider in reversed(self._asset_providers):
             ret = asset_provider.get_asset_data(asset_data_id)

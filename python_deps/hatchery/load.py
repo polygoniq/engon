@@ -6,9 +6,7 @@ import typing
 
 
 def try_get_linked_datablock(
-    datablock_collection: bpy.types.bpy_prop_collection,
-    datablock_name: str,
-    blend_path: str
+    datablock_collection: bpy.types.bpy_prop_collection, datablock_name: str, blend_path: str
 ) -> typing.Optional[bpy.types.ID]:
     """Returns datablock 'datablock_name' linked from 'blend_path' or None if datablock wasn't linked yet.
 
@@ -33,10 +31,7 @@ def try_get_linked_datablock(
     return None
 
 
-def load_master_collection(
-    blend_path: str,
-    link: bool = True
-) -> bpy.types.Collection:
+def load_master_collection(blend_path: str, link: bool = True) -> bpy.types.Collection:
     """Links master collection from 'blend_path' and returns it.
 
     Master collection is the collection with the same name as basename of the 'blend_path'

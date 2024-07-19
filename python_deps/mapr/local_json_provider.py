@@ -12,6 +12,7 @@ from . import blender_asset_data
 from . import file_provider
 from . import asset_provider
 import logging
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -21,7 +22,7 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
         index_file_path: str,
         file_id_folder_path: str,
         file_id_prefix: str,
-        index_json_override: typing.Optional[typing.Dict] = None
+        index_json_override: typing.Optional[typing.Dict] = None,
     ):
         """Dual purpose asset and file provider, index is loaded from JSON, all files from disk
 
@@ -40,11 +41,13 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
         self.index_json_override = index_json_override
 
         # maps category ID to IDs of its child categories
-        self.child_categories: typing.DefaultDict[category.CategoryID, typing.List[category.CategoryID]] = \
-            collections.defaultdict(list)
+        self.child_categories: typing.DefaultDict[
+            category.CategoryID, typing.List[category.CategoryID]
+        ] = collections.defaultdict(list)
         # maps category ID to IDs of its child assets
-        self.child_assets: typing.DefaultDict[category.CategoryID, typing.List[asset.AssetID]] = \
+        self.child_assets: typing.DefaultDict[category.CategoryID, typing.List[asset.AssetID]] = (
             collections.defaultdict(list)
+        )
         # maps category ID to its metadata
         self.categories: typing.Dict[category.CategoryID, category.Category] = {}
         # maps asset ID to its metadata
@@ -60,7 +63,7 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
         if not file_id.startswith(f"{self.file_id_prefix}:"):
             return None
 
-        relative_path = file_id[len(self.file_id_prefix) + 1:]
+        relative_path = file_id[len(self.file_id_prefix) + 1 :]
         full_path = os.path.abspath(os.path.join(self.file_id_folder_path, relative_path))
         if os.path.isfile(full_path):
             return full_path
@@ -103,7 +106,7 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
             self.categories[category_id] = category.Category(
                 id_=category_id,
                 title=category_metadata_json.get("title", "unknown"),
-                preview_file=category_metadata_json.get("preview_file", None)
+                preview_file=category_metadata_json.get("preview_file", None),
             )
 
         for asset_id, asset_metadata_json in index_json.get("asset_metadata", {}).items():
@@ -121,7 +124,7 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
                 tags=asset_metadata_json.get("tags", []),
                 numeric_parameters=asset_metadata_json.get("numeric_parameters", {}),
                 vector_parameters=vector_parameters,
-                text_parameters=asset_metadata_json.get("text_parameters", {})
+                text_parameters=asset_metadata_json.get("text_parameters", {}),
             )
             # clear search matter cache since we updated search matter
             # we instantiated the class right here so this will do nothing but we include it for
@@ -130,8 +133,9 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
             self.assets[asset_id] = asset_metadata
 
         for asset_data_id, asset_data_json in index_json.get("asset_data", {}).items():
-            asset_data_class: typing.Optional[
-                typing.Type[blender_asset_data.BlenderAssetData]] = None
+            asset_data_class: typing.Optional[typing.Type[blender_asset_data.BlenderAssetData]] = (
+                None
+            )
             asset_data_type = asset_data_json.get("type")
             if asset_data_type == "blender_model":
                 asset_data_class = blender_asset_data.BlenderModelAssetData
@@ -152,7 +156,7 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
             asset_data_instance = asset_data_class(
                 id_=asset_data_id,
                 primary_blend_file=asset_data_json.get("primary_blend_file", ""),
-                dependency_files=asset_data_json.get("dependency_files", [])
+                dependency_files=asset_data_json.get("dependency_files", []),
             )
             self.record_file_id(asset_data_instance.primary_blend_file)
             for dependency_file in asset_data_instance.dependency_files:
@@ -160,13 +164,19 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
 
             self.asset_data[asset_data_id] = asset_data_instance
 
-    def list_child_category_ids(self, parent_id: category.CategoryID) -> typing.Iterable[category.CategoryID]:
+    def list_child_category_ids(
+        self, parent_id: category.CategoryID
+    ) -> typing.Iterable[category.CategoryID]:
         yield from self.child_categories.get(parent_id, [])
 
-    def list_child_asset_ids(self, parent_id: category.CategoryID) -> typing.Iterable[asset.AssetID]:
+    def list_child_asset_ids(
+        self, parent_id: category.CategoryID
+    ) -> typing.Iterable[asset.AssetID]:
         yield from self.child_assets.get(parent_id, [])
 
-    def list_asset_data_ids(self, asset_id: asset.AssetID) -> typing.Iterable[asset_data.AssetDataID]:
+    def list_asset_data_ids(
+        self, asset_id: asset.AssetID
+    ) -> typing.Iterable[asset_data.AssetDataID]:
         yield from self.child_asset_data.get(asset_id, [])
 
     def get_category(self, category_id: category.CategoryID) -> typing.Optional[category.Category]:
@@ -175,14 +185,17 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
     def get_asset(self, asset_id: asset.AssetID) -> typing.Optional[asset.Asset]:
         return self.assets.get(asset_id, None)
 
-    def get_asset_data(self, asset_data_id: asset_data.AssetDataID) -> typing.Optional[asset_data.AssetData]:
+    def get_asset_data(
+        self, asset_data_id: asset_data.AssetDataID
+    ) -> typing.Optional[asset_data.AssetData]:
         return self.asset_data.get(asset_data_id, None)
 
     def record_file_id(self, file_id: file_provider.FileID) -> None:
-        relative_path = file_id[len(self.file_id_prefix) + 1:]
+        relative_path = file_id[len(self.file_id_prefix) + 1 :]
         basename = os.path.basename(relative_path)
         prev_record = self.basenames_to_file_ids.get(basename, None)
         if prev_record is not None and prev_record != file_id:
             logger.warning(
-                f"Basename {basename} previously mapped to {prev_record}, overwriting with {file_id}!")
+                f"Basename {basename} previously mapped to {prev_record}, overwriting with {file_id}!"
+            )
         self.basenames_to_file_ids[basename] = file_id

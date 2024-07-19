@@ -21,9 +21,10 @@
 import typing
 import bpy
 import logging
-import polib
+from .. import polib
 from .. import preferences
 from .. import asset_helpers
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -51,19 +52,28 @@ MODULE_CLASSES.append(SetLightsStatus)
 
 
 def get_emergency_lights_container_from_hierarchy_with_root(
-    obj: bpy.types.Object
+    obj: bpy.types.Object,
 ) -> typing.Tuple[typing.Optional[bpy.types.Object], typing.Optional[bpy.types.Object]]:
     """Returns the first object in the hierarchy that contains emergency lights and the root of the hierarchy
 
     Returns None if no such object is found in the hierarchy of the given object.
     """
+
     def _contains_emergency_lights(obj: bpy.types.Object) -> bool:
-        return len(polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
-            obj, asset_helpers.TQ_EMERGENCY_LIGHTS_NODE_GROUP_NAME)) > 0
+        return (
+            len(
+                polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
+                    obj, asset_helpers.TQ_EMERGENCY_LIGHTS_NODE_GROUP_NAME
+                )
+            )
+            > 0
+        )
 
     emergency_lights = list(
         polib.asset_pack_bpy.get_root_objects_with_matched_child(
-            [obj], lambda obj, _: _contains_emergency_lights(obj)))
+            [obj], lambda obj, _: _contains_emergency_lights(obj)
+        )
+    )
     if len(emergency_lights) == 0:
         return None, None
     assert len(emergency_lights) == 1

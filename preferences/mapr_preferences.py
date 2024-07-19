@@ -23,11 +23,12 @@ import typing
 import math
 import mathutils
 import logging
-import polib
-import hatchery
-import mapr
+from .. import polib
+from .. import hatchery
+from .. import mapr
 from . import prefs_utils
 from .. import asset_helpers
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -36,6 +37,7 @@ MODULE_CLASSES: typing.List[typing.Any] = []
 
 class SpawnOptions(bpy.types.PropertyGroup):
     """Defines options that should be considered when spawning assets."""
+
     # General
     remove_duplicates: bpy.props.BoolProperty(
         name="Remove Duplicates",
@@ -46,7 +48,7 @@ class SpawnOptions(bpy.types.PropertyGroup):
     make_editable: bpy.props.BoolProperty(
         name="Make Editable",
         description="Automatically makes the spawned asset editable",
-        default=False
+        default=False,
     )
 
     # Model
@@ -54,11 +56,17 @@ class SpawnOptions(bpy.types.PropertyGroup):
         name="Target Collection",
         description="Collection to spawn the model into",
         items=(
-            ('PACK', "Asset Pack Collection",
-             "Spawn model into collection named as the asset pack - 'botaniq, traffiq, ...'"),
+            (
+                'PACK',
+                "Asset Pack Collection",
+                "Spawn model into collection named as the asset pack - 'botaniq, traffiq, ...'",
+            ),
             ('ACTIVE', "Active Collection", "Spawn model into the active collection"),
-            ('PARTICLE_SYSTEM', "Particle System Collection",
-             "Spawn model into active particle system collection")
+            (
+                'PARTICLE_SYSTEM',
+                "Particle System Collection",
+                "Spawn model into active particle system collection",
+            ),
         ),
     )
 
@@ -77,9 +85,7 @@ class SpawnOptions(bpy.types.PropertyGroup):
 
     # scatter
     display_type: bpy.props.EnumProperty(
-        name="Display As",
-        items=prefs_utils.SCATTER_DISPLAY_ENUM_ITEMS,
-        default='TEXTURED'
+        name="Display As", items=prefs_utils.SCATTER_DISPLAY_ENUM_ITEMS, default='TEXTURED'
     )
 
     display_percentage: bpy.props.IntProperty(
@@ -95,20 +101,20 @@ class SpawnOptions(bpy.types.PropertyGroup):
         description="If true, this setting links particle system instance collection to scene. "
         "Objects from instance collection are spawned on (0, -10, 0).",
         name="Link Instance Collection To Scene",
-        default=True
+        default=True,
     )
 
     include_base_material: bpy.props.BoolProperty(
         name="Include Base Material",
         description="If true base material is loaded with the particle system and set "
         "to the target object as active",
-        default=True
+        default=True,
     )
 
     preserve_density: bpy.props.BoolProperty(
         name="Preserve Density",
         description="If true automatically recalculates density based on mesh area",
-        default=True
+        default=True,
     )
 
     count: bpy.props.IntProperty(
@@ -118,9 +124,7 @@ class SpawnOptions(bpy.types.PropertyGroup):
     )
 
     def get_spawn_options(
-        self,
-        asset: mapr.asset.Asset,
-        context: bpy.types.Context
+        self, asset: mapr.asset.Asset, context: bpy.types.Context
     ) -> hatchery.spawn.DatablockSpawnOptions:
         """Returns spawn options for given asset based on its type"""
         if asset.type_ == mapr.asset_data.AssetDataType.blender_model:
@@ -134,13 +138,11 @@ class SpawnOptions(bpy.types.PropertyGroup):
                 particle_spawn_location if self.use_collection == 'PARTICLE_SYSTEM' else None,
                 # Rotate the spawned asset 90 around Y to make it straight in particle systems
                 # that use Rotation around Z Axis - which are most of our particle systems.
-                particle_spawn_rotation if self.use_collection == 'PARTICLE_SYSTEM' else None
+                particle_spawn_rotation if self.use_collection == 'PARTICLE_SYSTEM' else None,
             )
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_material:
             return hatchery.spawn.MaterialSpawnOptions(
-                int(self.texture_size),
-                self.use_displacement,
-                context.selected_objects
+                int(self.texture_size), self.use_displacement, context.selected_objects
             )
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_particle_system:
             return hatchery.spawn.ParticleSystemSpawnOptions(
@@ -151,10 +153,11 @@ class SpawnOptions(bpy.types.PropertyGroup):
                 # Purposefully use max_particle_count from scatter, as this property has a global
                 # meaning.
                 prefs_utils.get_preferences(
-                    context).general_preferences.scatter_props.max_particle_count,
+                    context
+                ).general_preferences.scatter_props.max_particle_count,
                 self.count,
                 self.preserve_density,
-                {context.active_object}
+                {context.active_object},
             )
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_scene:
             return hatchery.spawn.DatablockSpawnOptions()
@@ -166,12 +169,11 @@ class SpawnOptions(bpy.types.PropertyGroup):
             )
         else:
             raise NotImplementedError(
-                f"Spawn options are not supported for type: {asset.type_}, please contact developers!")
+                f"Spawn options are not supported for type: {asset.type_}, please contact developers!"
+            )
 
     def can_spawn(
-        self,
-        asset: mapr.asset.Asset,
-        context: bpy.types.Context
+        self, asset: mapr.asset.Asset, context: bpy.types.Context
     ) -> typing.Tuple[bool, typing.Optional[typing.Tuple[str, str]]]:
         """Checks whether the given asset can spawn in given Blender context.
 
@@ -182,31 +184,33 @@ class SpawnOptions(bpy.types.PropertyGroup):
                 if context.active_object is None:
                     return False, (
                         "Can't spawn model into particle system - No active object!",
-                        "Select active object with particle system."
+                        "Select active object with particle system.",
                     )
                 if context.active_object.particle_systems.active is None:
                     return False, (
                         "Can't spawn model into particle system - No particle system found!",
-                        "Select object with at least one particle system."
+                        "Select object with at least one particle system.",
                     )
-                instance_collection = context.active_object.particle_systems.active.settings.instance_collection
+                instance_collection = (
+                    context.active_object.particle_systems.active.settings.instance_collection
+                )
                 if instance_collection is None:
                     return False, (
                         "Can't spawn model into particle system - Missing instance collection!",
-                        "Select particle system and assign instance collection to it."
+                        "Select particle system and assign instance collection to it.",
                     )
             return True, None
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_particle_system:
             if context.active_object is None:
                 return False, (
                     "Can't spawn particle system - No active object!",
-                    "Select a mesh object."
+                    "Select a mesh object.",
                 )
             else:
                 if context.active_object.type != 'MESH':
                     return False, (
                         "Current object doesn't support particle systems!",
-                        "Select a mesh object."
+                        "Select a mesh object.",
                     )
                 return True, None
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_scene:
@@ -219,40 +223,40 @@ class SpawnOptions(bpy.types.PropertyGroup):
             if self.use_collection == 'PARTICLE_SYSTEM':
                 return False, (
                     "Can't spawn geometry nodes into particle system collection!",
-                    "Try spawning model asset."
+                    "Try spawning model asset.",
                 )
             return True, None
         else:
             raise NotImplementedError(
-                f"Invalid type given to can_spawn: {asset.type_}, please contact developers!")
+                f"Invalid type given to can_spawn: {asset.type_}, please contact developers!"
+            )
 
     def _get_instance_collection_parent(
-        self,
-        asset: mapr.asset.Asset,
-        context: bpy.types.Context
+        self, asset: mapr.asset.Asset, context: bpy.types.Context
     ) -> typing.Optional[bpy.types.Collection]:
         if self.link_instance_collection:
             return polib.asset_pack_bpy.collection_get(
-                context, asset_helpers.PARTICLE_SYSTEMS_COLLECTION)
+                context, asset_helpers.PARTICLE_SYSTEMS_COLLECTION
+            )
 
         return None
 
     def _get_model_parent_collection(
-        self,
-        asset: mapr.asset.Asset,
-        context: bpy.types.Context
+        self, asset: mapr.asset.Asset, context: bpy.types.Context
     ) -> typing.Optional[bpy.types.Collection]:
         if self.use_collection == 'ACTIVE':
             return context.collection
         elif self.use_collection == 'PACK':
-            collection = polib.asset_pack_bpy.collection_get(context, asset.text_parameters.get(
-                "polygoniq_addon", "unknown"))
+            collection = polib.asset_pack_bpy.collection_get(
+                context, asset.text_parameters.get("polygoniq_addon", "unknown")
+            )
             return collection
 
         elif self.use_collection == 'PARTICLE_SYSTEM':
             if context.active_object is None:
                 logger.error(
-                    "Tried to to spawn object into particle system collection, but no object is active!")
+                    "Tried to to spawn object into particle system collection, but no object is active!"
+                )
                 return None
 
             ps = context.active_object.particle_systems.active
@@ -275,24 +279,25 @@ MODULE_CLASSES.append(SpawnOptions)
 
 class MaprPreferences(bpy.types.PropertyGroup):
     """Property group containing all the settings and customizable options for user interface"""
+
     preview_scale_percentage: bpy.props.FloatProperty(
         name="Preview Scale",
         description="Preview scale",
         min=0,
         max=100,
         default=50,
-        subtype='PERCENTAGE'
+        subtype='PERCENTAGE',
     )
     use_pills_nav: bpy.props.BoolProperty(
         name="Tree / Pills Category Navigation",
         description="If toggled, then pills navigation will be drawn, tree navigation otherwise",
-        default=False
+        default=False,
     )
     search_history_count: bpy.props.IntProperty(
         name="Search History Count",
         description="Number of search queries that are remembered during one Blender instance run",
         min=0,
-        default=20
+        default=20,
     )
     debug: bpy.props.BoolProperty(
         name="Enable Debug",

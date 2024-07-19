@@ -22,8 +22,9 @@ import os
 import bpy
 import typing
 import logging
-import polib
+from ... import polib
 from . import asset_helpers
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -49,7 +50,7 @@ class RoadType:
         name: str,
         filepath: str,
         main_obj: bpy.types.Object,
-        mods_input_map: typing.Dict[str, polib.geonodes_mod_utils_bpy.NodesModifierInput]
+        mods_input_map: typing.Dict[str, polib.geonodes_mod_utils_bpy.NodesModifierInput],
     ):
         self.name = name
         self.filepath = filepath
@@ -79,8 +80,10 @@ class RoadType:
         self.outer_profiles: typing.List[typing.Dict[str, typing.Any]] = []
         for profile in reversed(self.profiles):
             # Skip profiles excluded from width stack that are offset by less than road width
-            if profile["Exclude From Width Stack"] and \
-               profile["Horizontal Offset"] < self.road_surface_width / 2.0:
+            if (
+                profile["Exclude From Width Stack"]
+                and profile["Horizontal Offset"] < self.road_surface_width / 2.0
+            ):
                 continue
 
             # If any road surface is found, then no longer consider profiles as outer
@@ -90,7 +93,8 @@ class RoadType:
             self.outer_profiles.insert(0, profile)
 
         self.road_surface_materials = [
-            p["Material"] for p in self.profiles if p["Surface Type"] == 1]
+            p["Material"] for p in self.profiles if p["Surface Type"] == 1
+        ]
         self.road_markings.sort(key=lambda x: x.get("Offset", 0.0))
 
     def has_outer_road_markings(self) -> bool:
@@ -108,16 +112,21 @@ class RoadType:
             mod_input = self.mods_input_map[mod_name]
             mod: bpy.types.NodesModifier = curve_obj.modifiers.new(mod_name, type='NODES')
             mod.node_group = mod_input.node_group
-            for input_id, (_, value) in mod_input.inputs.items():
-                mod[input_id] = value
+            for input_id, (input_, value) in mod_input.inputs.items():
+                # bool needs special handling, as through versions it became statically typed
+                # boolean from an integer value of 0 or 1
+                socket_type = polib.node_utils_bpy.get_socket_type(input_)
+                if socket_type == "NodeSocketBool":
+                    mod[input_id] = bool(value)
+                else:
+                    mod[input_.identifier] = value
 
             # Reassign the nodegroup to prevent type errors from assigning integer (0-1)
             # to a boolean type input above 3.6.
             mod.node_group = mod_input.node_group
 
     def get_curve_obj(
-        self,
-        collection: typing.Optional[bpy.types.Collection] = None
+        self, collection: typing.Optional[bpy.types.Collection] = None
     ) -> bpy.types.Object:
         """Returns curve object for this road type.
 
@@ -145,7 +154,13 @@ class RoadType:
 
         for i, outer_profile in enumerate(self.outer_profiles):
             for input_name, value in outer_profile.items():
-                if input_name in {"Surface Type", "UV Scale", "UV Offset", "Auto Smooth", "Ending Length"}:
+                if input_name in {
+                    "Surface Type",
+                    "UV Scale",
+                    "UV Offset",
+                    "Auto Smooth",
+                    "Ending Length",
+                }:
                     continue
 
                 if other.outer_profiles[i][input_name] != value:
@@ -157,7 +172,8 @@ class RoadType:
         layer_width = 0.0
         profile_inputs = {}
         is_both_sided = False
-        for input_name, value in inputs.values():
+        for input_, value in inputs.values():
+            input_name = input_.name
             profile_inputs[input_name] = value
             if input_name == "Width":
                 layer_width += value
@@ -241,21 +257,28 @@ class RoadTypeBlendLoader:
         """Loads single road type blend file from 'blend_path'.
 
         Road type is loaded from modifiers of object matching the basename of the file."""
-        basename_no_ext, _ = os.path.splitext(os.path.basename(blend_path))
+        basename = os.path.basename(blend_path)
+        basename_no_ext, _ = os.path.splitext(basename)
 
         # Load the main object named the same as the .blend, this links all
         # dependency datablocks into current .blend
         with bpy.data.libraries.load(blend_path, link=True) as (data_from, data_to):
             assert basename_no_ext in data_from.objects
-            data_to.objects = [basename_no_ext]
+            # Only load the object if it is not loaded right now
+            if basename_no_ext not in bpy.data.objects:
+                data_to.objects = [basename_no_ext]
 
-        main_obj = data_to.objects[0]
+        if len(data_to.objects) == 0:
+            assert basename_no_ext in bpy.data.objects
+            main_obj = bpy.data.objects[basename_no_ext]
+        else:
+            main_obj = data_to.objects[0]
 
         self.road_type_data[basename_no_ext] = RoadType(
             basename_no_ext,
             blend_path,
             main_obj,
-            polib.geonodes_mod_utils_bpy.get_modifiers_inputs_map(main_obj.modifiers)
+            polib.geonodes_mod_utils_bpy.get_modifiers_inputs_map(main_obj.modifiers),
         )
 
     def get_road_type_by_name(self, name: str) -> typing.Optional[RoadType]:
@@ -268,21 +291,25 @@ class RoadTypeBlendLoader:
         enum_items = []
         for name, data in self.road_type_data.items():
             nice_name = name.replace("tq_", "").replace("_", " ")
-            enum_items.append((
-                name,
-                nice_name,
-                f"Road: '{nice_name}' with road surface width of '{data.road_surface_width:.0f}' "
-                f"and a total width '{data.total_width:.0f}'"
-            ))
+            enum_items.append(
+                (
+                    name,
+                    nice_name,
+                    f"Road: '{nice_name}' with road surface width of '{data.road_surface_width:.0f}' "
+                    f"and a total width '{data.total_width:.0f}'",
+                )
+            )
 
         return enum_items
 
     def _is_road_blend(self, blend_path: str) -> bool:
         basename = os.path.basename(blend_path)
-        return basename.endswith(".blend") and \
-            "roads" in blend_path and \
-            basename.startswith("tq_") and \
-            not polib.asset_pack.is_library_blend(blend_path)
+        return (
+            basename.endswith(".blend")
+            and "roads" in blend_path
+            and basename.startswith("tq_")
+            and not polib.asset_pack.is_library_blend(blend_path)
+        )
 
 
 loader = RoadTypeBlendLoader()

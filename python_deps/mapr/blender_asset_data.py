@@ -7,6 +7,7 @@ import dataclasses
 import typing
 from . import asset_data
 from . import file_provider
+
 try:
     import hatchery
 except ImportError:
@@ -20,10 +21,7 @@ class BlenderAssetData(asset_data.AssetData, abc.ABC):
 
     @abc.abstractmethod
     def spawn(
-        self,
-        path: str,
-        context: bpy.types.Context,
-        options: hatchery.spawn.DatablockSpawnOptions
+        self, path: str, context: bpy.types.Context, options: hatchery.spawn.DatablockSpawnOptions
     ) -> hatchery.spawn.SpawnedData:
         pass
 
@@ -34,10 +32,7 @@ class BlenderModelAssetData(BlenderAssetData):
     lod_level: int = 0
 
     def spawn(
-        self,
-        path: str,
-        context: bpy.types.Context,
-        options: hatchery.spawn.ModelSpawnOptions
+        self, path: str, context: bpy.types.Context, options: hatchery.spawn.ModelSpawnOptions
     ) -> hatchery.spawn.ModelSpawnedData:
         return hatchery.spawn.spawn_model(path, context, options)
 
@@ -47,10 +42,7 @@ class BlenderMaterialAssetData(BlenderAssetData):
     type_ = asset_data.AssetDataType.blender_material
 
     def spawn(
-        self,
-        path: str,
-        context: bpy.types.Context,
-        options: hatchery.spawn.MaterialSpawnOptions
+        self, path: str, context: bpy.types.Context, options: hatchery.spawn.MaterialSpawnOptions
     ) -> hatchery.spawn.MaterialSpawnedData:
         return hatchery.spawn.spawn_material(path, context, options)
 
@@ -63,7 +55,7 @@ class BlenderParticleSystemAssetData(BlenderAssetData):
         self,
         path: str,
         context: bpy.types.Context,
-        options: hatchery.spawn.ParticleSystemSpawnOptions
+        options: hatchery.spawn.ParticleSystemSpawnOptions,
     ) -> hatchery.spawn.ParticlesSpawnedData:
         return hatchery.spawn.spawn_particles(path, context, options)
 
@@ -73,10 +65,7 @@ class BlenderSceneAssetData(BlenderAssetData):
     type_ = asset_data.AssetDataType.blender_scene
 
     def spawn(
-        self,
-        path: str,
-        context: bpy.types.Context,
-        options: hatchery.spawn.DatablockSpawnOptions
+        self, path: str, context: bpy.types.Context, options: hatchery.spawn.DatablockSpawnOptions
     ) -> hatchery.spawn.SceneSpawnedData:
         return hatchery.spawn.spawn_scene(path, context, options)
 
@@ -86,10 +75,7 @@ class BlenderWorldAssetData(BlenderAssetData):
     type_ = asset_data.AssetDataType.blender_world
 
     def spawn(
-        self,
-        path: str,
-        context: bpy.types.Context,
-        options: hatchery.spawn.DatablockSpawnOptions
+        self, path: str, context: bpy.types.Context, options: hatchery.spawn.DatablockSpawnOptions
     ) -> hatchery.spawn.WorldSpawnedData:
         return hatchery.spawn.spawn_world(path, context, options)
 
@@ -99,9 +85,6 @@ class BlenderGeometryNodesAssetData(BlenderAssetData):
     type_ = asset_data.AssetDataType.blender_geometry_nodes
 
     def spawn(
-        self,
-        path: str,
-        context: bpy.types.Context,
-        options: hatchery.spawn.DatablockSpawnOptions
+        self, path: str, context: bpy.types.Context, options: hatchery.spawn.DatablockSpawnOptions
     ) -> hatchery.spawn.GeometryNodesSpawnedData:
         return hatchery.spawn.spawn_geometry_nodes(path, context, options)

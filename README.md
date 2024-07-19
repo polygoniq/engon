@@ -35,8 +35,10 @@
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
-    - [Download the addon ZIP](#download-the-addon-zip)
-    - [Install ZIP in Blender](#install-zip-in-blender)
+    - [Blender 4.2 or newer](#blender-42-or-newer)
+    - [Blender 4.1 or older](#blender-41-or-older)
+      - [Download the addon ZIP](#download-the-addon-zip)
+      - [Install ZIP in Blender](#install-zip-in-blender)
   - [Updating](#updating)
 - [Roadmap](#roadmap)
 - [Support](#support)
@@ -76,13 +78,18 @@
 
 ### Installation
 
-#### Download the addon ZIP
+#### Blender 4.2 or newer
+Visit [polygoniq extensions repository](https://extensions.polygoniq.com), where we explain
+how to set it up as remote repository so you can install and update everything from Blender.
+
+#### Blender 4.1 or older
+##### Download the addon ZIP
 
 |                          Stable Release                                                  |                         Unstable Master Branch                   |
 | :--------------------------------------------------------------------------------------: | :--------------------------------------------------------------: |
 | Head over to [Releases](https://github.com/polygoniq/engon/releases) for a stable ZIP.   | Click `Code` -> `Download ZIP` if you are feeling adventurous.   |
 
-#### Install ZIP in Blender
+##### Install ZIP in Blender
 
 Go to `Edit` -> `Preferences`. And select `Add-ons` in the left bar. Click the `Install...` button
 in the top section. Select the ZIP file you just downloaded and click `Install Add-on`. After the

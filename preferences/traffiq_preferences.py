@@ -21,8 +21,9 @@
 import bpy
 import typing
 import logging
-import polib
+from .. import polib
 from .. import asset_helpers
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -52,7 +53,7 @@ class CarPaintProperties(bpy.types.PropertyGroup):
             context,
             context.selected_objects,
             polib.asset_pack_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR,
-            value
+            value,
         )
 
     primary_color: bpy.props.FloatVectorProperty(
@@ -64,7 +65,8 @@ class CarPaintProperties(bpy.types.PropertyGroup):
         default=(0.8, 0.8, 0.8, 1.0),
         size=4,
         update=lambda self, context: CarPaintProperties.update_car_paint_color_prop(
-            context, self.primary_color),
+            context, self.primary_color
+        ),
     )
     flakes_amount: bpy.props.FloatProperty(
         name="Flakes Amount",
@@ -77,7 +79,7 @@ class CarPaintProperties(bpy.types.PropertyGroup):
             context,
             context.selected_objects,
             polib.asset_pack_bpy.CustomPropertyNames.TQ_FLAKES_AMOUNT,
-            self.flakes_amount
+            self.flakes_amount,
         ),
     )
     clearcoat: bpy.props.FloatProperty(
@@ -91,7 +93,7 @@ class CarPaintProperties(bpy.types.PropertyGroup):
             context,
             context.selected_objects,
             polib.asset_pack_bpy.CustomPropertyNames.TQ_CLEARCOAT,
-            self.clearcoat
+            self.clearcoat,
         ),
     )
 
@@ -104,7 +106,10 @@ class WearProperties(bpy.types.PropertyGroup):
     def update_bumps_prop(context: bpy.types.Context, value: float):
         # Cache objects that support bumps
         bumps_objs = [
-            obj for obj in context.selected_objects if polib.asset_pack_bpy.CustomPropertyNames.TQ_BUMPS in obj]
+            obj
+            for obj in context.selected_objects
+            if polib.asset_pack_bpy.CustomPropertyNames.TQ_BUMPS in obj
+        ]
 
         modifier_library_path = None
 
@@ -118,21 +123,20 @@ class WearProperties(bpy.types.PropertyGroup):
             if BUMPS_MODIFIER_NAME not in obj.modifiers:
                 if modifier_library_path is None:
                     modifier_library_path = asset_helpers.get_asset_pack_library_path(
-                        "traffiq", asset_helpers.TQ_MODIFIER_LIBRARY_BLEND)
+                        "traffiq", asset_helpers.TQ_MODIFIER_LIBRARY_BLEND
+                    )
                     if modifier_library_path is None:
                         raise RuntimeError("Modifier library of traffiq not found!")
                 polib.asset_pack_bpy.append_modifiers_from_library(
-                    BUMPS_MODIFIERS_CONTAINER_NAME, modifier_library_path, [obj])
+                    BUMPS_MODIFIERS_CONTAINER_NAME, modifier_library_path, [obj]
+                )
                 logger.info(f"Added bumps modifier on: {obj.name}")
 
             assert BUMPS_MODIFIER_NAME in obj.modifiers
             obj.modifiers[BUMPS_MODIFIER_NAME].strength = value
 
         polib.asset_pack_bpy.update_custom_prop(
-            context,
-            bumps_objs,
-            polib.asset_pack_bpy.CustomPropertyNames.TQ_BUMPS,
-            value
+            context, bumps_objs, polib.asset_pack_bpy.CustomPropertyNames.TQ_BUMPS, value
         )
 
     dirt_wear_strength: bpy.props.FloatProperty(
@@ -146,7 +150,7 @@ class WearProperties(bpy.types.PropertyGroup):
             context,
             context.selected_objects,
             polib.asset_pack_bpy.CustomPropertyNames.TQ_DIRT,
-            self.dirt_wear_strength
+            self.dirt_wear_strength,
         ),
     )
     scratches_wear_strength: bpy.props.FloatProperty(
@@ -160,7 +164,7 @@ class WearProperties(bpy.types.PropertyGroup):
             context,
             context.selected_objects,
             polib.asset_pack_bpy.CustomPropertyNames.TQ_SCRATCHES,
-            self.scratches_wear_strength
+            self.scratches_wear_strength,
         ),
     )
     bumps_wear_strength: bpy.props.FloatProperty(
@@ -171,7 +175,8 @@ class WearProperties(bpy.types.PropertyGroup):
         soft_max=1.0,
         step=0.1,
         update=lambda self, context: WearProperties.update_bumps_prop(
-            context, self.bumps_wear_strength),
+            context, self.bumps_wear_strength
+        ),
     )
 
 
@@ -182,18 +187,18 @@ class RigProperties(bpy.types.PropertyGroup):
     auto_bake_steering: bpy.props.BoolProperty(
         name="Auto Bake Steering",
         description="If true, follow path operator will automatically try to bake steering",
-        default=True
+        default=True,
     )
     auto_bake_wheels: bpy.props.BoolProperty(
         name="Auto Bake Wheel Rotation",
         description="If true, follow path operator will automatically try to bake wheel rotation",
-        default=True
+        default=True,
     )
     auto_reset_transforms: bpy.props.BoolProperty(
         name="Auto Reset Transforms",
         description="If true, follow path operator will automatically reset transforms"
         "of needed objects to give the expected results",
-        default=True
+        default=True,
     )
 
 
@@ -206,20 +211,24 @@ class LightsProperties(bpy.types.PropertyGroup):
         items=MAIN_LIGHT_STATUS,
         update=lambda self, context: polib.asset_pack_bpy.update_custom_prop(
             context,
-            (lights_obj for _, lights_obj in self.find_unique_lights_containers_with_roots(
-                context.selected_objects)),
+            (
+                lights_obj
+                for _, lights_obj in self.find_unique_lights_containers_with_roots(
+                    context.selected_objects
+                )
+            ),
             polib.asset_pack_bpy.CustomPropertyNames.TQ_LIGHTS,
-            float(self.main_lights_status)
+            float(self.main_lights_status),
         ),
     )
 
     def find_unique_lights_containers_with_roots(
-        self,
-        objects: typing.Iterable[bpy.types.Object]
+        self, objects: typing.Iterable[bpy.types.Object]
     ) -> typing.Iterable[typing.Tuple[bpy.types.Object, bpy.types.Object]]:
         return polib.asset_pack_bpy.get_root_objects_with_matched_child(
             objects,
-            lambda x, _: x.get(polib.asset_pack_bpy.CustomPropertyNames.TQ_LIGHTS, None) is not None
+            lambda x, _: x.get(polib.asset_pack_bpy.CustomPropertyNames.TQ_LIGHTS, None)
+            is not None,
         )
 
 
@@ -227,21 +236,13 @@ MODULE_CLASSES.append(LightsProperties)
 
 
 class TraffiqPreferences(bpy.types.PropertyGroup):
-    car_paint_properties: bpy.props.PointerProperty(
-        type=CarPaintProperties
-    )
+    car_paint_properties: bpy.props.PointerProperty(type=CarPaintProperties)
 
-    wear_properties: bpy.props.PointerProperty(
-        type=WearProperties
-    )
+    wear_properties: bpy.props.PointerProperty(type=WearProperties)
 
-    lights_properties: bpy.props.PointerProperty(
-        type=LightsProperties
-    )
+    lights_properties: bpy.props.PointerProperty(type=LightsProperties)
 
-    rig_properties: bpy.props.PointerProperty(
-        type=RigProperties
-    )
+    rig_properties: bpy.props.PointerProperty(type=RigProperties)
 
 
 MODULE_CLASSES.append(TraffiqPreferences)

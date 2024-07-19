@@ -4,6 +4,7 @@
 import typing
 import abc
 import logging
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -39,8 +40,7 @@ class FileProvider(abc.ABC):
 
     @abc.abstractmethod
     def get_file_id_from_basename(self, basename: str) -> typing.Optional[FileID]:
-        """Returns a FileID of a file matching the basename if it is known to the file provider.
-        """
+        """Returns a FileID of a file matching the basename if it is known to the file provider."""
         pass
 
 

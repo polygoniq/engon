@@ -17,6 +17,7 @@ import uuid
 import enum
 import threading
 import logging
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -36,6 +37,7 @@ class VerboseLevel(enum.IntEnum):
     """Determines what messages are printed to console when logging
     Lower number -> Lower restrictions (DEBUG includes all categories)
     """
+
     DEBUG = 0
     INFO = 1
     WARNING = 2
@@ -106,7 +108,9 @@ class Machine:
         return width, height
 
     @staticmethod
-    def get_blender_addons() -> typing.Dict[str, typing.Union[typing.List[str], typing.Dict[str, typing.Any]]]:
+    def get_blender_addons() -> (
+        typing.Dict[str, typing.Union[typing.List[str], typing.Dict[str, typing.Any]]]
+    ):
         addon_utils_modules: typing.Dict[str, typing.Dict[str, typing.Any]] = {}
         for module in addon_utils.modules():
             try:
@@ -114,10 +118,7 @@ class Machine:
                 assert name not in addon_utils_modules
                 bl_info = getattr(module, "bl_info", {})
                 path = str(module.__file__)
-                addon_utils_modules[name] = {
-                    "path": path,
-                    "bl_info": bl_info
-                }
+                addon_utils_modules[name] = {"path": path, "bl_info": bl_info}
 
             except Exception as e:
                 addon_utils_modules[uuid.uuid4().hex] = {
@@ -140,7 +141,7 @@ class Machine:
         return {
             "loaded": loaded_modules,
             "missing": missing_modules,
-            "addon_utils_modules": addon_utils_modules
+            "addon_utils_modules": addon_utils_modules,
         }
 
 
@@ -158,7 +159,13 @@ class MessageType:
 
 
 class Message:
-    def __init__(self, type: str, data: typing.Any = None, text: typing.Optional[str] = None, product: str = "unknown"):
+    def __init__(
+        self,
+        type: str,
+        data: typing.Any = None,
+        text: typing.Optional[str] = None,
+        product: str = "unknown",
+    ):
         self._session_uuid: str = "unknown"
 
         self._timestamp = datetime.datetime.utcnow().isoformat()
@@ -236,7 +243,9 @@ def log_installed_addons() -> None:
     global MACHINE
     assert MACHINE is not None, "logging before telemetry has been bootstrapped!"
 
-    _log(Message(MessageType.ALL_ADDONS_REPORTED, data=Machine.get_blender_addons(), product="polib"))
+    _log(
+        Message(MessageType.ALL_ADDONS_REPORTED, data=Machine.get_blender_addons(), product="polib")
+    )
 
 
 def bootstrap_telemetry():
@@ -293,7 +302,7 @@ class TelemetryWrapper:
             Message(
                 MessageType.UNCAUGHT_EXCEPTION,
                 data=traceback.format_exception(type(e), e, e.__traceback__),
-                product=self.product
+                product=self.product,
             )
         )
 
@@ -301,6 +310,7 @@ class TelemetryWrapper:
         """A decorator that wraps the passed in function and logs
         exceptions in telemetry should they occur
         """
+
         @functools.wraps(f)
         def wrapped(*args, **kwargs):
             try:
@@ -308,6 +318,7 @@ class TelemetryWrapper:
             except Exception as e:
                 logger.exception(f"Uncaught exception raised in {f}")
                 raise e
+
         return wrapped
 
     def log_warning(self, message: str) -> None:
@@ -322,7 +333,7 @@ class TelemetryWrapper:
             Message(
                 MessageType.WARNING_MESSAGE,
                 data=[message] + traceback.extract_stack().format(),
-                product=self.product
+                product=self.product,
             )
         )
         if VERBOSE_LEVEL <= VerboseLevel.WARNING:
@@ -339,7 +350,7 @@ class TelemetryWrapper:
             Message(
                 MessageType.DEBUG_MESSAGE,
                 data=[message] + traceback.extract_stack().format(),
-                product=self.product
+                product=self.product,
             )
         )
         if VERBOSE_LEVEL <= VerboseLevel.DEBUG:
@@ -356,7 +367,7 @@ class TelemetryWrapper:
             Message(
                 MessageType.ERROR_MESSAGE,
                 data=[message] + traceback.extract_stack().format(),
-                product=self.product
+                product=self.product,
             )
         )
         if VERBOSE_LEVEL <= VerboseLevel.ERROR:

@@ -84,7 +84,8 @@ class AssetParametersMeta:
                 unique_name = f"vec:{param}"
                 if unique_name not in self.vector:
                     self.vector[unique_name] = VectorParameterMeta(
-                        unique_name, mathutils.Vector(value))
+                        unique_name, mathutils.Vector(value)
+                    )
                 else:
                     self.vector[unique_name].register_value(mathutils.Vector(value))
 
@@ -97,10 +98,13 @@ class AssetParametersMeta:
 
     def __repr__(self) -> str:
         import pprint
+
         pp = pprint.PrettyPrinter(depth=4)
-        return f"{self.__class__.__name__} at {id(self)}:\n" \
-            f"{pp.pformat(self.numeric)}\n{pp.pformat(self.text)}\n{pp.pformat(self.vector)}\n"\
+        return (
+            f"{self.__class__.__name__} at {id(self)}:\n"
+            f"{pp.pformat(self.numeric)}\n{pp.pformat(self.text)}\n{pp.pformat(self.vector)}\n"
             f"{self.unique_tags}\nUnique Names: {self.unique_parameter_names}"
+        )
 
 
 def remove_type_from_name(name: str) -> str:

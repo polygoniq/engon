@@ -10,9 +10,7 @@ MODULE_CLASSES: typing.List[typing.Any] = []
 
 
 class SeenAssetPackVersion(bpy.types.PropertyGroup):
-    version: bpy.props.IntVectorProperty(
-        size=3
-    )
+    version: bpy.props.IntVectorProperty(size=3)
 
 
 MODULE_CLASSES.append(SeenAssetPackVersion)
@@ -22,15 +20,15 @@ class WhatIsNewPreferences(bpy.types.PropertyGroup):
     display_what_is_new: bpy.props.BoolProperty(
         name="Display \"See What's New\" button",
         description="Show button in the engon browser to filter for newly added asset after updating an asset pack."
-                    "These only displays if there is a newly updated asset pack that wasn't explored before",
-        default=True
+        "These only displays if there is a newly updated asset pack that wasn't explored before",
+        default=True,
     )
 
     latest_seen_asset_packs: bpy.props.CollectionProperty(
         name="Latest Seen Asset Pack Versions",
         description="Dictionary with key of asset pack name (in the implicit name paramater) "
-                    "and value of asset pack version",
-        type=SeenAssetPackVersion
+        "and value of asset pack version",
+        type=SeenAssetPackVersion,
     )
 
     def see_asset_pack(self, asset_pack_name: str, version: typing.Tuple[int, int, int]) -> None:

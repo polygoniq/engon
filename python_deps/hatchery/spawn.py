@@ -19,6 +19,7 @@ from . import utils
 from . import load
 from . import textures
 from . import displacement
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -28,6 +29,7 @@ class DatablockSpawnOptions:
 
     Currently this is empty, but can store option relevant to all asset types.
     """
+
     pass
 
 
@@ -53,9 +55,7 @@ class ModelSpawnedData(SpawnedData):
 
 
 def spawn_model(
-    path: str,
-    context: bpy.types.Context,
-    options: ModelSpawnOptions
+    path: str, context: bpy.types.Context, options: ModelSpawnOptions
 ) -> ModelSpawnedData:
     """Loads model from given 'path' and instances it on empty on cursor position.
 
@@ -68,7 +68,8 @@ def spawn_model(
     if options.parent_collection is None and options.select_spawned:
         raise RuntimeError(
             "Wrong arguments: Cannot select spawned model objects without a parent collection. "
-            "The object wouldn't be present in the View Layer!")
+            "The object wouldn't be present in the View Layer!"
+        )
 
     root_collection = load.load_master_collection(path)
     root_empty = bpy.data.objects.new(root_collection.name, None)
@@ -119,9 +120,7 @@ class MaterialSpawnedData(SpawnedData):
 
 
 def spawn_material(
-    path: str,
-    context: bpy.types.Context,
-    options: MaterialSpawnOptions
+    path: str, context: bpy.types.Context, options: MaterialSpawnOptions
 ) -> MaterialSpawnedData:
     """Loads material from 'path' and adds it to all selected objects containing material slots.
 
@@ -167,7 +166,7 @@ class ParticlesSpawnedData(SpawnedData):
     def __init__(
         self,
         particles: typing.Iterable[bpy.types.ParticleSettings],
-        material: typing.Optional[bpy.types.Material] = None
+        material: typing.Optional[bpy.types.Material] = None,
     ):
         self.particles = particles
         self.material = material
@@ -178,9 +177,7 @@ class ParticlesSpawnedData(SpawnedData):
 
 
 def spawn_particles(
-    path: str,
-    context: bpy.types.Context,
-    options: ParticleSystemSpawnOptions
+    path: str, context: bpy.types.Context, options: ParticleSystemSpawnOptions
 ) -> ParticlesSpawnedData:
     """Loads all particle systems from a given path and puts them on objects based on options.
 
@@ -210,7 +207,8 @@ def spawn_particles(
             new_count = int(total_mesh_area * particle_settings.pps_density)
             if new_count > options.max_particle_count:
                 logger.warning(
-                    f"Particle count exceeded maximum by: {int(new_count - options.max_particle_count)}")
+                    f"Particle count exceeded maximum by: {int(new_count - options.max_particle_count)}"
+                )
                 new_count = options.max_particle_count
         else:
             new_count = options.count
@@ -219,18 +217,20 @@ def spawn_particles(
         for target_obj in options.target_objects:
             # Create modifiers and adjust particle system settings based on spawn options
             mod: bpy.types.ParticleSystemModifier = target_obj.modifiers.new(
-                particle_settings.name, type='PARTICLE_SYSTEM')
+                particle_settings.name, type='PARTICLE_SYSTEM'
+            )
             mod.particle_system.settings = particle_settings
             utils.ensure_particle_naming_consistency(mod, mod.particle_system)
 
     spawned_material_data = None
     if options.include_base_material:
         spawned_material_data = spawn_material(
-            path, context, MaterialSpawnOptions(target_objects=options.target_objects))
+            path, context, MaterialSpawnOptions(target_objects=options.target_objects)
+        )
 
     return ParticlesSpawnedData(
         all_particle_settings,
-        spawned_material_data.material if spawned_material_data is not None else None
+        spawned_material_data.material if spawned_material_data is not None else None,
     )
 
 
@@ -241,9 +241,7 @@ class WorldSpawnedData(SpawnedData):
 
 
 def spawn_world(
-    path: str,
-    context: bpy.types.Context,
-    options: DatablockSpawnOptions
+    path: str, context: bpy.types.Context, options: DatablockSpawnOptions
 ) -> WorldSpawnedData:
     """Loads world from 'path' and replaces current scene world with it, returns the loaded world."""
     world = load.load_world(path)
@@ -258,9 +256,7 @@ class SceneSpawnedData(SpawnedData):
 
 
 def spawn_scene(
-    path: str,
-    context: bpy.types.Context,
-    options: DatablockSpawnOptions
+    path: str, context: bpy.types.Context, options: DatablockSpawnOptions
 ) -> SceneSpawnedData:
     """Loads scene from 'path' and replaces current scene with it, returns the loaded scene."""
     scene = load.load_scene(path)
@@ -275,9 +271,7 @@ class GeometryNodesSpawnOptions(DatablockSpawnOptions):
 
 class GeometryNodesSpawnedData(SpawnedData):
     def __init__(
-        self,
-        container_obj: bpy.types.Object,
-        modifiers: typing.Iterable[bpy.types.Modifier]
+        self, container_obj: bpy.types.Object, modifiers: typing.Iterable[bpy.types.Modifier]
     ):
         self.container_obj = container_obj
         self.modifiers = modifiers
@@ -285,9 +279,7 @@ class GeometryNodesSpawnedData(SpawnedData):
 
 
 def spawn_geometry_nodes(
-    path: str,
-    context: bpy.types.Context,
-    options: GeometryNodesSpawnOptions
+    path: str, context: bpy.types.Context, options: GeometryNodesSpawnOptions
 ) -> GeometryNodesSpawnedData:
     """Loads object with the same name as basename of 'path' and adds it to the scene collection"""
     # Currently default behavior is to append the object containing the geometry nodes.

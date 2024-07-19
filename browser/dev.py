@@ -21,12 +21,13 @@
 import bpy
 import os
 import typing
-import mapr
-import polib
 import logging
 from . import filters
 from . import previews
+from .. import mapr
+from .. import polib
 from .. import asset_registry
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -137,7 +138,7 @@ class MAPR_BrowserOpenAssetSourceBlend(bpy.types.Operator):
             "blender_asset_packs",
             pack_name,
             f"{pack_name}_asset_pack",
-            path[path.find("blends"):]
+            path[path.find("blends") :],
         )
         if os.path.isfile(candidate_path):
             return candidate_path

@@ -24,11 +24,12 @@ import typing
 import os
 import glob
 import json
-import polib
+from .. import polib
 from . import prefs_utils
 from .. import asset_pack_installer
 from .. import pack_info_search_paths
 from .. import asset_registry
+from .. import __package__ as base_package
 
 
 MODULE_CLASSES: typing.List[typing.Any] = []
@@ -38,7 +39,7 @@ class ScatterProperties(bpy.types.PropertyGroup):
     max_particle_count: bpy.props.IntProperty(
         name="Maximum Particles",
         description="Maximum particle threshold for density recalculation",
-        default=100000
+        default=100000,
     )
 
     # Used to change visibility of instance collection in active particle system
@@ -46,14 +47,12 @@ class ScatterProperties(bpy.types.PropertyGroup):
         name="Display As",
         items=prefs_utils.SCATTER_DISPLAY_ENUM_ITEMS,
         default='TEXTURED',
-        update=lambda self, context: self.active_display_type_updated(context)
+        update=lambda self, context: self.active_display_type_updated(context),
     )
 
     # Change Visibility operator global properties
     display_type: bpy.props.EnumProperty(
-        name="Display As",
-        items=prefs_utils.SCATTER_DISPLAY_ENUM_ITEMS,
-        default='TEXTURED'
+        name="Display As", items=prefs_utils.SCATTER_DISPLAY_ENUM_ITEMS, default='TEXTURED'
     )
 
     display_percentage: bpy.props.IntProperty(
@@ -67,6 +66,7 @@ class ScatterProperties(bpy.types.PropertyGroup):
 
     def active_display_type_updated(self, context: bpy.types.Context) -> None:
         collection = context.object.particle_systems.active.settings.instance_collection
+        assert collection is not None
         for obj in collection.all_objects:
             obj.display_type = self.active_display_type
 
@@ -76,18 +76,14 @@ MODULE_CLASSES.append(ScatterProperties)
 
 class GeneralPreferences(bpy.types.PropertyGroup):
     pack_info_search_paths: bpy.props.CollectionProperty(
-        name="Pack Info Search Paths",
-        type=pack_info_search_paths.PackInfoSearchPath
+        name="Pack Info Search Paths", type=pack_info_search_paths.PackInfoSearchPath
     )
     pack_info_search_path_index: bpy.props.IntProperty(
         name="Pack Info Search Path Index",
         default=0,
     )
 
-    scatter_props: bpy.props.PointerProperty(
-        type=ScatterProperties,
-        name="Scatter Properties"
-    )
+    scatter_props: bpy.props.PointerProperty(type=ScatterProperties, name="Scatter Properties")
 
     def get_pack_info_paths(self) -> typing.Iterable[str]:
         environment_globs = os.environ.get("ENGON_ADDITIONAL_PACK_INFO_GLOBS", None)
@@ -145,14 +141,20 @@ class GeneralPreferences(bpy.types.PropertyGroup):
         self,
         context: bpy.types.Context,
         path_or_expression: str,
-        path_type: pack_info_search_paths.PackInfoSearchPathType = pack_info_search_paths.PackInfoSearchPathType.SINGLE_FILE
+        path_type: pack_info_search_paths.PackInfoSearchPathType = pack_info_search_paths.PackInfoSearchPathType.SINGLE_FILE,
     ) -> None:
         """Removes all copies of the pack-info search path from the Collection.
 
         Does not reload Asset Packs.
         """
-        filtered_out = [p.as_dict() for p in self.pack_info_search_paths if not (
-            p.path_type == path_type and p.get_path_or_expression_by_type() == path_or_expression)]
+        filtered_out = [
+            p.as_dict()
+            for p in self.pack_info_search_paths
+            if not (
+                p.path_type == path_type
+                and p.get_path_or_expression_by_type() == path_or_expression
+            )
+        ]
 
         self.pack_info_search_paths.clear()
         for sp in filtered_out:
@@ -168,34 +170,34 @@ class GeneralPreferences(bpy.types.PropertyGroup):
         return {"asset_pack_search_paths": ret}
 
     def add_search_paths_from_dict(
-            self,
-            info_dict: typing.Dict[str, typing.List[typing.Dict[str, str]]]
+        self, info_dict: typing.Dict[str, typing.List[typing.Dict[str, str]]]
     ) -> None:
         search_paths_list = info_dict.get("asset_pack_search_paths", None)
         if search_paths_list is None:
             raise ValueError(
-                "Given json dict does not contain a required key 'asset_pack_search_paths'!")
+                "Given json dict does not contain a required key 'asset_pack_search_paths'!"
+            )
         if not isinstance(search_paths_list, list):
             raise ValueError(
                 f"Given json dict contains asset_pack_search_paths but its type is '{type(search_paths_list)}' "
-                f"instead of the expected 'list'!")
+                f"instead of the expected 'list'!"
+            )
 
         for search_path_props in search_paths_list:
-            search_path: pack_info_search_paths.PackInfoSearchPath = self.pack_info_search_paths.add()
+            search_path: pack_info_search_paths.PackInfoSearchPath = (
+                self.pack_info_search_paths.add()
+            )
             search_path.load_from_dict(search_path_props)
 
     def draw_asset_packs(self, layout: bpy.types.UILayout) -> None:
         row = layout.row()
         row.alignment = 'LEFT'
         row.scale_y = 1.2
-        op = row.operator(InstallAssetPack.bl_idname,
-                          text="Install Asset Pack", icon='NEWFOLDER')
+        op = row.operator(InstallAssetPack.bl_idname, text="Install Asset Pack", icon='NEWFOLDER')
         op.filepath = os.path.expanduser("~" + os.sep)
-        row.operator(PackInfoSearchPathList_RefreshPacks.bl_idname,
-                     icon='FILE_REFRESH', text="")
+        row.operator(PackInfoSearchPathList_RefreshPacks.bl_idname, icon='FILE_REFRESH', text="")
         try:
-            engon_version = polib.utils_bpy.get_addon_mod_info(
-                polib.utils_bpy.get_top_level_package_name(__package__))["version"]
+            engon_version = polib.utils_bpy.get_addon_mod_info(base_package)["version"]
         except (ValueError, KeyError):
             # This shouldn't happen at all, because we are in the same __package__ that we are
             # searching for the version, but just to be sure and to always display asset pack
@@ -210,7 +212,9 @@ class GeneralPreferences(bpy.types.PropertyGroup):
             row.scale_y = row.scale_x = 1.2
             row.label(
                 text=f"{pack.full_name}",
-                **polib.ui_bpy.get_asset_pack_icon_parameters(pack.get_pack_icon_id(), 'ASSET_MANAGER')
+                **polib.ui_bpy.get_asset_pack_icon_parameters(
+                    pack.get_pack_icon_id(), 'ASSET_MANAGER'
+                ),
             )
 
             # Right row for Update and Uninstall buttons
@@ -245,7 +249,7 @@ class GeneralPreferences(bpy.types.PropertyGroup):
                 col = subbox.column(align=True)
                 col.label(
                     text=f"engon {'.'.join(map(str, pack.min_engon_version))} or newer is recommended for this Asset Pack!",
-                    icon='ERROR'
+                    icon='ERROR',
                 )
                 col.label(
                     text="Some features might not work correctly, please update engon in the "
@@ -253,29 +257,25 @@ class GeneralPreferences(bpy.types.PropertyGroup):
                 )
 
     def draw_pack_info_search_paths(
-        self,
-        context: bpy.types.Context,
-        layout: bpy.types.UILayout
+        self, context: bpy.types.Context, layout: bpy.types.UILayout
     ) -> None:
         gen_prefs = prefs_utils.get_preferences(context).general_preferences
         gen_prefs.pack_info_search_path_list_ensure_valid_index()
 
         row = layout.row()
         col = row.column(align=True)
-        col.operator(PackInfoSearchPathList_OT_AddItem.bl_idname,
-                     text="", icon='ADD')
-        col.operator(PackInfoSearchPathList_OT_DeleteItem.bl_idname,
-                     text="", icon='REMOVE')
-        col.operator(PackInfoSearchPathList_RefreshPacks.bl_idname,
-                     text="", icon='FILE_REFRESH')
+        col.operator(PackInfoSearchPathList_OT_AddItem.bl_idname, text="", icon='ADD')
+        col.operator(PackInfoSearchPathList_OT_DeleteItem.bl_idname, text="", icon='REMOVE')
+        col.operator(PackInfoSearchPathList_RefreshPacks.bl_idname, text="", icon='FILE_REFRESH')
         col.separator()
-        col.operator(PackInfoSearchPathList_OT_MoveItem.bl_idname,
-                     text="", icon='TRIA_UP').direction = "UP"
-        col.operator(PackInfoSearchPathList_OT_MoveItem.bl_idname,
-                     text="", icon='TRIA_DOWN').direction = "DOWN"
+        col.operator(
+            PackInfoSearchPathList_OT_MoveItem.bl_idname, text="", icon='TRIA_UP'
+        ).direction = "UP"
+        col.operator(
+            PackInfoSearchPathList_OT_MoveItem.bl_idname, text="", icon='TRIA_DOWN'
+        ).direction = "DOWN"
         col.separator(factor=2)
-        col.operator(PackInfoSearchPathList_RemoveAll.bl_idname,
-                     text="", icon='LIBRARY_DATA_BROKEN')
+        col.operator(PackInfoSearchPathList_RemoveAll.bl_idname, text="", icon='TRASH')
 
         col = row.column(align=True)
         col.template_list(
@@ -284,7 +284,7 @@ class GeneralPreferences(bpy.types.PropertyGroup):
             self,
             "pack_info_search_paths",
             self,
-            "pack_info_search_path_index"
+            "pack_info_search_path_index",
         )
 
         row = col.row(align=True)
@@ -415,7 +415,7 @@ class PackInfoSearchPathList_OT_MoveItem(bpy.types.Operator):
         items=(
             ('UP', "Up", "Move currently active PackInfoSearchPath one step higher in the list"),
             ('DOWN', "Down", "Move currently active PackInfoSearchPath one step lower in the list"),
-        )
+        ),
     )
 
     @classmethod
@@ -440,7 +440,7 @@ MODULE_CLASSES.append(PackInfoSearchPathList_OT_MoveItem)
 @polib.log_helpers_bpy.logged_operator
 class PackInfoSearchPathList_RemoveAll(bpy.types.Operator):
     bl_idname = "engon.pack_info_search_path_list_remove_all"
-    bl_label = "Remove All"
+    bl_label = "Remove All Search Paths"
     bl_description = "Remove all Search Paths from the list"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -459,8 +459,10 @@ MODULE_CLASSES.append(PackInfoSearchPathList_RemoveAll)
 class PackInfoSearchPathList_RefreshPacks(bpy.types.Operator):
     bl_idname = "engon.pack_info_search_path_refresh_packs"
     bl_label = "Refresh Asset Packs"
-    bl_description = "Search through all search paths, find .pack-info files " + \
-        "and register them. Saves Preferences"
+    bl_description = (
+        "Search through all search paths, find .pack-info files "
+        + "and register them. Saves Preferences"
+    )
     bl_options = {'REGISTER'}
 
     @polib.utils_bpy.blender_cursor('WAIT')
@@ -483,9 +485,7 @@ class InstallAssetPack(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 
     # These are the primary file types the user should select
     # All other file types work as well, but are not visible by default
-    filter_glob: bpy.props.StringProperty(
-        default="*.paq;*.paq.001;*.pack-info",
-        options={'HIDDEN'})
+    filter_glob: bpy.props.StringProperty(default="*.paq;*.paq.001;*.pack-info", options={'HIDDEN'})
 
     def execute(self, context: bpy.types.Context):
         installer = asset_pack_installer.instance
@@ -499,7 +499,9 @@ MODULE_CLASSES.append(InstallAssetPack)
 
 
 @polib.log_helpers_bpy.logged_operator
-class AssetPackInstallationDialog(bpy.types.Operator, asset_pack_installer.AssetPackInstallerDialogMixin):
+class AssetPackInstallationDialog(
+    bpy.types.Operator, asset_pack_installer.AssetPackInstallerDialogMixin
+):
     bl_idname = "engon.asset_pack_install_dialog"
     bl_label = "Install Asset Pack"
     bl_description = "Asset Pack Installation Dialog"
@@ -508,14 +510,14 @@ class AssetPackInstallationDialog(bpy.types.Operator, asset_pack_installer.Asset
     try_updating: bpy.props.BoolProperty(
         get=lambda self: asset_pack_installer.instance.try_updating,
         set=lambda self, value: setattr(asset_pack_installer.instance, "try_updating", value),
-        description="If checked, proceeding with the installation will start an UPDATE dialog for this Asset Pack"
+        description="If checked, proceeding with the installation will start an UPDATE dialog for this Asset Pack",
     )
 
     try_reinstalling: bpy.props.BoolProperty(
         get=lambda self: asset_pack_installer.instance.try_reinstalling,
         set=lambda self, value: setattr(asset_pack_installer.instance, "try_reinstalling", value),
         description="If checked, proceeding with the installation will REMOVE the already present Asset Pack. "
-        "This new Asset Pack will be installed in its place."
+        "This new Asset Pack will be installed in its place.",
     )
 
     def draw(self, context: bpy.types.Context) -> None:
@@ -538,7 +540,8 @@ class AssetPackInstallationDialog(bpy.types.Operator, asset_pack_installer.Asset
             col.label(text="Select an installation directory")
             split = col.split(factor=0.05, align=True)
             split.operator(
-                SelectAssetPackInstallPath.bl_idname, text="", icon='FILE_FOLDER').filepath = os.path.expanduser("~" + os.sep)
+                SelectAssetPackInstallPath.bl_idname, text="", icon='FILE_FOLDER'
+            ).filepath = os.path.expanduser("~" + os.sep)
             split.prop(self, "install_path", text="")
 
         self.draw_installer_info(box)
@@ -560,10 +563,13 @@ class AssetPackInstallationDialog(bpy.types.Operator, asset_pack_installer.Asset
             col.label(text="Clicking 'OK' will start an UPDATE dialog for this Asset Pack.")
         elif self.try_reinstalling:
             col.label(text="Clicking 'OK' will REMOVE the already present Asset Pack.")
-            col.label(text="It will COPY all contents of this Asset Pack into the installation directory.")
+            col.label(
+                text="It will COPY all contents of this Asset Pack into the installation directory."
+            )
         else:
             col.label(
-                text="Clicking 'OK' will COPY all contents of this Asset Pack into the installation directory.")
+                text="Clicking 'OK' will COPY all contents of this Asset Pack into the installation directory."
+            )
 
         # We show custom cancel button only in versions before 4.1.0
         # From that version all operators have cancel button natively
@@ -585,12 +591,14 @@ class AssetPackInstallationDialog(bpy.types.Operator, asset_pack_installer.Asset
             return {'FINISHED'}
 
         pack_info_path_to_add: typing.Optional[str] = installer.execute_installation()
-        if pack_info_path_to_add is not None and \
-                not installer.check_asset_pack_already_installed():
-            gen_prefs.add_new_pack_info_search_path(file_path=pack_info_path_to_add,
-                                                    path_type=pack_info_search_paths.PackInfoSearchPathType.SINGLE_FILE)
+        if pack_info_path_to_add is not None and not installer.check_asset_pack_already_installed():
+            gen_prefs.add_new_pack_info_search_path(
+                file_path=pack_info_path_to_add,
+                path_type=pack_info_search_paths.PackInfoSearchPathType.SINGLE_FILE,
+            )
             asset_registry.instance.register_pack_from_pack_info_path(
-                pack_info_path_to_add, refresh_registry=False)
+                pack_info_path_to_add, refresh_registry=False
+            )
             gen_prefs.refresh_packs(save_prefs=prefs.save_prefs)
 
         bpy.ops.engon.asset_pack_install_dialog('INVOKE_DEFAULT')
@@ -604,7 +612,9 @@ MODULE_CLASSES.append(AssetPackInstallationDialog)
 class UninstallAssetPack(bpy.types.Operator):
     bl_idname = "engon.uninstall_asset_pack"
     bl_label = "Uninstall Asset Pack"
-    bl_description = "Uninstalls selected asset pack, selected asset pack will be also removed from the disc"
+    bl_description = (
+        "Uninstalls selected asset pack, selected asset pack will be also removed from the disc"
+    )
     bl_options = {'REGISTER'}
 
     current_filepath: bpy.props.StringProperty(default="")
@@ -621,7 +631,9 @@ MODULE_CLASSES.append(UninstallAssetPack)
 
 
 @polib.log_helpers_bpy.logged_operator
-class AssetPackUninstallationDialog(bpy.types.Operator, asset_pack_installer.AssetPackInstallerDialogMixin):
+class AssetPackUninstallationDialog(
+    bpy.types.Operator, asset_pack_installer.AssetPackInstallerDialogMixin
+):
     bl_idname = "engon.asset_pack_uninstall_dialog"
     bl_label = "Uninstall Asset Pack"
     bl_description = "Asset Pack Uninstallation Dialog"
@@ -640,7 +652,8 @@ class AssetPackUninstallationDialog(bpy.types.Operator, asset_pack_installer.Ass
             return
 
         self.draw_pack_info(
-            layout, header="This Asset Pack will be uninstalled:", show_install_path=True)
+            layout, header="This Asset Pack will be uninstalled:", show_install_path=True
+        )
 
         box = layout.box()
         self.draw_installer_info(box)
@@ -652,7 +665,8 @@ class AssetPackUninstallationDialog(bpy.types.Operator, asset_pack_installer.Ass
             box.label(text="Clicking 'OK' will ABORT the uninstallation.")
         else:
             box.label(
-                text="Clicking 'OK' will REMOVE all contents of this Asset Pack from the installation directory.")
+                text="Clicking 'OK' will REMOVE all contents of this Asset Pack from the installation directory."
+            )
 
         # We show custom cancel button only in versions before 4.1.0
         # From that version all operators have cancel button natively
@@ -670,10 +684,14 @@ class AssetPackUninstallationDialog(bpy.types.Operator, asset_pack_installer.Ass
 
         pack_info_path_to_remove = installer.execute_uninstallation()
         if pack_info_path_to_remove is not None:
-            gen_prefs.remove_all_copies_of_pack_info_search_path(context, pack_info_path_to_remove,
-                                                                 path_type=pack_info_search_paths.PackInfoSearchPathType.SINGLE_FILE)
+            gen_prefs.remove_all_copies_of_pack_info_search_path(
+                context,
+                pack_info_path_to_remove,
+                path_type=pack_info_search_paths.PackInfoSearchPathType.SINGLE_FILE,
+            )
             asset_registry.instance.unregister_pack_from_pack_info_path(
-                pack_info_path_to_remove, refresh_registry=False)
+                pack_info_path_to_remove, refresh_registry=False
+            )
             gen_prefs.refresh_packs(save_prefs=prefs.save_prefs)
 
         bpy.ops.engon.asset_pack_uninstall_dialog('INVOKE_DEFAULT')
@@ -692,13 +710,9 @@ class UpdateAssetPack(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 
     # These are the primary file types the user should select
     # All other file types work as well, but are not visible by default
-    filter_glob: bpy.props.StringProperty(
-        default="*.paq;*.paq.001;*.pack-info",
-        options={'HIDDEN'})
+    filter_glob: bpy.props.StringProperty(default="*.paq;*.paq.001;*.pack-info", options={'HIDDEN'})
 
-    current_filepath: bpy.props.StringProperty(
-        options={'HIDDEN'}
-    )
+    current_filepath: bpy.props.StringProperty(options={'HIDDEN'})
 
     def execute(self, context: bpy.types.Context):
         installer = asset_pack_installer.instance
@@ -730,8 +744,7 @@ class AssetPackUpdateDialog(bpy.types.Operator, asset_pack_installer.AssetPackIn
             self.draw_status_and_messages(layout)
             return
 
-        self.draw_pack_info(
-            layout, header="This Asset Pack will be updated:")
+        self.draw_pack_info(layout, header="This Asset Pack will be updated:")
 
         box = layout.box()
         self.draw_installer_info(box)
@@ -743,7 +756,8 @@ class AssetPackUpdateDialog(bpy.types.Operator, asset_pack_installer.AssetPackIn
             col.label(text="Clicking 'OK' will ABORT the update.")
         else:
             col.label(
-                text="Clicking 'OK' will REMOVE the old version of the Asset Pack from the installation directory.")
+                text="Clicking 'OK' will REMOVE the old version of the Asset Pack from the installation directory."
+            )
             col.label(text="It will be REPLACED with the new version.")
 
         # We show custom cancel button only in versions before 4.1.0
@@ -763,14 +777,21 @@ class AssetPackUpdateDialog(bpy.types.Operator, asset_pack_installer.AssetPackIn
         update_paths = installer.execute_update()
         if update_paths is not None:
             pack_info_path_to_remove, pack_info_path_to_add = update_paths
-            gen_prefs.remove_all_copies_of_pack_info_search_path(context, pack_info_path_to_remove,
-                                                                 path_type=pack_info_search_paths.PackInfoSearchPathType.SINGLE_FILE)
+            gen_prefs.remove_all_copies_of_pack_info_search_path(
+                context,
+                pack_info_path_to_remove,
+                path_type=pack_info_search_paths.PackInfoSearchPathType.SINGLE_FILE,
+            )
             asset_registry.instance.unregister_pack_from_pack_info_path(
-                pack_info_path_to_remove, refresh_registry=False)
+                pack_info_path_to_remove, refresh_registry=False
+            )
             gen_prefs.add_new_pack_info_search_path(
-                file_path=pack_info_path_to_add, path_type=pack_info_search_paths.PackInfoSearchPathType.SINGLE_FILE)
+                file_path=pack_info_path_to_add,
+                path_type=pack_info_search_paths.PackInfoSearchPathType.SINGLE_FILE,
+            )
             asset_registry.instance.register_pack_from_pack_info_path(
-                pack_info_path_to_add, refresh_registry=False)
+                pack_info_path_to_add, refresh_registry=False
+            )
             gen_prefs.refresh_packs(save_prefs=prefs.save_prefs)
 
         bpy.ops.engon.asset_pack_update_dialog('INVOKE_DEFAULT')
@@ -788,9 +809,7 @@ class SelectAssetPackInstallPath(bpy.types.Operator, bpy_extras.io_utils.ImportH
     bl_options = {'REGISTER', 'INTERNAL'}
 
     # Empty filer_glob to show folders only
-    filter_glob: bpy.props.StringProperty(
-        default="",
-        options={'HIDDEN'})
+    filter_glob: bpy.props.StringProperty(default="", options={'HIDDEN'})
 
     def execute(self, context: bpy.types.Context):
         installer = asset_pack_installer.instance

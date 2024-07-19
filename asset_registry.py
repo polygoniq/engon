@@ -25,15 +25,18 @@ import collections
 import json
 import zipfile
 import logging
-import mapr
-import polib
 import functools
+from . import mapr
+from . import polib
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
 class AssetPack:
     @staticmethod
-    def from_json_dict(pack_info_path: str, json_dict: typing.Dict[typing.Any, typing.Any], fake_pack: bool = False) -> 'AssetPack':
+    def from_json_dict(
+        pack_info_path: str, json_dict: typing.Dict[typing.Any, typing.Any], fake_pack: bool = False
+    ) -> 'AssetPack':
         """Parses pack info from 'json_dict' and constructs AssetPack from it.
 
         fake_pack: True if pack is constructed without unzipping all its files on disc, AssetPack
@@ -49,21 +52,24 @@ class AssetPack:
         if not isinstance(full_name, str):
             raise ValueError(
                 f"Given json dict contains full_name but its type is '{type(full_name)}' "
-                f"instead of the expected 'str'!")
+                f"instead of the expected 'str'!"
+            )
         version = json_dict.get("version", None)
         if version is None:
             raise ValueError("Given json dict does not contain a required key 'version'!")
         if not isinstance(version, list):
             raise ValueError(
                 f"Given json dict contains version but its type is '{type(version)}' "
-                f"instead of the expected 'list'!")
+                f"instead of the expected 'list'!"
+            )
         vendor = json_dict.get("vendor", None)
         if vendor is None:
             raise ValueError("Given json dict does not contain a required key 'vendor'!")
         if not isinstance(vendor, str):
             raise ValueError(
                 f"Given json dict contains vendor but its type is '{type(vendor)}' "
-                f"instead of the expected 'str'!")
+                f"instead of the expected 'str'!"
+            )
         engon_features = json_dict.get("engon_features", [])
         # min_engon_version default is the version, when the field was introduced - 1.2.0
         min_engon_version = json_dict.get("min_engon_version", [1, 2, 0])
@@ -76,24 +82,28 @@ class AssetPack:
         if not isinstance(index_paths, list):
             raise ValueError(
                 f"Given json dict contains index_paths but its type is '{type(index_paths)}' "
-                f"instead of the expected 'list'!")
+                f"instead of the expected 'list'!"
+            )
         file_id_prefix = json_dict.get("file_id_prefix", None)
         if file_id_prefix is None:
             raise ValueError("Given json dict does not contain a required key 'file_id_prefix'!")
         if not isinstance(file_id_prefix, str):
             raise ValueError(
                 f"Given json dict contains file_id_prefix but its type is '{type(file_id_prefix)}' "
-                f"instead of the expected 'str'!")
+                f"instead of the expected 'str'!"
+            )
         pack_icon = json_dict.get("pack_icon", None)
         if not (pack_icon is None or isinstance(pack_icon, str)):
             raise ValueError(
                 f"Given json dict contains pack_icon but its type is '{type(pack_icon)}' "
-                f"instead of the expected 'None' or 'str'!")
+                f"instead of the expected 'None' or 'str'!"
+            )
         vendor_icon = json_dict.get("vendor_icon", None)
         if not (vendor_icon is None or isinstance(vendor_icon, str)):
             raise ValueError(
                 f"Given json dict contains vendor_icon but its type is '{type(vendor_icon)}' "
-                f"instead of the expected 'None' or 'str'!")
+                f"instead of the expected 'None' or 'str'!"
+            )
 
         # Don't load icons if we're constructing fake pack without all source data
         if fake_pack:
@@ -111,7 +121,7 @@ class AssetPack:
             index_paths,
             file_id_prefix,
             pack_icon,
-            vendor_icon
+            vendor_icon,
         )
 
     @staticmethod
@@ -139,7 +149,7 @@ class AssetPack:
         index_paths: typing.List[str],
         file_id_prefix: str,
         pack_icon_path: typing.Optional[str],
-        vendor_icon_path: typing.Optional[str]
+        vendor_icon_path: typing.Optional[str],
     ):
         # Each asset pack has a unique full name, we guarantee at most one asset pack registered
         # with that name. If there are multiple versions available the user should register the
@@ -155,8 +165,7 @@ class AssetPack:
         # TODO: For now we support only one engon_feature but this is an artificial limitation of
         #       the API.
         if len(engon_features) > 1:
-            raise NotImplementedError(
-                "For now we only support one engon_feature per asset pack!")
+            raise NotImplementedError("For now we only support one engon_feature per asset pack!")
         if len(engon_features) == 0:
             raise NotImplementedError("At least one engon feature required in each asset pack!")
         self.engon_feature = engon_features[0]
@@ -171,13 +180,16 @@ class AssetPack:
         self.vendor_icon: typing.Optional[str] = None
         valid_icon_paths: typing.List[str] = []
 
-        for icon_path, icon_prop_name in zip((pack_icon_path, vendor_icon_path), ("pack_icon", "vendor_icon")):
+        for icon_path, icon_prop_name in zip(
+            (pack_icon_path, vendor_icon_path), ("pack_icon", "vendor_icon")
+        ):
             if icon_path is not None:
                 setattr(self, icon_prop_name, os.path.splitext(os.path.basename(icon_path))[0])
                 icon_fullpath = os.path.join(install_path, icon_path)
                 if not os.path.isfile(icon_fullpath):
                     raise RuntimeError(
-                        f"Asset pack icon '{icon_path}' not found on path '{icon_fullpath}'!")
+                        f"Asset pack icon '{icon_path}' not found on path '{icon_fullpath}'!"
+                    )
                 valid_icon_paths.append(icon_fullpath)
 
         self.icon_manager = polib.preview_manager_bpy.PreviewManager()
@@ -198,11 +210,9 @@ class AssetPack:
         # Install path is a valid filesystem path where all .blends, textures and other files are
         # located. This is what Find Missing Files operator will use to locate files.
         if not os.path.isabs(self.install_path):
-            raise ValueError(
-                f"Given install_path {self.install_path} is not an absolute path!")
+            raise ValueError(f"Given install_path {self.install_path} is not an absolute path!")
         if not os.path.isdir(self.install_path):
-            raise ValueError(
-                f"Given install_path {self.install_path} is not a valid directory!")
+            raise ValueError(f"Given install_path {self.install_path} is not a valid directory!")
 
         # Paths to MAPR index JSONs, this will be used by browser to browse this asset pack.
         # These paths should be relative to self.install_path
@@ -211,7 +221,8 @@ class AssetPack:
                 raise ValueError(
                     f"One of the index paths {index_path} is not a path relative to the "
                     f"install_path {self.install_path}. Please don't use absolute index paths for "
-                    f"AssetPacks!")
+                    f"AssetPacks!"
+                )
 
     def get_filepath_from_basename(self, basename: str) -> typing.Optional[str]:
         for provider in self.file_providers:
@@ -248,16 +259,18 @@ class AssetPack:
         if len(all_child_of_root_asset_pack_categories) == 1:
             main_category_id = all_child_of_root_asset_pack_categories.pop()
         else:
-            logger.error(f"We expect the pack {self.full_name} to have 1 child-of-root category, "
-                         f"but {len(all_child_of_root_asset_pack_categories)} were found. "
-                         f"Defaulting to root category '{main_category_id}'.")
+            logger.error(
+                f"We expect the pack {self.full_name} to have 1 child-of-root category, "
+                f"but {len(all_child_of_root_asset_pack_categories)} were found. "
+                f"Defaulting to root category '{main_category_id}'."
+            )
 
         return main_category_id
 
     def _register_in_mapr(
         self,
         master_asset_provider: mapr.asset_provider.AssetProviderMultiplexer,
-        master_file_provider: mapr.file_provider.FileProviderMultiplexer
+        master_file_provider: mapr.file_provider.FileProviderMultiplexer,
     ) -> None:
         assert len(self.asset_providers) == 0
         assert len(self.file_providers) == 0
@@ -268,16 +281,15 @@ class AssetPack:
         for index_path in self.index_paths:
             if not os.path.isabs(index_path):
                 index_path = os.path.realpath(
-                    os.path.abspath(os.path.join(self.install_path, index_path)))
+                    os.path.abspath(os.path.join(self.install_path, index_path))
+                )
 
             if not os.path.isfile(index_path):
                 logger.error(f"Index path is not a valid file {index_path}, skipping...")
                 continue
 
             provider = mapr.local_json_provider.LocalJSONProvider(
-                index_path,
-                self.install_path,
-                self.file_id_prefix
+                index_path, self.install_path, self.file_id_prefix
             )
             asset_multiplexer.add_asset_provider(provider)
             file_multiplexer.add_file_provider(provider)
@@ -293,7 +305,7 @@ class AssetPack:
     def _unregister_from_mapr(
         self,
         master_asset_provider: mapr.asset_provider.AssetProviderMultiplexer,
-        master_file_provider: mapr.file_provider.FileProviderMultiplexer
+        master_file_provider: mapr.file_provider.FileProviderMultiplexer,
     ) -> None:
         for asset_provider in self.asset_providers:
             master_asset_provider.remove_asset_provider(asset_provider)
@@ -312,11 +324,15 @@ class AssetPack:
             # We need to handle the case where this path has already been registered, we don't want
             # a double registration
             for asset_library in preferences.filepaths.asset_libraries:
-                abs_library_path = os.path.realpath(os.path.abspath(bpy.path.abspath(
-                    asset_library.path)))
+                abs_library_path = os.path.realpath(
+                    os.path.abspath(bpy.path.abspath(asset_library.path))
+                )
                 # If the same path or ancestor is already registered, we won't register again
                 try:
-                    if os.path.commonpath([abs_library_path, self.install_path]) == abs_library_path:
+                    if (
+                        os.path.commonpath([abs_library_path, self.install_path])
+                        == abs_library_path
+                    ):
                         break
                 except ValueError:
                     # commonpath raises ValueError if the two paths have a different drive
@@ -331,7 +347,8 @@ class AssetPack:
         if self.blender_asset_library_entry is not None:
             preferences = bpy.context.preferences
             index = preferences.filepaths.asset_libraries.find(
-                self.blender_asset_library_entry.name)
+                self.blender_asset_library_entry.name
+            )
             if index < 0:
                 logger.warning(
                     f"Wanted to unregister {self.full_name} from Blender asset libraries but the "
@@ -352,37 +369,34 @@ class AssetRegistry:
 
     def __init__(self):
         self._packs_by_full_name: typing.Dict[str, AssetPack] = {}
-        self._packs_by_engon_feature: typing.DefaultDict[str, typing.List[AssetPack]] = \
+        self._packs_by_engon_feature: typing.DefaultDict[str, typing.List[AssetPack]] = (
             collections.defaultdict(list)
+        )
         self._packs_by_pack_info_path: typing.Dict[str, AssetPack] = {}
-        self.master_asset_provider: mapr.asset_provider.AssetProvider = \
+        self.master_asset_provider: mapr.asset_provider.AssetProvider = (
             mapr.asset_provider.CachedAssetProviderMultiplexer()
-        self.master_file_provider: mapr.file_provider.FileProvider = \
+        )
+        self.master_file_provider: mapr.file_provider.FileProvider = (
             mapr.file_provider.FileProviderMultiplexer()
+        )
         self.on_refresh: typing.List[typing.Callable[[], None]] = []
 
     def get_pack_by_full_name(self, full_name: str) -> typing.Optional[AssetPack]:
-        """Returns registered asset pack based on 'full_name' if present, None otherwise
-        """
+        """Returns registered asset pack based on 'full_name' if present, None otherwise"""
         return self._packs_by_full_name.get(full_name, None)
 
     def get_packs_by_engon_feature(self, engon_feature: str) -> typing.List[AssetPack]:
-        """Returns registered addons with given 'addon_name'
-        """
+        """Returns registered addons with given 'addon_name'"""
         return self._packs_by_engon_feature[engon_feature]
 
     def get_pack_by_pack_info_path(self, pack_info_path: str) -> typing.Optional[AssetPack]:
-        """Returns registered asset pack based on 'pack_info_path' if present, None otherwise
-        """
+        """Returns registered asset pack based on 'pack_info_path' if present, None otherwise"""
         return self._packs_by_pack_info_path.get(pack_info_path, None)
 
     def get_packs_paths(self) -> typing.Set[str]:
         return {p.install_path for p in self._packs_by_full_name.values()}
 
-    def _register_pack(
-        self,
-        asset_pack: AssetPack
-    ) -> None:
+    def _register_pack(self, asset_pack: AssetPack) -> None:
         """Registers an addon into the registry
 
         If addon information with the same 'full_name' is already present, an exception is raised.
@@ -402,10 +416,7 @@ class AssetRegistry:
         asset_pack._register_in_mapr(self.master_asset_provider, self.master_file_provider)
         asset_pack._register_blender_asset_library()
 
-    def _unregister_pack(
-        self,
-        asset_pack: AssetPack
-    ) -> None:
+    def _unregister_pack(self, asset_pack: AssetPack) -> None:
         asset_pack._unregister_blender_asset_library()
         asset_pack._unregister_from_mapr(self.master_asset_provider, self.master_file_provider)
 
@@ -423,14 +434,18 @@ class AssetRegistry:
             output_dict[feature] = [pack.install_path for pack in asset_packs]
         return output_dict
 
-    def register_pack_from_pack_info_path(self, pack_info_path: str, refresh_registry: bool = True) -> None:
+    def register_pack_from_pack_info_path(
+        self, pack_info_path: str, refresh_registry: bool = True
+    ) -> None:
         asset_pack = AssetPack.load_from_json(pack_info_path)
         logger.info(f"Registering asset pack '{asset_pack.full_name}' from '{pack_info_path}'")
         self._register_pack(asset_pack)
         if refresh_registry:
             self._registry_refreshed()
 
-    def unregister_pack_from_pack_info_path(self, pack_info_path: str, refresh_registry: bool = True) -> None:
+    def unregister_pack_from_pack_info_path(
+        self, pack_info_path: str, refresh_registry: bool = True
+    ) -> None:
         asset_pack = self.get_pack_by_pack_info_path(pack_info_path)
         assert asset_pack is not None
         logger.info(f"Unregistering asset pack '{asset_pack.full_name}' from '{pack_info_path}'")
@@ -441,21 +456,23 @@ class AssetRegistry:
     def refresh_packs_from_pack_info_paths(self, pack_info_files: typing.Iterable[str]) -> None:
         input_pack_info_files: typing.Set[str] = set(pack_info_files)
         logger.info(
-            f"Refreshing registered asset packs from pack-info files: {input_pack_info_files}")
+            f"Refreshing registered asset packs from pack-info files: {input_pack_info_files}"
+        )
 
         existing_pack_info_paths = set(self._packs_by_pack_info_path.keys())
         # We assume the pack-info files themselves have not changed
-        logger.info(
-            f"Keeping {existing_pack_info_paths.intersection(input_pack_info_files)} as they are")
+        logger.debug(
+            f"Keeping {existing_pack_info_paths.intersection(input_pack_info_files)} as they are"
+        )
         pack_info_files_to_remove = existing_pack_info_paths - input_pack_info_files
-        logger.info(f"Will unregister {pack_info_files_to_remove}")
+        logger.debug(f"Will unregister {pack_info_files_to_remove}")
         for pack_info_file in pack_info_files_to_remove:
             asset_pack = self.get_pack_by_pack_info_path(pack_info_file)
             assert asset_pack is not None
             self._unregister_pack(asset_pack)
 
         pack_info_files_to_add = input_pack_info_files - existing_pack_info_paths
-        logger.info(f"Will newly register {pack_info_files_to_add}")
+        logger.debug(f"Will newly register {pack_info_files_to_add}")
         for pack_info_file in pack_info_files_to_add:
             assert pack_info_file not in self._packs_by_pack_info_path
             try:
@@ -463,7 +480,8 @@ class AssetRegistry:
                 self._register_pack(asset_pack)
             except:
                 logger.exception(
-                    f"Tried to newly register '{pack_info_file}' but parsing or registration failed!")
+                    f"Tried to newly register '{pack_info_file}' but parsing or registration failed!"
+                )
 
         self._registry_refreshed()
 

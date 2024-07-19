@@ -34,25 +34,22 @@
 import bpy
 import typing
 import itertools
-import polib
-import hatchery
+from .. import polib
+from .. import hatchery
 from .. import asset_registry
 from . import displacement
 from . import misc_ops
 from . import textures
 from .. import preferences
 from .. import asset_helpers
+from .. import __package__ as base_package
 
 
 MODULE_CLASSES: typing.List[typing.Any] = []
 
 
 # Thresholds to convert float value of mapping to enum values
-MAPPING_INPUT_THRESHOLDS = {
-    'UV': (0, 1 / 3),
-    'OBJECT': (1 / 3, 2 / 3),
-    'WORLD': (2 / 3, 1)
-}
+MAPPING_INPUT_THRESHOLDS = {'UV': (0, 1 / 3), 'OBJECT': (1 / 3, 2 / 3), 'WORLD': (2 / 3, 1)}
 
 
 class MaterialiqPanelMixin:
@@ -101,14 +98,15 @@ class MaterialiqPanel(MaterialiqPanelMixin, bpy.types.Panel):
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.template_icon(
-            icon_value=polib.ui_bpy.icon_manager.get_engon_feature_icon_id("materialiq"))
+            icon_value=polib.ui_bpy.icon_manager.get_engon_feature_icon_id("materialiq")
+        )
 
     def draw_header_preset(self, context: bpy.types.Context) -> None:
         self.layout.prop(get_panel_props(context), "advanced_ui", text="", icon='MENU_PANEL')
         polib.ui_bpy.draw_doc_button(
             self.layout,
-            polib.utils_bpy.get_top_level_package_name(__package__),
-            rel_url="panels/materialiq/panel_overview"
+            base_package,
+            rel_url="panels/materialiq/panel_overview",
         )
 
     def draw_material_list(self, context: bpy.types.Context) -> None:
@@ -131,8 +129,15 @@ class MaterialiqPanel(MaterialiqPanelMixin, bpy.types.Panel):
             slot = obj.material_slots[obj.active_material_index]
 
         row = layout.row()
-        row.template_list("MATERIAL_UL_matslots", "", obj, "material_slots",
-                          obj, "active_material_index", rows=rows)
+        row.template_list(
+            "MATERIAL_UL_matslots",
+            "",
+            obj,
+            "material_slots",
+            obj,
+            "active_material_index",
+            rows=rows,
+        )
 
         col = row.column(align=True)
         col.operator("object.material_slot_add", icon='ADD', text="")
@@ -145,8 +150,7 @@ class MaterialiqPanel(MaterialiqPanelMixin, bpy.types.Panel):
             col.separator()
 
             col.operator("object.material_slot_move", icon='TRIA_UP', text="").direction = 'UP'
-            col.operator("object.material_slot_move",
-                         icon='TRIA_DOWN', text="").direction = 'DOWN'
+            col.operator("object.material_slot_move", icon='TRIA_DOWN', text="").direction = 'DOWN'
 
         row = layout.row()
         row.template_ID(obj, "active_material", new="material.new")
@@ -195,7 +199,7 @@ class ToolsPanel(MaterialiqPanelMixin, bpy.types.Panel):
             textures.ChangeTextureSizeGlobal.bl_idname,
             property="max_size",
             text="All Materials",
-            icon='LIGHTPROBE_GRID' if bpy.app.version < (4, 1, 0) else 'LIGHTPROBE_VOLUME'
+            icon='LIGHTPROBE_GRID' if bpy.app.version < (4, 1, 0) else 'LIGHTPROBE_VOLUME',
         )
 
         row = box.column()
@@ -204,7 +208,8 @@ class ToolsPanel(MaterialiqPanelMixin, bpy.types.Panel):
             textures.ChangeTextureSizeActiveMaterial.bl_idname,
             property="max_size",
             text="Active Material",
-            icon='MATERIAL')
+            icon='MATERIAL',
+        )
 
 
 MODULE_CLASSES.append(ToolsPanel)
@@ -243,16 +248,12 @@ class MappingPanel(MaterialiqMaterialMixin, bpy.types.Panel):
             "Bombing      Strength",
             "Bombing      Scale",
             "Bombing      Rotation",
-        )
+        ),
     )
 
     advanced_template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
         "mq_Mapping",
-        filter_=lambda x: not polib.node_utils_bpy.filter_node_socket_name(
-            x,
-            "bombing",
-            "UV 0"
-        )
+        filter_=lambda x: not polib.node_utils_bpy.filter_node_socket_name(x, "bombing", "UV 0"),
     )
 
     def draw_header(self, context: bpy.types.Context) -> None:
@@ -289,7 +290,7 @@ class TextureBombingPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
         filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(
             x,
             "bombing",
-        )
+        ),
     )
 
     def draw_header(self, context: bpy.types.Context) -> None:
@@ -330,7 +331,7 @@ class AdjustmentsPanel(MaterialiqMaterialMixin, bpy.types.Panel):
             "Roughness Brightness",
             "Roughness Contrast",
             "Normal Map Strength",
-        )
+        ),
     )
 
     @classmethod
@@ -344,7 +345,7 @@ class AdjustmentsPanel(MaterialiqMaterialMixin, bpy.types.Panel):
 
         nodegroups = itertools.chain(
             polib.node_utils_bpy.find_nodegroups_by_name(mat.node_tree, "mq_Adjust"),
-            polib.node_utils_bpy.find_nodegroups_by_name(mat.node_tree, "mq_Transparent")
+            polib.node_utils_bpy.find_nodegroups_by_name(mat.node_tree, "mq_Transparent"),
         )
         return len(set(nodegroups)) > 0
 
@@ -382,8 +383,8 @@ class AdjustmentsDiffusePanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
             "diffuse",
             "brightness",
             "contrast",
-            "hue"
-        )
+            "hue",
+        ),
     )
 
     def draw_header(self, context: bpy.types.Context) -> None:
@@ -410,11 +411,7 @@ class AdjustmentsSpecularPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
     bl_options = {'DEFAULT_CLOSED'}
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
-        "mq_Adjust",
-        filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(
-            x,
-            "specular"
-        )
+        "mq_Adjust", filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(x, "specular")
     )
 
     def draw_header(self, context: bpy.types.Context) -> None:
@@ -441,11 +438,7 @@ class AdjustmentsRoughnessPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel)
     bl_options = {'DEFAULT_CLOSED'}
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
-        "mq_Adjust",
-        filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(
-            x,
-            "roughness"
-        )
+        "mq_Adjust", filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(x, "roughness")
     )
 
     def draw_header(self, context: bpy.types.Context) -> None:
@@ -472,20 +465,12 @@ class AdjustmentsNormalPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
     bl_options = {'DEFAULT_CLOSED'}
 
     adjustment_template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
-        "mq_Adjust",
-        filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(
-            x,
-            "normal"
-        )
+        "mq_Adjust", filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(x, "normal")
     )
 
     # There should be only one Bevel node on top level of materialiq material
     bevel_template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
-        "Bevel",
-        filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(
-            x,
-            "radius"
-        )
+        "Bevel", filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(x, "radius")
     )
 
     def draw_header(self, context: bpy.types.Context) -> None:
@@ -564,15 +549,17 @@ class TexturesPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
         # We need to search for mq_Texture by node name here, node_trees are named according
         # to materials as they need to be unique per material.
         nodegroups = polib.node_utils_bpy.find_nodegroups_by_name(
-            mat.node_tree, "mq_Textures", use_node_tree_name=False)
+            mat.node_tree, "mq_Textures", use_node_tree_name=False
+        )
         if len(nodegroups) == 0:
             layout.label(text="No textures nodegroup found")
             return
 
         first_ng = nodegroups.pop()
 
-        layout.operator(textures.SyncTextureNodes.bl_idname,
-                        icon='ANIM').node_tree_name = first_ng.node_tree.name
+        layout.operator(textures.SyncTextureNodes.bl_idname, icon='ANIM').node_tree_name = (
+            first_ng.node_tree.name
+        )
 
         channel_nodes_map = polib.node_utils_bpy.get_channel_nodes_map(first_ng.node_tree)
         for i, filepath in enumerate(sorted(channel_nodes_map)):
@@ -593,8 +580,12 @@ class TexturesPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
 
             row = box.row(align=True)
             row.prop(
-                props, "show_texture_nodes", index=i, emboss=False,
-                text="", icon='TRIA_DOWN' if props.show_texture_nodes[i] else 'TRIA_RIGHT',
+                props,
+                "show_texture_nodes",
+                index=i,
+                emboss=False,
+                text="",
+                icon='TRIA_DOWN' if props.show_texture_nodes[i] else 'TRIA_RIGHT',
             )
 
             # Draw whole node if this texture node should be shown, otherwise draw only image
@@ -628,12 +619,12 @@ class DisplacementPanel(MaterialiqMaterialMixin, bpy.types.Panel):
         col.operator(
             displacement.AddDisplacement.bl_idname,
             text=displacement.AddDisplacement.bl_label,
-            icon='ADD'
+            icon='ADD',
         )
         col.operator(
             displacement.RemoveDisplacement.bl_idname,
             text=displacement.RemoveDisplacement.bl_label,
-            icon='REMOVE'
+            icon='REMOVE',
         )
 
 
@@ -652,13 +643,15 @@ class AdaptiveSubdivPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.template_icon(
-            icon_value=polib.ui_bpy.icon_manager.get_icon_id("icon_adaptive_subdivision"))
+            icon_value=polib.ui_bpy.icon_manager.get_icon_id("icon_adaptive_subdivision")
+        )
 
     def draw(self, context: bpy.types.Context) -> None:
         col = self.layout.column(align=True)
         col.prop(context.scene.cycles, "dicing_rate", text="Render Dicing Rate", slider=True)
-        col.prop(context.scene.cycles, "preview_dicing_rate",
-                 text="Viewport Dicing Rate", slider=True)
+        col.prop(
+            context.scene.cycles, "preview_dicing_rate", text="Viewport Dicing Rate", slider=True
+        )
 
 
 MODULE_CLASSES.append(AdaptiveSubdivPanel)
@@ -680,7 +673,8 @@ class ModifiersDisplacementPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel
             return
 
         displacement_related_modifiers = [
-            x for x in context.active_object.modifiers if x.name in displacement.DRAW_MODIFIER_PROPS]
+            x for x in context.active_object.modifiers if x.name in displacement.DRAW_MODIFIER_PROPS
+        ]
 
         if len(displacement_related_modifiers) == 0:
             col.label(text="No displacement related modifiers found")
@@ -692,7 +686,9 @@ class ModifiersDisplacementPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel
                 col.prop(mod, prop)
         # Dicing Rate property is located in modifier UI but belongs to object so we draw it separately
         # and don't store it in DRAW_MODIFIER_PROPS
-        if mod.name == "mq_Subdivision_Adaptive" and displacement.is_scene_setup_adaptive_subdiv(context):
+        if mod.name == "mq_Subdivision_Adaptive" and displacement.is_scene_setup_adaptive_subdiv(
+            context
+        ):
             obj = context.active_object
             col.prop(obj.cycles, "dicing_rate")
 
@@ -722,8 +718,10 @@ class AdjustmentsDisplacementPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Pan
 
         layout = self.layout.column(align=True)
 
-        material_output_nodes = list(polib.node_utils_bpy.find_nodes_by_bl_idname(
-            mat.node_tree.nodes, "ShaderNodeOutputMaterial")
+        material_output_nodes = list(
+            polib.node_utils_bpy.find_nodes_by_bl_idname(
+                mat.node_tree.nodes, "ShaderNodeOutputMaterial"
+            )
         )
         material_output_node = material_output_nodes[0]
 
@@ -743,11 +741,12 @@ class AdjustmentsDisplacementPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Pan
             return
 
         if displacement_link.from_node != displacement_nodegroup:
-            layout.label(text="mq_Displacement nodegroup not connected directly to Displacement Output")
+            layout.label(
+                text="mq_Displacement nodegroup not connected directly to Displacement Output"
+            )
             return
 
-        polib.node_utils_bpy.draw_node_inputs_filtered(
-            layout, displacement_nodegroup)
+        polib.node_utils_bpy.draw_node_inputs_filtered(layout, displacement_nodegroup)
 
 
 MODULE_CLASSES.append(AdjustmentsDisplacementPanel)
@@ -787,9 +786,7 @@ class EditNodeTreePanel(MaterialiqPanelMixin, bpy.types.Panel):
             return
 
         polib.node_utils_bpy.draw_node_tree(
-            layout,
-            mat.node_tree,
-            get_panel_props(context).node_tree_display_depth
+            layout, mat.node_tree, get_panel_props(context).node_tree_display_depth
         )
 
 
@@ -805,17 +802,16 @@ class DisplaySettingsPanel(MaterialiqPanelMixin, bpy.types.Panel):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        return super().poll(context) and \
-            polib.material_utils_bpy.safe_get_active_material(context.active_object) is not None
+        return (
+            super().poll(context)
+            and polib.material_utils_bpy.safe_get_active_material(context.active_object) is not None
+        )
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon='SETTINGS')
 
     def draw_eevee_material_settings(
-        self,
-        mat: bpy.types.Material,
-        layout: bpy.types.UILayout,
-        advanced_ui: bool
+        self, mat: bpy.types.Material, layout: bpy.types.UILayout, advanced_ui: bool
     ) -> None:
         row = layout.row()
         row.enabled = False
@@ -831,10 +827,7 @@ class DisplaySettingsPanel(MaterialiqPanelMixin, bpy.types.Panel):
         layout.prop(mat, "use_backface_culling")
 
     def draw_cycles_material_settings(
-        self,
-        mat: bpy.types.Material,
-        layout: bpy.types.UILayout,
-        advanced_ui: bool
+        self, mat: bpy.types.Material, layout: bpy.types.UILayout, advanced_ui: bool
     ) -> None:
         if not advanced_ui:
             row = layout.row()
@@ -903,7 +896,8 @@ class MaterialiqWorldPanel(MaterialiqWorldsPanelMixin, bpy.types.Panel):
 
     def draw_header(self, context: bpy.types.Context):
         self.layout.template_icon(
-            icon_value=polib.ui_bpy.icon_manager.get_engon_feature_icon_id("materialiq"))
+            icon_value=polib.ui_bpy.icon_manager.get_engon_feature_icon_id("materialiq")
+        )
 
     def draw(self, context: bpy.types.Context) -> None:
         world = context.scene.world
@@ -916,18 +910,12 @@ class MaterialiqWorldPanel(MaterialiqWorldsPanelMixin, bpy.types.Panel):
         col = self.layout.column(align=True)
         mapping_node = world.node_tree.nodes.get("Mapping", None)
         if mapping_node is not None:
-            col.template_node_view(
-                world.node_tree,
-                mapping_node,
-                mapping_node.inputs["Rotation"]
-            )
+            col.template_node_view(world.node_tree, mapping_node, mapping_node.inputs["Rotation"])
 
         background_node = world.node_tree.nodes.get("Background", None)
         if background_node is not None:
             col.template_node_view(
-                world.node_tree,
-                background_node,
-                background_node.inputs["Strength"]
+                world.node_tree, background_node, background_node.inputs["Strength"]
             )
 
 
@@ -945,7 +933,7 @@ class PanelProperties(bpy.types.PropertyGroup):
     show_texture_nodes: bpy.props.BoolVectorProperty(
         name="Show Texture Nodes",
         description="Toggle detailed displayed of texture node",
-        size=3  # We use at max 3 (Diffuse, Height, Normal)
+        size=3,  # We use at max 3 (Diffuse, Height, Normal)
     )
 
     advanced_ui: bpy.props.BoolProperty(
@@ -963,7 +951,7 @@ class PanelProperties(bpy.types.PropertyGroup):
         ],
         description="Switch mapping of active material",
         get=lambda self: self.mapping_get(),
-        set=lambda self, value: self.mapping_set(value)
+        set=lambda self, value: self.mapping_set(value),
     )
 
     def mapping_get(self) -> int:

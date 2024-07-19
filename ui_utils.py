@@ -20,7 +20,7 @@
 
 import bpy
 import typing
-import polib
+from . import polib
 
 
 MODULE_CLASSES: typing.List[typing.Any] = []
@@ -33,20 +33,11 @@ class ShowPopup(bpy.types.Operator):
     bl_description = "Shows further info in a popup window"
     bl_options = {'REGISTER'}
 
-    message: bpy.props.StringProperty(
-        default="No message",
-        options={'HIDDEN'}
-    )
+    message: bpy.props.StringProperty(default="No message", options={'HIDDEN'})
 
-    title: bpy.props.StringProperty(
-        default="No title",
-        options={'HIDDEN'}
-    )
+    title: bpy.props.StringProperty(default="No title", options={'HIDDEN'})
 
-    icon: bpy.props.StringProperty(
-        default='WARNING',
-        options={'HIDDEN'}
-    )
+    icon: bpy.props.StringProperty(default='WARNING', options={'HIDDEN'})
 
     def execute(self, context):
         polib.ui_bpy.show_message_box(self.message, self.title, self.icon)

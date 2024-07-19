@@ -21,9 +21,6 @@
 
 import bpy
 import typing
-import polib
-import hatchery
-import mapr
 import logging
 import itertools
 import functools
@@ -33,6 +30,10 @@ import collections
 from . import asset_changes
 from .. import preferences
 from .. import asset_registry
+from .. import polib
+from .. import hatchery
+from .. import mapr
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 MODULE_CLASSES: typing.List[typing.Type] = []
@@ -49,26 +50,30 @@ class RemoveDuplicates(bpy.types.Operator):
         pack_paths = asset_registry.instance.get_packs_paths()
         filters = [polib.remove_duplicates_bpy.polygoniq_duplicate_data_filter]
         removed_material_names = polib.remove_duplicates_bpy.remove_duplicate_datablocks(
-            bpy.data.materials, filters, pack_paths)
+            bpy.data.materials, filters, pack_paths
+        )
         logger.info(f"Removed materials: {removed_material_names}")
         removed_images_names = polib.remove_duplicates_bpy.remove_duplicate_datablocks(
-            bpy.data.images, filters, pack_paths)
+            bpy.data.images, filters, pack_paths
+        )
         logger.info(f"Removed images: {removed_images_names}")
         removed_node_names = polib.remove_duplicates_bpy.remove_duplicate_datablocks(
-            bpy.data.node_groups, filters, pack_paths)
+            bpy.data.node_groups, filters, pack_paths
+        )
         logger.info(f"Removed node groups: {removed_node_names}")
 
-        if len(removed_material_names) > 0 or len(removed_images_names) > 0 or len(removed_node_names) > 0:
+        if (
+            len(removed_material_names) > 0
+            or len(removed_images_names) > 0
+            or len(removed_node_names) > 0
+        ):
             self.report(
                 {'INFO'},
                 f"{len(removed_material_names)} materials, {len(removed_images_names)} images, "
-                f"{len(removed_node_names)} nodes have been merged."
+                f"{len(removed_node_names)} nodes have been merged.",
             )
         else:
-            self.report(
-                {'INFO'},
-                "No duplicates to merge."
-            )
+            self.report({'INFO'}, "No duplicates to merge.")
 
         return {'FINISHED'}
 
@@ -80,8 +85,9 @@ MODULE_CLASSES.append(RemoveDuplicates)
 class FindMissingFiles(bpy.types.Operator):
     bl_idname = "engon.find_missing_files"
     bl_label = "Find Missing Files"
-    bl_description = \
+    bl_description = (
         "Use Blender's Find Missing Files operator with engon's asset pack install paths"
+    )
     bl_options = {'REGISTER', 'UNDO'}
 
     @polib.utils_bpy.blender_cursor('WAIT')
@@ -89,7 +95,9 @@ class FindMissingFiles(bpy.types.Operator):
         missing_datablocks: typing.Set[bpy.types.ID] = set()
         datablocks_to_reload: typing.List[bpy.types.ID] = []
         for datablock in itertools.chain(bpy.data.libraries, bpy.data.images):
-            if not polib.utils_bpy.isfile_case_sensitive(bpy.path.abspath(datablock.filepath, library=datablock.library)):
+            if not polib.utils_bpy.isfile_case_sensitive(
+                bpy.path.abspath(datablock.filepath, library=datablock.library)
+            ):
                 missing_datablocks.add(datablock)
 
         for pack in asset_registry.instance.get_registered_packs():
@@ -121,12 +129,12 @@ MODULE_CLASSES.append(FindMissingFiles)
 class MigrateFromMaterialiq4(bpy.types.Operator):
     bl_idname = "engon.materialiq_migrate_from_materialiq4"
     bl_label = "Migrate from materialiq4"
-    bl_description = \
-        "Finds materialiq4 materials and replaces them with their equivalents from the latest version of materialiq"
+    bl_description = "Finds materialiq4 materials and replaces them with their equivalents from the latest version of materialiq"
 
     def execute(self, context: bpy.types.Context):
         spawn_options = preferences.prefs_utils.get_preferences(
-            context).mapr_preferences.spawn_options
+            context
+        ).mapr_preferences.spawn_options
         asset_provider = asset_registry.instance.master_asset_provider
         file_provider = asset_registry.instance.master_file_provider
         spawner = mapr.blender_asset_spawner.AssetSpawner(asset_provider, file_provider)
@@ -138,8 +146,7 @@ class MigrateFromMaterialiq4(bpy.types.Operator):
 
             mq4_node_tree: typing.Optional[bpy.types.NodeTree] = None
             for node in polib.node_utils_bpy.find_nodes_in_tree(
-                material.node_tree,
-                lambda x: x.type == 'GROUP'
+                material.node_tree, lambda x: x.type == 'GROUP'
             ):
                 if node.node_tree.name.endswith("_mqn"):
                     mq4_node_tree = node.node_tree
@@ -151,8 +158,7 @@ class MigrateFromMaterialiq4(bpy.types.Operator):
 
             if mq_material_asset_id is None:
                 mq4_material_name = polib.utils_bpy.remove_object_duplicate_suffix(material.name)
-                mq_material_asset_id = asset_changes.MQ4_NODE_TREES_TO_MQ.get(
-                    mq4_material_name)
+                mq_material_asset_id = asset_changes.MQ4_NODE_TREES_TO_MQ.get(mq4_material_name)
 
             if mq_material_asset_id is None:
                 if "_mqm" in material.name:
@@ -180,8 +186,8 @@ class MigrateFromMaterialiq4(bpy.types.Operator):
                     spawn_options.use_displacement,
                     # We don't assign the material directly to any object, we use user_remap
                     # in the next code block.
-                    set()
-                )
+                    set(),
+                ),
             )
 
             if spawned_data is not None:
@@ -250,16 +256,20 @@ class MigrateLibraryPaths(bpy.types.Operator):
                     continue
 
                 filename_candidate = re.sub(
-                    filename_migration.pattern, filename_migration.replacement, filename_candidate)
+                    filename_migration.pattern, filename_migration.replacement, filename_candidate
+                )
                 # TODO: Possible speed up: if we build a dictionary of all files in asset pack
                 # subdirectories (key = filename, value = path), we could then query if
                 # filename_candidate exists and then assign its path as library.filepath
                 for directory in pack_subdirectories:
                     new_path = os.path.join(directory, filename_candidate)
                     if polib.utils_bpy.isfile_case_sensitive(bpy.path.abspath(new_path)):
-                        self.log_and_report(logging.INFO, f"Migrating filepath of "
-                                            f"{type(datablock).__name__} '{datablock.name}' from "
-                                            f"'{datablock.filepath}' to '{new_path}'")
+                        self.log_and_report(
+                            logging.INFO,
+                            f"Migrating filepath of "
+                            f"{type(datablock).__name__} '{datablock.name}' from "
+                            f"'{datablock.filepath}' to '{new_path}'",
+                        )
                         datablock.filepath = new_path
                         return True
         return False
@@ -267,7 +277,7 @@ class MigrateLibraryPaths(bpy.types.Operator):
     def fix_blend_file_libraries(
         self,
         asset_pack_migrations: typing.List[asset_changes.AssetPackMigration],
-        pack_subdirectories: set[str]
+        pack_subdirectories: set[str],
     ) -> typing.List[bpy.types.Library]:
         library_filename_migrations: typing.List[typing.List[asset_changes.RegexMapping]] = []
         for migration in asset_pack_migrations:
@@ -279,7 +289,8 @@ class MigrateLibraryPaths(bpy.types.Operator):
             if polib.utils_bpy.isfile_case_sensitive(bpy.path.abspath(library.filepath)):
                 continue
             success = self.fix_datablock_filepath(
-                library, library_filename_migrations, pack_subdirectories)
+                library, library_filename_migrations, pack_subdirectories
+            )
             if success:
                 fixed_libraries.append(library)
 
@@ -312,7 +323,8 @@ class MigrateLibraryPaths(bpy.types.Operator):
                 continue
 
             success = self.fix_datablock_filepath(
-                image, image_filename_migrations, pack_subdirectories)
+                image, image_filename_migrations, pack_subdirectories
+            )
             if success:
                 fixed_images.append(image)
 
@@ -344,27 +356,39 @@ class MigrateLibraryPaths(bpy.types.Operator):
                     # Multiple linked datablocks can have the same name, we want to get the one from
                     # migrated library.
                     new_datablock = prop_coll.get(
-                        (name_candidate, datablock.library.filepath), None)
+                        (name_candidate, datablock.library.filepath), None
+                    )
                     if new_datablock is None:
-                        with bpy.data.libraries.load(datablock.library.filepath, link=True) as (data_from, data_to):
+                        with bpy.data.libraries.load(datablock.library.filepath, link=True) as (
+                            data_from,
+                            data_to,
+                        ):
                             assert name_candidate in getattr(data_from, datablock_type)
                             setattr(data_to, datablock_type, [name_candidate])
 
                         new_datablock = prop_coll.get(
-                            (name_candidate, datablock.library.filepath), None)
+                            (name_candidate, datablock.library.filepath), None
+                        )
                         if new_datablock is None:
-                            logger.error(f"Failed to link datablock '{name_candidate}' of type '"
-                                         f"'{datablock_type}' from '{datablock.library.filepath}'!")
+                            logger.error(
+                                f"Failed to link datablock '{name_candidate}' of type '"
+                                f"'{datablock_type}' from '{datablock.library.filepath}'!"
+                            )
                             continue
 
                     datablock.user_remap(new_datablock)
-                    self.log_and_report(logging.INFO, f"Remapped datablock '{datablock.name}' of "
-                                        f"type '{datablock_type}' to '{name_candidate}' that is "
-                                        f"linked from {datablock.library.filepath}")
+                    self.log_and_report(
+                        logging.INFO,
+                        f"Remapped datablock '{datablock.name}' of "
+                        f"type '{datablock_type}' to '{name_candidate}' that is "
+                        f"linked from {datablock.library.filepath}",
+                    )
                     return new_datablock
-        self.log_and_report(logging.WARNING,
-                            f"Datablock '{datablock.name}' of type '{datablock_type}' "
-                            f"wasn't migrated. No suitable migration rule was found!")
+        self.log_and_report(
+            logging.WARNING,
+            f"Datablock '{datablock.name}' of type '{datablock_type}' "
+            f"wasn't migrated. No suitable migration rule was found!",
+        )
         return None
 
     def fix_datablocks(
@@ -456,9 +480,11 @@ class MigrateLibraryPaths(bpy.types.Operator):
                     continue
 
                 fixed_libraries.extend(
-                    self.fix_blend_file_libraries(asset_pack_changes.migrations, pack_subdirs))
+                    self.fix_blend_file_libraries(asset_pack_changes.migrations, pack_subdirs)
+                )
                 fixed_images.extend(
-                    self.fix_image_filepaths(asset_pack_changes.migrations, pack_subdirs))
+                    self.fix_image_filepaths(asset_pack_changes.migrations, pack_subdirs)
+                )
 
             fixed_datablocks = self.fix_datablocks(asset_changes.ASSET_PACK_MIGRATIONS)
             self.migrate_instance_collection_custom_props()
@@ -467,10 +493,12 @@ class MigrateLibraryPaths(bpy.types.Operator):
             # (and thus their blends) can change before the next run
             get_blend_datablock_names.cache_clear()
 
-        self.log_and_report(logging.INFO,
-                            f"Migrator fixed {len(fixed_libraries)} libraries, "
-                            f"{len(fixed_images)} local images and "
-                            f"{len(fixed_datablocks)} datablocks")
+        self.log_and_report(
+            logging.INFO,
+            f"Migrator fixed {len(fixed_libraries)} libraries, "
+            f"{len(fixed_images)} local images and "
+            f"{len(fixed_datablocks)} datablocks",
+        )
         return {'FINISHED'}
 
 

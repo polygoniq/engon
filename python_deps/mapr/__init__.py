@@ -2,6 +2,7 @@
 # copyright (c) 2018- polygoniq xyz s.r.o.
 
 import logging
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -20,6 +21,7 @@ if "asset_data" not in locals():
     from . import query
 else:
     import importlib
+
     asset_data = importlib.reload(asset_data)
     asset_provider = importlib.reload(asset_provider)
     asset = importlib.reload(asset)
@@ -40,6 +42,14 @@ bl_info = {
 }
 
 
+def register():  # stub just to avoid an AttributeError when using blender_vscode extension
+    pass
+
+
+def unregister():  # stub just to avoid an AttributeError when using blender_vscode extension
+    pass
+
+
 __all__ = [
     "asset_data",
     "asset_provider",
@@ -52,5 +62,5 @@ __all__ = [
     "known_metadata",
     "local_json_provider",
     "parameter_meta",
-    "query"
+    "query",
 ]

@@ -8,6 +8,7 @@ import sys
 import os
 import bpy
 import logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -15,6 +16,7 @@ if "utils_bpy" not in locals():
     from . import utils_bpy
 else:
     import importlib
+
     utils_bpy = importlib.reload(utils_bpy)
 
 
@@ -24,6 +26,7 @@ class RequiredModule:
 
     Example: RequiredModule("PIL.Image", "Pillow")
     """
+
     import_name: str  # Name used to import the module in source code
     install_name: str  # Name used to install the module with pip
 
@@ -69,8 +72,7 @@ class ModuleProvider:
         self._installed_modules_cache.clear()
 
     def is_module_installed(self, module_name: str) -> bool:
-        """Returns True if module is installed either in sys.path or in self.install_path
-        """
+        """Returns True if module is installed either in sys.path or in self.install_path"""
         if module_name in self._installed_modules_cache:
             return self._installed_modules_cache[module_name]
         module_found = self._get_module_spec(module_name) is not None
@@ -95,8 +97,16 @@ class ModuleProvider:
                 logger.error("Couldn't ensured pip in Blender's python!")
 
             for module_install_name in module_install_names:
-                args = [python_exe, "-m", "pip", "install", "--upgrade",
-                        module_install_name, "--target", self.install_path]
+                args = [
+                    python_exe,
+                    "-m",
+                    "pip",
+                    "install",
+                    "--upgrade",
+                    module_install_name,
+                    "--target",
+                    self.install_path,
+                ]
                 logger.info(f"Installing '{module_install_name}'")
 
                 if utils_bpy.run_logging_subprocess(args) == 0:
@@ -110,8 +120,7 @@ class ModuleProvider:
                 bpy.ops.wm.console_toggle()
 
     def enable_module(self, module_name: str) -> None:
-        """Stores module into sys.modules, so we can import it later from any other place
-        """
+        """Stores module into sys.modules, so we can import it later from any other place"""
         if module_name in sys.modules:
             return
 
@@ -128,7 +137,8 @@ class ModuleProvider:
                     sys.path.insert(0, self.install_path)
                 importlib.import_module(module_name)
                 logger.debug(
-                    f"Module '{module_name}' successfully enabled, it can be imported now!")
+                    f"Module '{module_name}' successfully enabled, it can be imported now!"
+                )
             finally:
                 if not was_in_path and self.install_path in sys.path:
                     sys.path.remove(self.install_path)

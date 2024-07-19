@@ -21,9 +21,10 @@
 import bpy
 import typing
 import logging
-import polib
-import hatchery
+from .. import polib
+from .. import hatchery
 from .. import asset_helpers
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -34,7 +35,7 @@ DRAW_MODIFIER_PROPS: typing.Dict[str, typing.List[str]] = {
     "mq_Remesh": ["octree_depth", "scale"],
     "mq_Subdivision": ["levels", "render_levels"],
     "mq_Displacement": ["strength", "mid_level"],
-    "mq_Subdivision_Adaptive": []
+    "mq_Subdivision_Adaptive": [],
 }
 
 # Shader displacement strength and modifier strength do not map 1:1, this is approximation to get
@@ -65,7 +66,9 @@ def add_remesh_modifier(obj: bpy.types.Object) -> None:
     mod.use_remove_disconnected = False
 
 
-def add_disp_modifier(obj: bpy.types.Object, height_map: bpy.types.Image, height_multiplier: float) -> None:
+def add_disp_modifier(
+    obj: bpy.types.Object, height_map: bpy.types.Image, height_multiplier: float
+) -> None:
     if not obj.modifiers.get("mq_Displacement"):
         obj.modifiers.new("mq_Displacement", 'DISPLACE')
 
@@ -81,8 +84,10 @@ def add_disp_modifier(obj: bpy.types.Object, height_map: bpy.types.Image, height
 
 
 def is_scene_setup_adaptive_subdiv(context: bpy.types.Context) -> bool:
-    return context.scene.cycles.feature_set == 'EXPERIMENTAL' and \
-        context.scene.render.engine == 'CYCLES'
+    return (
+        context.scene.cycles.feature_set == 'EXPERIMENTAL'
+        and context.scene.render.engine == 'CYCLES'
+    )
 
 
 def set_scene_adaptive_subdiv(context: bpy.types.Context) -> None:
@@ -100,7 +105,7 @@ class DisplaceObjectCandidate:
         obj: bpy.types.Object,
         mat: bpy.types.Material,
         height_map: bpy.types.Image,
-        height_multiplier: float
+        height_multiplier: float,
     ):
         self.obj = obj
         self.mat = mat
@@ -108,7 +113,9 @@ class DisplaceObjectCandidate:
         self.height_multiplier = height_multiplier
 
 
-def get_displacement_object_candidates(objects: typing.List[bpy.types.Object]) -> typing.Iterator[DisplaceObjectCandidate]:
+def get_displacement_object_candidates(
+    objects: typing.List[bpy.types.Object],
+) -> typing.Iterator[DisplaceObjectCandidate]:
     for obj in objects:
         mat = obj.active_material
         if mat is None:
@@ -117,8 +124,9 @@ def get_displacement_object_candidates(objects: typing.List[bpy.types.Object]) -
         # there are two scenarios either the material is not built and we look for inner node in
         # CustomNodeGroup or we look for image node
         height_image_nodes = polib.node_utils_bpy.find_nodes_in_tree(
-            mat.node_tree, lambda x: x.bl_idname in {
-                'ShaderNodeTexImage', 'ImageVariableNode'} and x.name.startswith("mq_Height_")
+            mat.node_tree,
+            lambda x: x.bl_idname in {'ShaderNodeTexImage', 'ImageVariableNode'}
+            and x.name.startswith("mq_Height_"),
         )
 
         height_image = None
@@ -137,14 +145,19 @@ def get_displacement_object_candidates(objects: typing.List[bpy.types.Object]) -
 
         if height_image is not None:
             displacement_nodegroups = polib.node_utils_bpy.find_nodegroups_by_name(
-                mat.node_tree, "mq_Displacement")
-            assert len(
-                displacement_nodegroups) == 1, f"'mq_Displacement' nodegroup not found in '{mat.name}'"
+                mat.node_tree, "mq_Displacement"
+            )
+            assert (
+                len(displacement_nodegroups) == 1
+            ), f"'mq_Displacement' nodegroup not found in '{mat.name}'"
             displacement_nodegroup = displacement_nodegroups.pop()
             height_multiplier_socket = polib.node_utils_bpy.get_node_input_socket(
-                displacement_nodegroup, "Height Multiplier")
-            assert height_multiplier_socket is not None, f"'Height Multiplier' input not found " \
+                displacement_nodegroup, "Height Multiplier"
+            )
+            assert height_multiplier_socket is not None, (
+                f"'Height Multiplier' input not found "
                 f"in '{displacement_nodegroup.name}' in '{mat.name}'"
+            )
             height_multiplier = height_multiplier_socket.default_value
 
             yield DisplaceObjectCandidate(obj, mat, height_image, height_multiplier)
@@ -165,31 +178,31 @@ class AddDisplacement(bpy.types.Operator):
     add_subdiv_mod: bpy.props.BoolProperty(
         name="Subdivision Surface Modifier",
         default=False,
-        description="Add Subdiv Modifier to modifier stack"
+        description="Add Subdiv Modifier to modifier stack",
     )
 
     add_remesh_mod: bpy.props.BoolProperty(
         name="Remesh Modifier (requires Object/World Mapping)",
         default=False,
-        description="Add Remesh Modifier to modifier stack"
+        description="Add Remesh Modifier to modifier stack",
     )
 
     add_disp_mod: bpy.props.BoolProperty(
         name="Displacement Modifier (requires UV Mapping)",
         default=False,
-        description="Add Displacement Modifier to modifier stack"
+        description="Add Displacement Modifier to modifier stack",
     )
 
     set_scene_adaptive_subdiv: bpy.props.BoolProperty(
         name="Adaptive Subdivision (Set to Cycles and Experimental)",
         default=True,
-        description="Will set render engine to Cycles and feature set to Experimental"
+        description="Will set render engine to Cycles and feature set to Experimental",
     )
 
     affected_objects: bpy.props.StringProperty(
         name="Displacement Objects and Materials",
         default="",
-        description="Dictionary of Objects and their Materials that will have displacement applied"
+        description="Dictionary of Objects and their Materials that will have displacement applied",
     )
 
     def draw(self, context: bpy.types.Context) -> None:
@@ -197,7 +210,8 @@ class AddDisplacement(bpy.types.Operator):
 
         if len(self.displacement_object_candidates) == 0:
             layout.label(
-                text="No material with displacement support found in active materials", icon='ERROR')
+                text="No material with displacement support found in active materials", icon='ERROR'
+            )
             return
 
         layout.prop(self, "add_subdiv_mod")
@@ -210,8 +224,9 @@ class AddDisplacement(bpy.types.Operator):
             col.label(text=f"{dc.obj.name} : {dc.mat.name}")
 
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
-        self.displacement_object_candidates = list(get_displacement_object_candidates(
-            context.selected_objects))
+        self.displacement_object_candidates = list(
+            get_displacement_object_candidates(context.selected_objects)
+        )
         return context.window_manager.invoke_props_dialog(self, width=600)
 
     def execute(self, context: bpy.types.Context):
@@ -222,8 +237,11 @@ class AddDisplacement(bpy.types.Operator):
             if self.add_remesh_mod:
                 add_remesh_modifier(displacement_candidate.obj)
             if self.add_disp_mod:
-                add_disp_modifier(displacement_candidate.obj, displacement_candidate.height_map,
-                                  displacement_candidate.height_multiplier)
+                add_disp_modifier(
+                    displacement_candidate.obj,
+                    displacement_candidate.height_map,
+                    displacement_candidate.height_multiplier,
+                )
             if self.set_scene_adaptive_subdiv:
                 add_subdiv_modifier(displacement_candidate.obj, use_adaptive=True)
                 set_scene_adaptive_subdiv(context)

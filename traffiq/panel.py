@@ -20,13 +20,13 @@
 
 import bpy
 import typing
-import polib
+from .. import polib
 from . import rigs
 from . import lights
 from .. import preferences
 from .. import asset_helpers
 from .. import asset_registry
-
+from .. import __package__ as base_package
 
 MODULE_CLASSES: typing.List[typing.Type] = []
 
@@ -35,8 +35,7 @@ TQ_COLLECTION_NAME = "traffiq"
 
 
 def set_car_paint_color(
-    obj: bpy.types.Object,
-    color: typing.Tuple[float, float, float, float]
+    obj: bpy.types.Object, color: typing.Tuple[float, float, float, float]
 ) -> None:
     if polib.asset_pack_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR in obj:
         obj[polib.asset_pack_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR] = color
@@ -100,13 +99,14 @@ class TraffiqPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
 
     def draw_header(self, context: bpy.types.Context):
         self.layout.label(
-            text="", icon_value=polib.ui_bpy.icon_manager.get_engon_feature_icon_id("traffiq"))
+            text="", icon_value=polib.ui_bpy.icon_manager.get_engon_feature_icon_id("traffiq")
+        )
 
     def draw_header_preset(self, context: bpy.types.Context) -> None:
         polib.ui_bpy.draw_doc_button(
             self.layout,
-            polib.utils_bpy.get_top_level_package_name(__package__),
-            rel_url="panels/traffiq/panel_overview"
+            base_package,
+            rel_url="panels/traffiq/panel_overview",
         )
 
     def draw(self, context: bpy.types.Context):
@@ -131,7 +131,8 @@ class ColorsPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
         prefs = preferences.prefs_utils.get_preferences(context).traffiq_preferences
         row = self.layout.row()
         changeable_color_objs = [
-            obj for obj in context.selected_objects if can_obj_change_car_paint_color(obj)]
+            obj for obj in context.selected_objects if can_obj_change_car_paint_color(obj)
+        ]
 
         if len(changeable_color_objs) == 0:
             row.label(text="No assets with changeable color selected!")
@@ -157,17 +158,20 @@ class ColorsPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
                 row.label(text="random")
             else:
                 row.prop(
-                    obj, f'["{polib.asset_pack_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR}"]', text="")
+                    obj, f'["{polib.asset_pack_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR}"]', text=""
+                )
 
             if polib.asset_pack_bpy.CustomPropertyNames.TQ_CLEARCOAT in obj:
                 row.label(
-                    text=f"{obj.get(polib.asset_pack_bpy.CustomPropertyNames.TQ_CLEARCOAT):.2f}")
+                    text=f"{obj.get(polib.asset_pack_bpy.CustomPropertyNames.TQ_CLEARCOAT):.2f}"
+                )
             else:
                 row.label(text="-")
 
             if polib.asset_pack_bpy.CustomPropertyNames.TQ_FLAKES_AMOUNT in obj:
                 row.label(
-                    text=f"{obj.get(polib.asset_pack_bpy.CustomPropertyNames.TQ_FLAKES_AMOUNT):.2f}")
+                    text=f"{obj.get(polib.asset_pack_bpy.CustomPropertyNames.TQ_FLAKES_AMOUNT):.2f}"
+                )
             else:
                 row.label(text="-")
 
@@ -187,15 +191,14 @@ MODULE_CLASSES.append(ColorsPanel)
 class LightsPanel(
     TraffiqPanelInfoMixin,
     polib.geonodes_mod_utils_bpy.GeoNodesModifierInputsPanelMixin,
-    bpy.types.Panel
+    bpy.types.Panel,
 ):
     bl_idname = "VIEW_3D_PT_engon_traffiq_lights"
     bl_parent_id = TraffiqPanel.bl_idname
     bl_label = "Lights Settings"
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
-        asset_helpers.TQ_EMERGENCY_LIGHTS_NODE_GROUP_NAME,
-        filter_=lambda _: True
+        asset_helpers.TQ_EMERGENCY_LIGHTS_NODE_GROUP_NAME, filter_=lambda _: True
     )
 
     def draw_header(self, context: bpy.types.Context):
@@ -204,8 +207,11 @@ class LightsPanel(
     def draw(self, context: bpy.types.Context):
         prefs = preferences.prefs_utils.get_preferences(context).traffiq_preferences
         col = self.layout.column()
-        lights_tuples = list(prefs.lights_properties.find_unique_lights_containers_with_roots(
-            context.selected_objects))
+        lights_tuples = list(
+            prefs.lights_properties.find_unique_lights_containers_with_roots(
+                context.selected_objects
+            )
+        )
         if len(lights_tuples) == 0:
             col.label(text="No assets with lights selected!")
             return
@@ -237,7 +243,7 @@ class LightsPanel(
             lights.SetLightsStatus.bl_idname,
             property="status",
             text="Selection Main Lights Status",
-            icon='LIGHTPROBE_GRID' if bpy.app.version < (4, 1, 0) else 'LIGHTPROBE_VOLUME'
+            icon='LIGHTPROBE_GRID' if bpy.app.version < (4, 1, 0) else 'LIGHTPROBE_VOLUME',
         )
 
         # Emergency lights settings
@@ -247,14 +253,16 @@ class LightsPanel(
         emergency_lights: typing.Optional[bpy.types.Object] = None
         obj = context.active_object
         if obj is not None:
-            root_object, emergency_lights = lights.get_emergency_lights_container_from_hierarchy_with_root(
-                obj)
+            root_object, emergency_lights = (
+                lights.get_emergency_lights_container_from_hierarchy_with_root(obj)
+            )
         # TODO: differentiate between linked asset and asset without emergency lights
         if emergency_lights is None:
             col.label(text="Active object is not editable or does not contain Emergency Lights!")
             return
         modifiers = polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
-            emergency_lights, asset_helpers.TQ_EMERGENCY_LIGHTS_NODE_GROUP_NAME)
+            emergency_lights, asset_helpers.TQ_EMERGENCY_LIGHTS_NODE_GROUP_NAME
+        )
         mod = modifiers[0]
         row = col.row()
         left_col = row.column()
@@ -265,7 +273,8 @@ class LightsPanel(
         row.alignment = 'RIGHT'
         self.draw_show_viewport_and_render(row, mod)
         self.draw_object_modifiers_node_group_inputs_template(
-            emergency_lights, col, LightsPanel.template)
+            emergency_lights, col, LightsPanel.template
+        )
 
 
 MODULE_CLASSES.append(LightsPanel)
@@ -277,11 +286,7 @@ class WearPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
     bl_parent_id = TraffiqPanel.bl_idname
     bl_label = "Wear Sliders"
 
-    def format_wear_node_input_value(
-        self,
-        obj: bpy.types.Object,
-        prop_name: str
-    ) -> str:
+    def format_wear_node_input_value(self, obj: bpy.types.Object, prop_name: str) -> str:
         prop = obj.get(prop_name, None)
         return f"{prop:.2f}" if prop is not None else "-"
 
@@ -294,10 +299,13 @@ class WearPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
         wear_props_set = {
             polib.asset_pack_bpy.CustomPropertyNames.TQ_DIRT,
             polib.asset_pack_bpy.CustomPropertyNames.TQ_SCRATCHES,
-            polib.asset_pack_bpy.CustomPropertyNames.TQ_BUMPS
+            polib.asset_pack_bpy.CustomPropertyNames.TQ_BUMPS,
         }
-        objs_with_wear = [ob for ob in context.selected_objects if len(
-            wear_props_set.intersection(set(ob.keys()))) > 0]
+        objs_with_wear = [
+            ob
+            for ob in context.selected_objects
+            if len(wear_props_set.intersection(set(ob.keys()))) > 0
+        ]
 
         if len(objs_with_wear) == 0:
             row.label(text="No assets with wear selected!")
@@ -318,24 +326,41 @@ class WearPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
             row = left_col.row()
             row.label(text=obj.name)
             row = right_col.row()
-            row.label(text=self.format_wear_node_input_value(
-                obj, polib.asset_pack_bpy.CustomPropertyNames.TQ_DIRT))
-            row.label(text=self.format_wear_node_input_value(
-                obj, polib.asset_pack_bpy.CustomPropertyNames.TQ_SCRATCHES))
-            row.label(text=self.format_wear_node_input_value(
-                obj, polib.asset_pack_bpy.CustomPropertyNames.TQ_BUMPS))
+            row.label(
+                text=self.format_wear_node_input_value(
+                    obj, polib.asset_pack_bpy.CustomPropertyNames.TQ_DIRT
+                )
+            )
+            row.label(
+                text=self.format_wear_node_input_value(
+                    obj, polib.asset_pack_bpy.CustomPropertyNames.TQ_SCRATCHES
+                )
+            )
+            row.label(
+                text=self.format_wear_node_input_value(
+                    obj, polib.asset_pack_bpy.CustomPropertyNames.TQ_BUMPS
+                )
+            )
 
         any_object_with_applicable_dirt = any(
-            polib.asset_pack_bpy.CustomPropertyNames.TQ_DIRT in obj for obj in objs_with_wear)
+            polib.asset_pack_bpy.CustomPropertyNames.TQ_DIRT in obj for obj in objs_with_wear
+        )
         any_object_with_applicable_scratches = any(
-            polib.asset_pack_bpy.CustomPropertyNames.TQ_SCRATCHES in obj for obj in objs_with_wear)
+            polib.asset_pack_bpy.CustomPropertyNames.TQ_SCRATCHES in obj for obj in objs_with_wear
+        )
         any_object_with_applicable_bumps = any(
-            polib.asset_pack_bpy.CustomPropertyNames.TQ_BUMPS in obj for obj in objs_with_wear)
+            polib.asset_pack_bpy.CustomPropertyNames.TQ_BUMPS in obj for obj in objs_with_wear
+        )
 
         col = self.layout.column(align=True)
         for wear_strength_prop, any_obj_with_applicable_wear in zip(
-                ["dirt_wear_strength", "scratches_wear_strength", "bumps_wear_strength"],
-                [any_object_with_applicable_dirt, any_object_with_applicable_scratches, any_object_with_applicable_bumps]):
+            ["dirt_wear_strength", "scratches_wear_strength", "bumps_wear_strength"],
+            [
+                any_object_with_applicable_dirt,
+                any_object_with_applicable_scratches,
+                any_object_with_applicable_bumps,
+            ],
+        ):
             row = col.row(align=True)
             row.prop(prefs.wear_properties, wear_strength_prop, slider=True)
             row.enabled = any_obj_with_applicable_wear
@@ -399,7 +424,7 @@ def get_position_display_name(position: str) -> str:
         "FR": "Front Right",
         "FL": "Front Left",
         "F": "Front",
-        "B": "Back"
+        "B": "Back",
     }
 
     position_split = position.split("_", 1)
@@ -465,8 +490,9 @@ class RigsRigPropertiesPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
 
     @classmethod
     def poll(cls, context: bpy.types.Context):
-        return polib.rigs_shared_bpy.is_object_rigged(context.active_object) and \
-            rigs.check_rig_drivers(context.active_object)
+        return polib.rigs_shared_bpy.is_object_rigged(
+            context.active_object
+        ) and rigs.check_rig_drivers(context.active_object)
 
     def draw_header(self, context: bpy.types.Context):
         self.layout.label(text="", icon='OPTIONS')
@@ -481,31 +507,24 @@ class RigsRigPropertiesPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
 
         layout.label(text="Suspension")
         self.display_custom_property(
-            active_object,
-            layout,
-            polib.rigs_shared_bpy.TraffiqRigProperties.SUSPENSION_FACTOR
+            active_object, layout, polib.rigs_shared_bpy.TraffiqRigProperties.SUSPENSION_FACTOR
         )
         self.display_custom_property(
             active_object,
             layout,
-            polib.rigs_shared_bpy.TraffiqRigProperties.SUSPENSION_ROLLING_FACTOR
+            polib.rigs_shared_bpy.TraffiqRigProperties.SUSPENSION_ROLLING_FACTOR,
         )
 
         layout.label(text="Steering")
         self.display_custom_property(
-            active_object,
-            layout,
-            polib.rigs_shared_bpy.TraffiqRigProperties.STEERING
+            active_object, layout, polib.rigs_shared_bpy.TraffiqRigProperties.STEERING
         )
 
     def display_custom_property(
-        self,
-        obj: bpy.types.Object,
-        layout: bpy.types.UILayout,
-        prop_name: str
+        self, obj: bpy.types.Object, layout: bpy.types.UILayout, prop_name: str
     ) -> None:
         if prop_name.startswith("tq_"):
-            prop_display_name = prop_name[len("tq_"):]
+            prop_display_name = prop_name[len("tq_") :]
         else:
             prop_display_name = prop_name
 

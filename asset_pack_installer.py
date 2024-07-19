@@ -25,10 +25,11 @@ import pathlib
 import shutil
 import enum
 import logging
-import polib
 import zipfile
 import glob
+from . import polib
 from . import asset_registry
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -61,7 +62,7 @@ INSTALLER_OPERATION_DESCRIPTIONS: typing.Dict[InstallerStatus, str] = {
     InstallerStatus.ABORTED: "_ACTION_ was unsuccessful.",
     InstallerStatus.FINISHED: "_ACTION_ was successful.",
     InstallerStatus.NOT_READY: "_ACTION_ is not ready to proceed. Resolve the issue(s) below.",
-    InstallerStatus.EXIT: "Exited _ACTION_."
+    InstallerStatus.EXIT: "Exited _ACTION_.",
 }
 
 
@@ -210,8 +211,7 @@ class AssetPackInstaller:
 
     @property
     def can_installer_proceed(self) -> bool:
-        return self._status == InstallerStatus.READY or \
-            self._status == InstallerStatus.NOT_READY
+        return self._status == InstallerStatus.READY or self._status == InstallerStatus.NOT_READY
 
     @property
     def install_path(self) -> str:
@@ -233,15 +233,20 @@ class AssetPackInstaller:
         self._update_available = False
         self._reinstall_available = False
         free_space = 0
-        closest_existing_directory: typing.Optional[str] = polib.utils_bpy.get_first_existing_ancestor_directory(
-            self._install_path, whitelist={DEFAULT_PACK_INSTALL_PATH})
+        closest_existing_directory: typing.Optional[str] = (
+            polib.utils_bpy.get_first_existing_ancestor_directory(
+                self._install_path, whitelist={DEFAULT_PACK_INSTALL_PATH}
+            )
+        )
         if closest_existing_directory is not None:
             free_space = shutil.disk_usage(closest_existing_directory).free
         self._free_space = free_space
 
         # We don't need this during uninstallation
-        if self._operation == InstallerOperation.INSTALL or \
-                self._operation == InstallerOperation.UPDATE:
+        if (
+            self._operation == InstallerOperation.INSTALL
+            or self._operation == InstallerOperation.UPDATE
+        ):
 
             if closest_existing_directory is None:
                 self.record_warning_message("Install Path is not valid!")
@@ -260,20 +265,22 @@ class AssetPackInstaller:
                     self._uninstall_pack_info_path = already_installed_pack.pack_info_path
                     if not self._try_updating:
                         self.record_warning_message(
-                            "A lower version of this Asset Pack is already installed. Try updating it.")
+                            "A lower version of this Asset Pack is already installed. Try updating it."
+                        )
                 elif already_installed_pack.version > self._loaded_asset_pack.version:
                     # This cannot be resolved
                     self.record_error_message(
-                        "Higher version of this Asset Pack is already installed.")
+                        "Higher version of this Asset Pack is already installed."
+                    )
                 else:
                     # This cannot be resolved
-                    self.record_error_message(
-                        "This Asset Pack is already installed.")
+                    self.record_error_message("This Asset Pack is already installed.")
             elif already_exists and self._operation == InstallerOperation.INSTALL:
                 self._reinstall_available = True
                 if not self._try_reinstalling:
                     self.record_warning_message(
-                        "Install Path already contains an unregistered copy of this Asset Pack. Try reinstalling it.")
+                        "Install Path already contains an unregistered copy of this Asset Pack. Try reinstalling it."
+                    )
 
         if self.error_messages_present:
             self.abort_operation()
@@ -363,14 +370,17 @@ class AssetPackInstaller:
                 if paq_part != expected_file_path:
                     self.record_error_message(
                         f"Couldn't find all parts of '.paq' file. Part '{os.path.basename(expected_file_path)}' "
-                        f"is missing!")
+                        f"is missing!"
+                    )
                     self.abort_operation()
                     return None
             return file_sources
 
         return []
 
-    def _get_asset_pack_and_size_from_filepath(self, file_path: str) -> typing.Tuple[typing.Optional[asset_registry.AssetPack], int, str]:
+    def _get_asset_pack_and_size_from_filepath(
+        self, file_path: str
+    ) -> typing.Tuple[typing.Optional[asset_registry.AssetPack], int, str]:
         """Recursively searches for an Asset Pack from a provided path.
 
         After successfully finding an Asset Pack, this method returns a tuple
@@ -392,15 +402,17 @@ class AssetPackInstaller:
                 # There seems to be minimal overhead
                 with polib.split_file_reader.SplitFileReader(paq_sources) as reader:
                     with zipfile.ZipFile(reader, "r") as archive:
-                        pack_info_files = [name for name in archive.namelist()
-                                           if name.endswith(".pack-info")]
+                        pack_info_files = [
+                            name for name in archive.namelist() if name.endswith(".pack-info")
+                        ]
                         if not self._check_only_one_info_file(pack_info_files):
                             return NO_RESULT
                         assert len(pack_info_files) == 1
                         pack_info_file = pack_info_files[0]
                         pack_size = sum(file_info.file_size for file_info in archive.filelist)
                         asset_pack = asset_registry.AssetPack.load_from_paq_file(
-                            archive, pack_info_file)
+                            archive, pack_info_file
+                        )
             else:
                 pack_info_files = self._get_pack_info_files_from_ancestor_directory(pack_filepath)
                 if not self._check_only_one_info_file(pack_info_files):
@@ -408,8 +420,7 @@ class AssetPackInstaller:
                 assert len(pack_info_files) == 1
                 pack_info_file = pack_info_files[0]
                 root_directory = os.path.dirname(pack_info_file)
-                pack_size = sum(f.stat().st_size for f in pathlib.Path(
-                    root_directory).rglob('*'))
+                pack_size = sum(f.stat().st_size for f in pathlib.Path(root_directory).rglob('*'))
                 asset_pack = asset_registry.AssetPack.load_from_json(pack_info_file)
                 # We might need to update the filepath because we found the pack-info file in an
                 # ancestor directory.
@@ -461,7 +472,7 @@ class AssetPackInstaller:
         self,
         operation: InstallerOperation,
         file_path: str,
-        update_file_path: typing.Optional[str] = None
+        update_file_path: typing.Optional[str] = None,
     ) -> None:
         self._clear_installer()
         self._operation = operation
@@ -482,8 +493,9 @@ class AssetPackInstaller:
         if self._operation == InstallerOperation.UPDATE:
             assert update_file_path is not None
             logger.info(f"Loading Update Asset Pack from '{file_path}'")
-            update_pack, update_pack_size, update_file_path = self._get_asset_pack_and_size_from_filepath(
-                update_file_path)
+            update_pack, update_pack_size, update_file_path = (
+                self._get_asset_pack_and_size_from_filepath(update_file_path)
+            )
 
             # No info means something went wrong with loading the Asset Pack
             if update_pack is None:
@@ -552,7 +564,9 @@ class AssetPackInstaller:
     def execute_installation(self) -> typing.Optional[str]:
         """Successful installation returns the .pack-info path of the installed Asset Pack."""
 
-        def install_from_paq_file(path_or_reader: str | polib.split_file_reader.SplitFileReader) -> None:
+        def install_from_paq_file(
+            path_or_reader: str | polib.split_file_reader.SplitFileReader,
+        ) -> None:
             with zipfile.ZipFile(path_or_reader, "r") as archive:
                 logger.info(f"Extracting to '{self._install_path}'")
                 archive.extractall(path=self._install_path)
@@ -591,9 +605,18 @@ class AssetPackInstaller:
                 self.abort_operation()
 
             if self._status == InstallerStatus.FINISHED:
-                return os.path.join(self._install_path, self.pack_root_directory, self.pack_info_basename)
+                return os.path.join(
+                    self._install_path, self.pack_root_directory, self.pack_info_basename
+                )
 
-        except (zipfile.BadZipFile, shutil.Error, PermissionError, ValueError, RuntimeError, OSError) as e:
+        except (
+            zipfile.BadZipFile,
+            shutil.Error,
+            PermissionError,
+            ValueError,
+            RuntimeError,
+            OSError,
+        ) as e:
             self.record_error_message(str(e))
             self.abort_operation()
 
@@ -606,9 +629,11 @@ class AssetPackInstaller:
             self.abort_operation()
             return None
         # Checks for not allowing deletion of internal Asset Packs
-        if "G:/Shared drives/Builds" in polib.utils_bpy.normalize_path(self.uninstall_path) or \
-            "execroot/_main" in polib.utils_bpy.normalize_path(
-                os.path.realpath(self.uninstall_path)):
+        if "G:/Shared drives/Builds" in polib.utils_bpy.normalize_path(
+            self.uninstall_path
+        ) or "execroot/_main" in polib.utils_bpy.normalize_path(
+            os.path.realpath(self.uninstall_path)
+        ):
             self.record_error_message("Cannot uninstall internal polygoniq Asset Pack!")
             self.abort_operation()
             return None
@@ -637,7 +662,11 @@ class AssetPackInstaller:
             return []
         elif os.path.isfile(parent_dir):
             parent_dir = os.path.dirname(parent_dir)
-        return [os.path.join(parent_dir, name) for name in os.listdir(parent_dir) if name.endswith(".pack-info")]
+        return [
+            os.path.join(parent_dir, name)
+            for name in os.listdir(parent_dir)
+            if name.endswith(".pack-info")
+        ]
 
     def _get_pack_info_files_from_ancestor_directory(self, current_dir: str) -> typing.List[str]:
         if not os.path.exists(current_dir):
@@ -670,9 +699,7 @@ class AssetPackInstallerDialogMixin:
 
     # Setting to True changes status to 'CANCELED'
     canceled: bpy.props.BoolProperty(
-        name="Cancel Installer Operation",
-        default=False,
-        update=_update_cancel_installer_operation
+        name="Cancel Installer Operation", default=False, update=_update_cancel_installer_operation
     )
 
     # Used during Installation and Update
@@ -681,17 +708,13 @@ class AssetPackInstallerDialogMixin:
         name="Install Path",
         description="Select Asset Pack Install Path",
         set=_set_install_path,
-        get=_get_install_path
+        get=_get_install_path,
     )
 
     # Used for passing to operators when offering to switch operation
-    filepath: bpy.props.StringProperty(
-        options={'HIDDEN'}
-    )
+    filepath: bpy.props.StringProperty(options={'HIDDEN'})
 
-    close: bpy.props.BoolProperty(
-        options={'HIDDEN'}
-    )
+    close: bpy.props.BoolProperty(options={'HIDDEN'})
 
     def draw_status_and_messages(self, layout: bpy.types.UILayout) -> None:
         description = instance.status_description
@@ -708,10 +731,7 @@ class AssetPackInstallerDialogMixin:
             box.label(text=error_message, icon='CANCEL')
 
     def draw_pack_info(
-        self,
-        layout: bpy.types.UILayout,
-        header: str = "",
-        show_install_path=False
+        self, layout: bpy.types.UILayout, header: str = "", show_install_path=False
     ) -> None:
         col = layout.column(align=True)
 

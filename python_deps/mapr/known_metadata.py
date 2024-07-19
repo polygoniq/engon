@@ -4,72 +4,28 @@
 # dictionary where more details can be specified. Including a description that is used as a tooltip.
 # Keep in mind that in addition to these, assets can have tags not on this list!
 TAGS = {
-    "Bathroom": {
-        "description": ""
-    },
-    "Bedroom": {
-        "description": ""
-    },
-    "Coffee": {
-        "description": ""
-    },
-    "Decoration": {
-        "description": ""
-    },
-    "Dining": {
-        "description": ""
-    },
-    "Enterprise": {
-        "description": ""
-    },
-    "Indoor": {
-        "description": ""
-    },
-    "Kitchen": {
-        "description": ""
-    },
-    "Library": {
-        "description": ""
-    },
-    "Living room": {
-        "description": ""
-    },
-    "Lobby": {
-        "description": ""
-    },
-    "Office": {
-        "description": ""
-    },
-    "Outdoor": {
-        "description": ""
-    },
-    "Park": {
-        "description": ""
-    },
-    "Playground": {
-        "description": ""
-    },
-    "Restaurant": {
-        "description": ""
-    },
-    "Spring": {
-        "description": ""
-    },
-    "Summer": {
-        "description": ""
-    },
-    "Autumn": {
-        "description": ""
-    },
-    "Winter": {
-        "description": ""
-    },
-    "Drawable": {
-        "description": "Asset that can be drawn using pen tools"
-    },
-    "Photoscan": {
-        "description": "Assets created using photogrammetry"
-    }
+    "Bathroom": {"description": ""},
+    "Bedroom": {"description": ""},
+    "Coffee": {"description": ""},
+    "Decoration": {"description": ""},
+    "Dining": {"description": ""},
+    "Enterprise": {"description": ""},
+    "Indoor": {"description": ""},
+    "Kitchen": {"description": ""},
+    "Library": {"description": ""},
+    "Living room": {"description": ""},
+    "Lobby": {"description": ""},
+    "Office": {"description": ""},
+    "Outdoor": {"description": ""},
+    "Park": {"description": ""},
+    "Playground": {"description": ""},
+    "Restaurant": {"description": ""},
+    "Spring": {"description": ""},
+    "Summer": {"description": ""},
+    "Autumn": {"description": ""},
+    "Winter": {"description": ""},
+    "Drawable": {"description": "Asset that can be drawn using pen tools"},
+    "Photoscan": {"description": "Assets created using photogrammetry"},
 }
 
 
@@ -117,7 +73,7 @@ NUMERIC_PARAMETERS = {
     "triangle_count_applied": {
         "description": "Number of triangles used in the asset after applying modifiers",
         "type": "int",
-    }
+    },
 }
 
 
@@ -128,12 +84,7 @@ TEXT_PARAMETERS = {
     "license": {
         "description": "What license applies to this asset",
         "is_required": True,
-        "choices": [
-            "Editorial",
-            "Royalty Free",
-            "Public Domain / CC0",
-            "GPL3"
-        ],
+        "choices": ["Editorial", "Royalty Free", "Public Domain / CC0", "GPL3"],
         "search_weight": 0.0,
     },
     "mapr_asset_id": {
@@ -146,7 +97,7 @@ TEXT_PARAMETERS = {
     "mapr_asset_data_id": {
         "description": "UUID of the asset data in the MAPR index, internal use only",
         "search_weight": 0.0,
-        "show_filter": False
+        "show_filter": False,
     },
     "bpy.data.version": {
         "description": "Which version of the .blend format was used for this asset",
@@ -169,21 +120,17 @@ TEXT_PARAMETERS = {
             "Wind-Low-Vegetation",
             "Wind-Low-Vegetation-Plants",
             "Wind-Palm",
-            "Wind-Simple"
+            "Wind-Simple",
         ],
         "description": "Animation type that is the most suitable for this asset",
         "show_filter": False,
         "search_weight": 0.0,
     },
-    "brand": {
-        "description": "What is the brand of the man-made object"
-    },
+    "brand": {"description": "What is the brand of the man-made object"},
     "model": {
         "description": "What does the manufacturer call this man-made object in marketing materials"
     },
-    "country_of_origin": {
-        "description": "Where is this man-made object usually made"
-    },
+    "country_of_origin": {"description": "Where is this man-made object usually made"},
     "furniture_style": {
         "choices": [
             "Art-Deco",
@@ -199,38 +146,18 @@ TEXT_PARAMETERS = {
             "Transitional",
             "Vintage/Old",
         ],
-        "description": "Most fitting style for this piece of furniture or room"
+        "description": "Most fitting style for this piece of furniture or room",
     },
-    "species": {
-        "description": "Scientific (usually Latin) taxonomy name for the species"
-    },
-    "species_en": {
-        "description": "English common name for the species"
-    },
-    "class": {
-        "description": "Scientific (usually Latin) taxonomy class name for the species"
-    },
-    "class_en": {
-        "description": "English common name for class of the species"
-    },
-    "order": {
-        "description": "Scientific (usually Latin) taxonomy order name for the species"
-    },
-    "order_en": {
-        "description": "English common name for order of the species"
-    },
-    "family": {
-        "description": "Scientific (usually Latin) taxonomy family name for the species"
-    },
-    "family_en": {
-        "description": "English common name for family of the species"
-    },
-    "genus": {
-        "description": "Scientific (usually Latin) taxonomy genus name for the species"
-    },
-    "genus_en": {
-        "description": "English common name for genus of the species"
-    },
+    "species": {"description": "Scientific (usually Latin) taxonomy name for the species"},
+    "species_en": {"description": "English common name for the species"},
+    "class": {"description": "Scientific (usually Latin) taxonomy class name for the species"},
+    "class_en": {"description": "English common name for class of the species"},
+    "order": {"description": "Scientific (usually Latin) taxonomy order name for the species"},
+    "order_en": {"description": "English common name for order of the species"},
+    "family": {"description": "Scientific (usually Latin) taxonomy family name for the species"},
+    "family_en": {"description": "English common name for family of the species"},
+    "genus": {"description": "Scientific (usually Latin) taxonomy genus name for the species"},
+    "genus_en": {"description": "English common name for genus of the species"},
     "conservation_status": {
         "choices": [
             "? - Not evaluated (NE)",
@@ -241,7 +168,7 @@ TEXT_PARAMETERS = {
             "3 - Endangered (EN)",
             "4 - Critically endangered (CE)",
             "5 - Extinct in the wild (EW)",
-            "6 - Extinct (EX)"
+            "6 - Extinct (EX)",
         ],
         "description": "Conservation status of the species according to the IUCN",
         "search_weight": 0.0,
@@ -259,7 +186,7 @@ TEXT_PARAMETERS = {
         "description": "Path to the original source file and optionally the object name in the source 3DShaker asset pack",
         "show_filter": False,
         "search_weight": 0.0,
-    }
+    },
 }
 
 
@@ -281,19 +208,22 @@ VECTOR_PARAMETERS = {
         "description": "Version of asset pack this asset was introduced in",
         "search_weight": 0.0,
         "type": VectorType.INT,
-        "is_required": True
+        "is_required": True,
     },
     "viewport_color": {
         "description": "",
         "search_weight": 0.0,
         "type": VectorType.COLOR,
-    }
+    },
 }
 
 
 # Mapping of parameter name to unit. If the parameter is not specified here it is considered unitless.
-PARAMETER_UNITS = {param: info.get(
-    "unit") for param, info in NUMERIC_PARAMETERS.items() if info.get("unit", None) is not None}
+PARAMETER_UNITS = {
+    param: info.get("unit")
+    for param, info in NUMERIC_PARAMETERS.items()
+    if info.get("unit", None) is not None
+}
 
 # Mapping of "group_name": ["child", "parameter", "names"]. If the parameter is not specified here
 # it is considered ungrouped and should be drawn outside of any groups.
@@ -333,7 +263,7 @@ PARAMETER_GROUPING = {
         "text:displacement_method",
         "num:metallic",
         "num:roughness",
-        "vec:viewport_color"
+        "vec:viewport_color",
     ],
     "data_count": [
         "num:triangle_count",

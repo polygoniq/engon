@@ -19,10 +19,11 @@
 # ##### END GPL LICENSE BLOCK #####
 
 import bpy
-import mapr
 import logging
 import typing
+from .. import mapr
 from .. import asset_registry
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -39,7 +40,7 @@ def get_icon_of_asset_data_type(type_: mapr.asset_data.AssetDataType) -> str:
         mapr.asset_data.AssetDataType.blender_particle_system: 'PARTICLES',
         mapr.asset_data.AssetDataType.blender_scene: 'SCENE_DATA',
         mapr.asset_data.AssetDataType.blender_world: 'WORLD',
-        mapr.asset_data.AssetDataType.blender_geometry_nodes: 'GEOMETRY_NODES'
+        mapr.asset_data.AssetDataType.blender_geometry_nodes: 'GEOMETRY_NODES',
     }.get(type_, 'QUESTION')
 
 

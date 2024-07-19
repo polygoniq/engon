@@ -18,8 +18,8 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
-import polib
-import mapr
+from .. import polib
+from .. import mapr
 from .. import asset_registry
 
 preview_manager = polib.preview_manager_bpy.PreviewManager()
@@ -33,7 +33,9 @@ def update_all_known_asset_preview_paths() -> None:
     preview_manager.clear()
     asset_provider = asset_registry.instance.master_asset_provider
     file_provider = asset_registry.instance.master_file_provider
-    for asset in asset_provider.list_assets(mapr.category.DEFAULT_ROOT_CATEGORY.id_, recursive=True):
+    for asset in asset_provider.list_assets(
+        mapr.category.DEFAULT_ROOT_CATEGORY.id_, recursive=True
+    ):
         full_path = file_provider.materialize_file(asset.preview_file)
         if full_path:
             preview_manager.add_preview_path(full_path, id_override=asset.id_)

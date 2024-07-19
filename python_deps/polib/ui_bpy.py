@@ -12,6 +12,7 @@ import os
 from . import utils_bpy
 from . import preview_manager_bpy
 import logging
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -33,7 +34,9 @@ class SocialMediaURL:
     GUMROAD = "https://gumroad.com/polygoniq"
 
 
-def get_asset_pack_icon_parameters(icon_id: typing.Optional[int], bpy_icon_name: str) -> typing.Dict:
+def get_asset_pack_icon_parameters(
+    icon_id: typing.Optional[int], bpy_icon_name: str
+) -> typing.Dict:
     """Returns dict of parameters that can be expanded in UILayout.label()
 
     Uses our icon with given 'icon_id' and populates the 'icon_value',
@@ -46,35 +49,41 @@ def get_asset_pack_icon_parameters(icon_id: typing.Optional[int], bpy_icon_name:
 
 
 def draw_social_media_buttons(layout: bpy.types.UILayout, show_text: bool = False):
-    layout.operator("wm.url_open",
-                    text="Discord" if show_text else "",
-                    icon_value=icon_manager.get_icon_id("logo_discord")
-                    ).url = SocialMediaURL.DISCORD
+    layout.operator(
+        "wm.url_open",
+        text="Discord" if show_text else "",
+        icon_value=icon_manager.get_icon_id("logo_discord"),
+    ).url = SocialMediaURL.DISCORD
 
-    layout.operator("wm.url_open",
-                    text="Facebook" if show_text else "",
-                    icon_value=icon_manager.get_icon_id("logo_facebook")
-                    ).url = SocialMediaURL.FACEBOOK
+    layout.operator(
+        "wm.url_open",
+        text="Facebook" if show_text else "",
+        icon_value=icon_manager.get_icon_id("logo_facebook"),
+    ).url = SocialMediaURL.FACEBOOK
 
-    layout.operator("wm.url_open",
-                    text="Instagram" if show_text else "",
-                    icon_value=icon_manager.get_icon_id("logo_instagram")
-                    ).url = SocialMediaURL.INSTAGRAM
+    layout.operator(
+        "wm.url_open",
+        text="Instagram" if show_text else "",
+        icon_value=icon_manager.get_icon_id("logo_instagram"),
+    ).url = SocialMediaURL.INSTAGRAM
 
-    layout.operator("wm.url_open",
-                    text="BlenderMarket" if show_text else "",
-                    icon_value=icon_manager.get_icon_id("logo_blendermarket")
-                    ).url = SocialMediaURL.BLENDERMARKET
+    layout.operator(
+        "wm.url_open",
+        text="BlenderMarket" if show_text else "",
+        icon_value=icon_manager.get_icon_id("logo_blendermarket"),
+    ).url = SocialMediaURL.BLENDERMARKET
 
-    layout.operator("wm.url_open",
-                    text="Gumroad" if show_text else "",
-                    icon_value=icon_manager.get_icon_id("logo_gumroad")
-                    ).url = SocialMediaURL.GUMROAD
+    layout.operator(
+        "wm.url_open",
+        text="Gumroad" if show_text else "",
+        icon_value=icon_manager.get_icon_id("logo_gumroad"),
+    ).url = SocialMediaURL.GUMROAD
 
-    layout.operator("wm.url_open",
-                    text="Website" if show_text else "",
-                    icon_value=icon_manager.get_icon_id("logo_polygoniq")
-                    ).url = SocialMediaURL.WEBPAGE
+    layout.operator(
+        "wm.url_open",
+        text="Website" if show_text else "",
+        icon_value=icon_manager.get_icon_id("logo_polygoniq"),
+    ).url = SocialMediaURL.WEBPAGE
 
 
 def draw_settings_footer(layout: bpy.types.UILayout):
@@ -98,9 +107,7 @@ def show_message_box(message: str, title: str, icon: str = 'INFO') -> None:
 
 
 def multi_column(
-    layout: bpy.types.UILayout,
-    column_sizes: typing.List[float],
-    align: bool = False
+    layout: bpy.types.UILayout, column_sizes: typing.List[float], align: bool = False
 ) -> typing.List[bpy.types.UILayout]:
     columns = []
     for i in range(len(column_sizes)):
@@ -116,11 +123,7 @@ def multi_column(
     return columns
 
 
-def scaled_row(
-    layout: bpy.types.UILayout,
-    scale: float,
-    align: bool = False
-) -> bpy.types.UILayout:
+def scaled_row(layout: bpy.types.UILayout, scale: float, align: bool = False) -> bpy.types.UILayout:
     row = layout.row(align=align)
     row.scale_x = row.scale_y = scale
     return row
@@ -131,7 +134,7 @@ def row_with_label(
     text: str = "",
     align: bool = False,
     enabled: bool = False,
-    icon: str = 'NONE'
+    icon: str = 'NONE',
 ) -> bpy.types.UILayout:
     """Creates a row with label based on 'layout'.
 
@@ -168,7 +171,7 @@ def collapsible_box(
         show_prop_name,
         icon='DISCLOSURE_TRI_DOWN' if show else 'DISCLOSURE_TRI_RIGHT',
         text="",
-        emboss=False
+        emboss=False,
     )
     row.label(text=title)
     if docs_module is not None:
@@ -187,8 +190,7 @@ def center_mouse(context: bpy.types.Context) -> None:
 
 
 def get_mouseovered_region(
-    context: bpy.types.Context,
-    event: bpy.types.Event
+    context: bpy.types.Context, event: bpy.types.Event
 ) -> typing.Tuple[typing.Optional[bpy.types.Area], typing.Optional[bpy.types.Region]]:
     """Returns tuple (area, region) of underlying area and region in mouse event 'event'"""
 
@@ -209,11 +211,10 @@ def get_mouseovered_region(
 
 def get_all_space_types() -> typing.Dict[str, bpy.types.Space]:
     """Returns mapping of space type to its class - 'VIEW_3D -> bpy.types.SpaceView3D"""
+
     # Code taken and adjusted from ScreenCastKeys addon -> https://github.com/nutti/Screencast-Keys/
     def add_if_exist(
-        cls_name: str,
-        space_name: str,
-        space_types: typing.Dict[str, bpy.types.Space]
+        cls_name: str, space_name: str, space_types: typing.Dict[str, bpy.types.Space]
     ) -> None:
         cls = getattr(sys.modules["bpy.types"], cls_name, None)
         if cls is not None:
@@ -256,12 +257,7 @@ def draw_doc_button(layout: bpy.types.UILayout, module: str, rel_url: str = "") 
     """
 
     url = f"{utils_bpy.get_addon_docs_page(module)}/{rel_url}"
-    layout.operator(
-        "wm.url_open",
-        text="",
-        icon='HELP',
-        emboss=False
-    ).url = url
+    layout.operator("wm.url_open", text="", icon='HELP', emboss=False).url = url
 
 
 def draw_markdown_text(layout: bpy.types.UILayout, text: str, max_length: int = 100) -> None:
@@ -306,11 +302,18 @@ def draw_markdown_text(layout: bpy.types.UILayout, text: str, max_length: int = 
             col.label(text=4 * offset * " " + split_line)
 
 
-def draw_release_notes(
-    context: bpy.types.Context,
-    module_name: str,
-    release_tag: str = ""
+def show_release_notes_popup(
+    context: bpy.types.Context, module_name: str, release_tag: str = ""
 ) -> None:
+    if bpy.app.version >= (4, 2, 0) and not bpy.app.online_access:
+        show_message_box(
+            "This requires online access. You have to \"Allow Online Access\" in "
+            "\"Preferences -> System -> Network\" to proceed",
+            "Online Access Disabled",
+            icon='INTERNET',
+        )
+        return
+
     mod_info = utils_bpy.get_addon_mod_info(module_name)
     # Get only the name without suffix (_full, _lite, etc.)
     addon_name = mod_info["name"].split("_", 1)[0]
@@ -337,5 +340,5 @@ def draw_release_notes(
     context.window_manager.popup_menu(
         lambda self, context: draw_markdown_text(self.layout, text=body, max_length=100),
         title=f"{addon_name} {version} Release Notes",
-        icon='INFO'
+        icon='INFO',
     )

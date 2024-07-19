@@ -18,6 +18,7 @@ import math
 import time
 import re
 import logging
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -25,20 +26,28 @@ POLYGONIQ_DOCS_URL = "https://docs.polygoniq.com"
 POLYGONIQ_GITHUB_REPO_API_URL = "https://api.github.com/repos/polygoniq"
 
 
-def autodetect_install_path(product: str, init_path: str, install_path_checker: typing.Callable[[str], bool]) -> str:
+def autodetect_install_path(
+    product: str, init_path: str, install_path_checker: typing.Callable[[str], bool]
+) -> str:
     # TODO: We should submit a patch to blender_vscode and deal with this from there in the future
     try:
         vscode_product_path = os.path.expanduser(
-            os.path.join("~", "polygoniq", "blender_addons", product))
+            os.path.join("~", "polygoniq", "blender_addons", product)
+        )
         try:
-            if os.path.commonpath([os.path.abspath(os.path.realpath(init_path)), vscode_product_path]) == vscode_product_path:
+            if (
+                os.path.commonpath(
+                    [os.path.abspath(os.path.realpath(init_path)), vscode_product_path]
+                )
+                == vscode_product_path
+            ):
                 staging_path_base = os.path.expanduser(
                     os.path.join("~", "polygoniq", "bazel-bin", "blender_addons", product)
                 )
                 # Possible sources of built assets from bazel
                 FLIP_OF_THE_COIN = [
                     os.path.join(staging_path_base, f"{product}_staging"),
-                    os.path.join(staging_path_base, f"data_final")
+                    os.path.join(staging_path_base, f"data_final"),
                 ]
                 for flip in FLIP_OF_THE_COIN:
                     if os.path.isdir(flip):
@@ -94,14 +103,14 @@ def autodetect_install_path(product: str, init_path: str, install_path_checker: 
 
     print(
         f"{product} is not installed in one of the default locations, please make "
-        f"sure the path is set in {product} addon preferences!", file=sys.stderr)
+        f"sure the path is set in {product} addon preferences!",
+        file=sys.stderr,
+    )
     return ""
 
 
 def absolutize_preferences_path(
-    self: bpy.types.AddonPreferences,
-    context: bpy.types.Context,
-    path_property_name: str
+    self: bpy.types.AddonPreferences, context: bpy.types.Context, path_property_name: str
 ) -> None:
     assert hasattr(self, path_property_name)
     abs_ = os.path.abspath(getattr(self, path_property_name))
@@ -135,10 +144,6 @@ def generate_unique_name(old_name: str, container: typing.Iterable[typing.Any]) 
         i += 1
 
     return new_name
-
-
-def get_top_level_package_name(package_name: str) -> str:
-    return package_name.split(".", 1)[0]
 
 
 def convert_size(size_bytes: int) -> str:
@@ -182,6 +187,7 @@ def timeit(fn):
         te = time.time()
         print(f"{fn.__name__!r}  {(te - ts) * 1000:2.2f} ms")
         return result
+
     return timed
 
 
@@ -199,7 +205,9 @@ def timed_cache(**timedelta_kwargs):
                 f.cache_clear()
                 next_update = now + update_delta
             return f(*args, **kwargs)
+
         return _wrapped
+
     return _wrapper
 
 
@@ -239,8 +247,7 @@ def fork_running_blender(blend_path: typing.Optional[str] = None) -> None:
 
 
 def run_logging_subprocess(
-    subprocess_args: typing.List[str],
-    logger_: typing.Optional[logging.Logger] = None
+    subprocess_args: typing.List[str], logger_: typing.Optional[logging.Logger] = None
 ) -> int:
     """Runs `subprocess_args` as subprocess and logs stdout and stderr of the subprocess.
 
@@ -251,11 +258,7 @@ def run_logging_subprocess(
     if logger_ is None:
         logger_ = logger
 
-    process = subprocess.Popen(
-        subprocess_args,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT
-    )
+    process = subprocess.Popen(subprocess_args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     # Read from indexing process till it's running
     for line in process.stdout:
@@ -326,7 +329,9 @@ def get_bpy_filepath_relative_to_dir(input_dir: str, filepath: str, library=None
     return normalize_path(rel_path.removeprefix("//"))
 
 
-def get_first_existing_ancestor_directory(file_path: str, whitelist: typing.Optional[set[str]] = None) -> typing.Optional[str]:
+def get_first_existing_ancestor_directory(
+    file_path: str, whitelist: typing.Optional[set[str]] = None
+) -> typing.Optional[str]:
     if whitelist is None:
         whitelist = set()
     if file_path not in whitelist and not os.path.exists(file_path):
@@ -338,8 +343,7 @@ def get_first_existing_ancestor_directory(file_path: str, whitelist: typing.Opti
 
 
 def get_all_datablocks(data: bpy.types.BlendData) -> typing.List[typing.Tuple[bpy.types.ID, str]]:
-    """returns all datablocks and their BlendData type in the currently loaded blend file
-    """
+    """returns all datablocks and their BlendData type in the currently loaded blend file"""
     # Return a materialized list, don't use generators here, those may result in Blender
     # crashing due to memory issues
     ret = []
@@ -375,8 +379,7 @@ def get_addon_docs_page(module_name: str) -> str:
 
 
 def get_addon_release_info(
-    addon_name: str,
-    release_tag: str = ""
+    addon_name: str, release_tag: str = ""
 ) -> typing.Optional[typing.Dict[str, typing.Any]]:
     if release_tag != "":
         url = f"{POLYGONIQ_GITHUB_REPO_API_URL}/{addon_name}/releases/tags/{release_tag}"

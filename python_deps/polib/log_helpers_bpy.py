@@ -14,7 +14,8 @@ from . import telemetry_module_bpy
 
 def logged_operator(cls: typing.Type[bpy.types.Operator]):
     assert issubclass(
-        cls, bpy.types.Operator), "logged_operator only accepts classes inheriting bpy.types.Operator"
+        cls, bpy.types.Operator
+    ), "logged_operator only accepts classes inheriting bpy.types.Operator"
 
     logger = logging.getLogger(f"polygoniq.{cls.__module__}")
 
@@ -48,7 +49,8 @@ def logged_operator(cls: typing.Type[bpy.types.Operator]):
 
         def new_execute(self, context: bpy.types.Context):
             logger.info(
-                f"{cls.__name__} operator execute started with arguments {self.as_keywords()}")
+                f"{cls.__name__} operator execute started with arguments {self.as_keywords()}"
+            )
             start_time = time.time()
             try:
                 ret = cls._original_execute(self, context)
@@ -87,7 +89,8 @@ def logged_operator(cls: typing.Type[bpy.types.Operator]):
 
 def logged_panel(cls: typing.Type[bpy.types.Panel]):
     assert issubclass(
-        cls, bpy.types.Panel), "logged_panel only accepts classes inheriting bpy.types.Panel"
+        cls, bpy.types.Panel
+    ), "logged_panel only accepts classes inheriting bpy.types.Panel"
 
     logger = logging.getLogger(f"polygoniq.{cls.__module__}")
 
@@ -118,7 +121,8 @@ def logged_panel(cls: typing.Type[bpy.types.Panel]):
 
 def logged_preferences(cls: typing.Type[bpy.types.AddonPreferences]):
     assert issubclass(
-        cls, bpy.types.AddonPreferences), "logged_preferences only accepts classes inheriting bpy.types.AddonPreferences"
+        cls, bpy.types.AddonPreferences
+    ), "logged_preferences only accepts classes inheriting bpy.types.AddonPreferences"
 
     logger = logging.getLogger(f"polygoniq.{cls.__module__}")
 

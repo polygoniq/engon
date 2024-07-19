@@ -24,7 +24,7 @@ class TraffiqRigProperties:
             cls.STEERING,
             cls.WHEEL_ROTATION,
             cls.SUSPENSION_FACTOR,
-            cls.SUSPENSION_ROLLING_FACTOR
+            cls.SUSPENSION_ROLLING_FACTOR,
         }
 
 
@@ -54,29 +54,28 @@ class RigDrivers:
                 data_path = f'["{TraffiqRigProperties.WHEEL_ROTATION}_{suffix}"]'
                 self.__create_rotation_euler_x_driver(bone, data_path)
             elif bone.name == "MCH_SteeringRotation":
-                self.__create_translation_x_driver(
-                    bone, f'["{TraffiqRigProperties.STEERING}"]')
+                self.__create_translation_x_driver(bone, f'["{TraffiqRigProperties.STEERING}"]')
             elif bone.name == "MCH_Axis":
                 front_constraint = bone.constraints.get("Rotation from MCH_Axis_F", None)
                 if front_constraint is not None:
                     self.__create_constraint_influence_driver(
                         front_constraint,
                         f'["{TraffiqRigProperties.SUSPENSION_ROLLING_FACTOR}"]',
-                        1.0
+                        1.0,
                     )
                 rear_constraint = bone.constraints.get("Rotation from MCH_Axis_B", None)
                 if rear_constraint is not None:
                     self.__create_constraint_influence_driver(
                         rear_constraint,
                         f'["{TraffiqRigProperties.SUSPENSION_ROLLING_FACTOR}"]',
-                        0.5
+                        0.5,
                     )
 
     def __create_constraint_influence_driver(
         self,
         constraint: bpy.types.CopyLocationConstraint,
         driver_data_path: str,
-        base_influence: typing.Optional[float] = 1.0
+        base_influence: typing.Optional[float] = 1.0,
     ) -> None:
         fcurve = constraint.driver_add("influence")
         drv = fcurve.driver
@@ -136,5 +135,4 @@ def is_object_rigged(obj: bpy.types.Object) -> bool:
     if obj.data is None:
         return False
 
-    return TraffiqRigProperties.CAR_RIG in obj.data \
-        and obj.data[TraffiqRigProperties.CAR_RIG] == 1
+    return TraffiqRigProperties.CAR_RIG in obj.data and obj.data[TraffiqRigProperties.CAR_RIG] == 1

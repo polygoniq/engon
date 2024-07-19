@@ -19,7 +19,8 @@ class LocalJSONProviderTestCase(unittest.TestCase):
     def setUp(self):
         # The path to the provider is based on where the py_test rule is defined in
         self.provider = mapr.local_json_provider.LocalJSONProvider(
-            "blender_addons/mapr/tests/mock_mapr_index.json", "/mock_pack", "/")
+            "blender_addons/mapr/tests/mock_mapr_index.json", "/mock_pack", "/"
+        )
 
     def test_get_asset(self):
         asset = self.provider.get_asset("asset_id_1")
@@ -49,24 +50,38 @@ class LocalJSONProviderTestCase(unittest.TestCase):
     def test_list_categories(self):
         categories = list(self.provider.list_categories("/mock_pack"))
         self.assertEqual(len(categories), 2)
-        self.assertSetEqual({c.id_ for c in categories}, {
-            "/mock_pack/category_1", "/mock_pack/category_2"})
+        self.assertSetEqual(
+            {c.id_ for c in categories}, {"/mock_pack/category_1", "/mock_pack/category_2"}
+        )
 
     def test_query_all(self):
-        data_view = self.provider.query(mapr.query.Query(
-            "/", filters=[], sort_mode=mapr.query.SortMode.ALPHABETICAL_ASC))
+        data_view = self.provider.query(
+            mapr.query.Query("/", filters=[], sort_mode=mapr.query.SortMode.ALPHABETICAL_ASC)
+        )
         self.assertEqual(len(data_view.assets), 4)
-        self.assertSetEqual({a.id_ for a in data_view.assets}, {
-                            "asset_id_1", "asset_id_2", "asset_id_3", "asset_id_4"})
+        self.assertSetEqual(
+            {a.id_ for a in data_view.assets},
+            {"asset_id_1", "asset_id_2", "asset_id_3", "asset_id_4"},
+        )
 
     def test_query_search(self):
-        data_view = self.provider.query(mapr.query.Query(
-            "/", filters=[mapr.filters.SearchFilter("Rectangular")], sort_mode=mapr.query.SortMode.ALPHABETICAL_ASC))
+        data_view = self.provider.query(
+            mapr.query.Query(
+                "/",
+                filters=[mapr.filters.SearchFilter("Rectangular")],
+                sort_mode=mapr.query.SortMode.ALPHABETICAL_ASC,
+            )
+        )
         self.assertEqual(len(data_view.assets), 1)
         self.assertEqual(data_view.assets[0].id_, "asset_id_1")
 
-        data_view = self.provider.query(mapr.query.Query(
-            "/", filters=[mapr.filters.SearchFilter("Minimalist")], sort_mode=mapr.query.SortMode.ALPHABETICAL_ASC))
+        data_view = self.provider.query(
+            mapr.query.Query(
+                "/",
+                filters=[mapr.filters.SearchFilter("Minimalist")],
+                sort_mode=mapr.query.SortMode.ALPHABETICAL_ASC,
+            )
+        )
         self.assertEqual(len(data_view.assets), 2)
         self.assertSetEqual({a.id_ for a in data_view.assets}, {"asset_id_1", "asset_id_3"})
 
@@ -77,50 +92,61 @@ class LocalJSONProviderTestCase(unittest.TestCase):
         self.assertIn("viewport_color", asset.vector_parameters)
 
     def test_query_filters(self):
-        data_view = self.provider.query(mapr.query.Query(
-            "/", filters=[mapr.filters.NumericParameterFilter("num:width", 0.0, 1.0)], sort_mode=mapr.query.SortMode.ALPHABETICAL_ASC))
+        data_view = self.provider.query(
+            mapr.query.Query(
+                "/",
+                filters=[mapr.filters.NumericParameterFilter("num:width", 0.0, 1.0)],
+                sort_mode=mapr.query.SortMode.ALPHABETICAL_ASC,
+            )
+        )
         self.assertEqual(len(data_view.assets), 1)
         self.assertEqual(data_view.assets[0].id_, "asset_id_3")
 
-        data_view = self.provider.query(mapr.query.Query(
-            "/",
-            filters=[
-                mapr.filters.NumericParameterFilter("num:width", 1.0, 10.0),
-                mapr.filters.NumericParameterFilter("num:price_usd", 500, 9999)
-            ],
-            sort_mode=mapr.query.SortMode.ALPHABETICAL_ASC
-        ))
+        data_view = self.provider.query(
+            mapr.query.Query(
+                "/",
+                filters=[
+                    mapr.filters.NumericParameterFilter("num:width", 1.0, 10.0),
+                    mapr.filters.NumericParameterFilter("num:price_usd", 500, 9999),
+                ],
+                sort_mode=mapr.query.SortMode.ALPHABETICAL_ASC,
+            )
+        )
         self.assertEqual(len(data_view.assets), 2)
         self.assertSetEqual({a.id_ for a in data_view.assets}, {"asset_id_2", "asset_id_4"})
 
     def test_query_filters_vector_range(self):
-        data_view = self.provider.query(mapr.query.Query(
-            "/",
-            filters=[
-                mapr.filters.VectorParameterFilter(
-                    "vec:introduced_in",
-                    mapr.filters.VectorLexicographicComparator(
-                        mathutils.Vector((1, 0, 0)),
-                        mathutils.Vector((2, 0, 0))
-                    )),
-            ],
-            sort_mode=mapr.query.SortMode.ALPHABETICAL_ASC
-        ))
+        data_view = self.provider.query(
+            mapr.query.Query(
+                "/",
+                filters=[
+                    mapr.filters.VectorParameterFilter(
+                        "vec:introduced_in",
+                        mapr.filters.VectorLexicographicComparator(
+                            mathutils.Vector((1, 0, 0)), mathutils.Vector((2, 0, 0))
+                        ),
+                    ),
+                ],
+                sort_mode=mapr.query.SortMode.ALPHABETICAL_ASC,
+            )
+        )
 
         self.assertEqual(len(data_view.assets), 2)
         self.assertSetEqual({a.id_ for a in data_view.assets}, {"asset_id_1", "asset_id_2"})
 
     def test_query_filters_vector_distance(self):
-        data_view = self.provider.query(mapr.query.Query(
-            "/",
-            filters=[
-                mapr.filters.VectorParameterFilter(
-                    "vec:introduced_in",
-                    mapr.filters.VectorDistanceComparator(mathutils.Vector((2, 0, 0)), 1)
-                ),
-            ],
-            sort_mode=mapr.query.SortMode.ALPHABETICAL_ASC
-        ))
+        data_view = self.provider.query(
+            mapr.query.Query(
+                "/",
+                filters=[
+                    mapr.filters.VectorParameterFilter(
+                        "vec:introduced_in",
+                        mapr.filters.VectorDistanceComparator(mathutils.Vector((2, 0, 0)), 1),
+                    ),
+                ],
+                sort_mode=mapr.query.SortMode.ALPHABETICAL_ASC,
+            )
+        )
 
         self.assertEqual(len(data_view.assets), 2)
         self.assertSetEqual({a.id_ for a in data_view.assets}, {"asset_id_2", "asset_id_3"})
@@ -132,14 +158,14 @@ class CachedAssetProviderTestCase(LocalJSONProviderTestCase):
 
     def setUp(self):
         local_json_provider = mapr.local_json_provider.LocalJSONProvider(
-            "blender_addons/mapr/tests/mock_mapr_index.json", "/mock_pack", "/")
+            "blender_addons/mapr/tests/mock_mapr_index.json", "/mock_pack", "/"
+        )
         self.provider = mapr.asset_provider.CachedAssetProviderMultiplexer()
         self.provider.add_asset_provider(local_json_provider)
 
     def test_query_cache_hit(self):
         # Test two queries with the same parameters return the exactly same DataView object
-        query = mapr.query.Query(
-            "/", filters=[], sort_mode=mapr.query.SortMode.ALPHABETICAL_ASC)
+        query = mapr.query.Query("/", filters=[], sort_mode=mapr.query.SortMode.ALPHABETICAL_ASC)
 
         first_view = self.provider.query(query)
         second_view = self.provider.query(query)
@@ -148,11 +174,13 @@ class CachedAssetProviderTestCase(LocalJSONProviderTestCase):
 
     def test_query_cache_miss(self):
         # Test different query parameters return different DataView object
-        first_view = self.provider.query(mapr.query.Query(
-            "/", filters=[], sort_mode=mapr.query.SortMode.ALPHABETICAL_ASC))
+        first_view = self.provider.query(
+            mapr.query.Query("/", filters=[], sort_mode=mapr.query.SortMode.ALPHABETICAL_ASC)
+        )
 
-        second_view = self.provider.query(mapr.query.Query(
-            "/", filters=[], sort_mode=mapr.query.SortMode.ALPHABETICAL_DESC))
+        second_view = self.provider.query(
+            mapr.query.Query("/", filters=[], sort_mode=mapr.query.SortMode.ALPHABETICAL_DESC)
+        )
 
         self.assertNotEqual(id(first_view), id(second_view))
 

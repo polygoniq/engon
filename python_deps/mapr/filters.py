@@ -43,12 +43,7 @@ class Filter:
 
 
 class NumericParameterFilter(Filter):
-    def __init__(
-        self,
-        name: str,
-        range_start: float,
-        range_end: float
-    ):
+    def __init__(self, name: str, range_start: float, range_end: float):
         super().__init__(name)
         self.range_start = range_start
         self.range_end = range_end
@@ -141,7 +136,7 @@ class VectorDistanceComparator(VectorComparator):
         return {
             "value": tuple(self.value),
             "distance": self.distance,
-            "function": self.distance_function_name
+            "function": self.distance_function_name,
         }
 
     @staticmethod
@@ -213,7 +208,7 @@ class AssetTypesFilter(Filter):
         particle_system: bool = True,
         scene: bool = True,
         world: bool = True,
-        geometry_nodes: bool = True
+        geometry_nodes: bool = True,
     ):
         super().__init__("builtin:asset_types")
         self.model = model
@@ -225,14 +220,16 @@ class AssetTypesFilter(Filter):
 
     def filter_(self, asset_: asset.Asset) -> bool:
         type_ = asset_.type_
-        return any([
-            type_ == asset_data.AssetDataType.blender_model and self.model,
-            type_ == asset_data.AssetDataType.blender_material and self.material,
-            type_ == asset_data.AssetDataType.blender_particle_system and self.particle_system,
-            type_ == asset_data.AssetDataType.blender_scene and self.scene,
-            type_ == asset_data.AssetDataType.blender_world and self.world,
-            type_ == asset_data.AssetDataType.blender_geometry_nodes and self.geometry_nodes,
-        ])
+        return any(
+            [
+                type_ == asset_data.AssetDataType.blender_model and self.model,
+                type_ == asset_data.AssetDataType.blender_material and self.material,
+                type_ == asset_data.AssetDataType.blender_particle_system and self.particle_system,
+                type_ == asset_data.AssetDataType.blender_scene and self.scene,
+                type_ == asset_data.AssetDataType.blender_world and self.world,
+                type_ == asset_data.AssetDataType.blender_geometry_nodes and self.geometry_nodes,
+            ]
+        )
 
     def as_dict(self) -> typing.Dict:
         return {self.name: self._all}
@@ -245,7 +242,7 @@ class AssetTypesFilter(Filter):
             self.particle_system,
             self.scene,
             self.world,
-            self.geometry_nodes
+            self.geometry_nodes,
         )
 
 
@@ -284,13 +281,11 @@ class SearchFilter(Filter):
     @functools.lru_cache(maxsize=128)
     def keywords_from_search(search: str) -> typing.Set[str]:
         """Returns a set of lowercase keywords to search for in the assets"""
+
         def translate_keywords(keywords: typing.Set[str]) -> typing.Set[str]:
             # Be careful when adding new keywords as it will make impossible to find anything using the original keyword.
             # E.g. if we'd have tag `hdr` it would not be possible to find it now. Or anything named `hdr_something` cannot be find by `hdr`
-            translator = {
-                "hdri": "world",
-                "hdr": "world"
-            }
+            translator = {"hdri": "world", "hdr": "world"}
 
             ret: typing.Set[str] = set()
             for kw in keywords:
@@ -298,9 +293,7 @@ class SearchFilter(Filter):
 
             return ret
 
-        return translate_keywords(
-            {kw.lower() for kw in re.split(r"[ ,_\-]+", search) if kw != ""}
-        )
+        return translate_keywords({kw.lower() for kw in re.split(r"[ ,_\-]+", search) if kw != ""})
 
     def as_dict(self) -> typing.Dict:
         return {self.name: self.search}

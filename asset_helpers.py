@@ -25,8 +25,9 @@ import os
 import glob
 import collections
 import logging
-import polib
+from . import polib
 from . import asset_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -66,19 +67,16 @@ class PuddleNodeInputs:
     ANGLE_THRESHOLD = "Angle Threshold"
 
 
-def has_active_pps(obj: bpy.types.Object) -> bool:
+def has_active_particle_system(obj: bpy.types.Object) -> bool:
     active_particle_system = obj.particle_systems.active
     if active_particle_system is None:
-        return False
-
-    if not polib.asset_pack_bpy.is_pps(active_particle_system.name):
         return False
 
     return True
 
 
-def has_active_object_with_pps(context: bpy.types.Context) -> bool:
-    """Returns true if context is in object mode and has active object with active pps
+def has_active_object_with_particle_system(context: bpy.types.Context) -> bool:
+    """Returns true if context is in object mode and has active object with active particle system
 
     This is mainly used for the poll methods of particle system operators that work
     on active object with particle system.
@@ -89,15 +87,21 @@ def has_active_object_with_pps(context: bpy.types.Context) -> bool:
     if context.active_object is None:
         return False
 
-    return has_active_pps(context.active_object)
+    return has_active_particle_system(context.active_object)
 
 
-def is_asset_with_engon_feature(obj: bpy.types.Object, feature: str, include_editable: bool = True, include_linked: bool = True) -> bool:
+def is_asset_with_engon_feature(
+    obj: bpy.types.Object, feature: str, include_editable: bool = True, include_linked: bool = True
+) -> bool:
     engon_feature_packs = asset_registry.instance.get_packs_by_engon_feature(feature)
     polygoniq_addon = obj.get("polygoniq_addon", None)
-    if polygoniq_addon is None or polygoniq_addon not in (x.file_id_prefix.strip("/") for x in engon_feature_packs):
+    if polygoniq_addon is None or polygoniq_addon not in (
+        x.file_id_prefix.strip("/") for x in engon_feature_packs
+    ):
         return False
-    return polib.asset_pack_bpy.is_polygoniq_object(obj, lambda x: x == polygoniq_addon, include_editable, include_linked)
+    return polib.asset_pack_bpy.is_polygoniq_object(
+        obj, lambda x: x == polygoniq_addon, include_editable, include_linked
+    )
 
 
 def is_object_from_seasons(obj: bpy.types.Object, seasons: typing.Set[str]) -> bool:
@@ -115,8 +119,10 @@ def is_object_from_seasons(obj: bpy.types.Object, seasons: typing.Set[str]) -> b
 def is_materialiq_material(material: bpy.types.Material) -> bool:
     if material.node_tree is None:
         return False
-    return any(node.type == 'GROUP' and node.node_tree.name.startswith("mq_")
-               for node in material.node_tree.nodes)
+    return any(
+        node.type == 'GROUP' and node.node_tree.name.startswith("mq_")
+        for node in material.node_tree.nodes
+    )
 
 
 def get_materialiq_texture_sizes_enum_items():
@@ -125,12 +131,7 @@ def get_materialiq_texture_sizes_enum_items():
     Always returns 1024, as it is the base texture size present in all materialiq variants.
     """
     texture_sizes = {1024}
-    mq_variant_size_map = {
-        "lite": 2048,
-        "full": 4096,
-        "ultra": 8192,
-        "dev": 8192
-    }
+    mq_variant_size_map = {"lite": 2048, "full": 4096, "ultra": 8192, "dev": 8192}
     registered_packs = asset_registry.instance.get_packs_by_engon_feature("materialiq")
     for pack in registered_packs:
         _, pack_variant = pack.full_name.split("_", 1)
@@ -138,16 +139,19 @@ def get_materialiq_texture_sizes_enum_items():
             # If we find variant that matches, we include all previous texture sizes,
             # as the variant includes them too.
             if variant == pack_variant:
-                texture_sizes.update(list(mq_variant_size_map.values())[:i + 1])
+                texture_sizes.update(list(mq_variant_size_map.values())[: i + 1])
                 break
 
-    return [
-        (str(size), str(size), f"materialiq texture size: {size}") for size in texture_sizes]
+    return [(str(size), str(size), f"materialiq texture size: {size}") for size in texture_sizes]
 
 
-def get_asset_pack_library_path(engon_feature: str, library_blend_name: str) -> typing.Optional[str]:
+def get_asset_pack_library_path(
+    engon_feature: str, library_blend_name: str
+) -> typing.Optional[str]:
     for pack in asset_registry.instance.get_packs_by_engon_feature(engon_feature):
-        for lib in glob.iglob(os.path.join(pack.install_path, "blends", "**", library_blend_name), recursive=True):
+        for lib in glob.iglob(
+            os.path.join(pack.install_path, "blends", "**", library_blend_name), recursive=True
+        ):
             return lib
     return None
 
@@ -170,13 +174,17 @@ def exclude_variant_from_asset_name(asset_name: str) -> str:
 
 
 class ObjectSource(enum.Enum):
-    editable = 0,
-    instanced = 1,
-    particles = 2,
+    editable = (0,)
+    instanced = (1,)
+    particles = (2,)
 
 
-ObjectSourceMap = typing.Mapping[str, typing.List[
-    typing.Tuple[ObjectSource, typing.Union[bpy.types.Object, bpy.types.ParticleSystem]]]]
+ObjectSourceMap = typing.Mapping[
+    str,
+    typing.List[
+        typing.Tuple[ObjectSource, typing.Union[bpy.types.Object, bpy.types.ParticleSystem]]
+    ],
+]
 
 
 def get_obj_source_map(objs: typing.Iterable[bpy.types.Object]) -> ObjectSourceMap:
@@ -203,8 +211,11 @@ def get_obj_source_map(objs: typing.Iterable[bpy.types.Object]) -> ObjectSourceM
     """
     m = collections.defaultdict(list)
     for obj in objs:
-        if obj.type == 'EMPTY' and obj.instance_type == 'COLLECTION' \
-           and obj.instance_collection is not None:
+        if (
+            obj.type == 'EMPTY'
+            and obj.instance_type == 'COLLECTION'
+            and obj.instance_collection is not None
+        ):
             for o in obj.instance_collection.all_objects:
                 m[o.name].append((ObjectSource.instanced, obj))
 
@@ -229,7 +240,7 @@ def get_animation_empties_collection(context: bpy.types.Context) -> bpy.types.Co
 
 
 def gather_instanced_objects(
-    objects: typing.Iterable[bpy.types.Object]
+    objects: typing.Iterable[bpy.types.Object],
 ) -> typing.Iterator[bpy.types.Object]:
     """Goes through 'objects' and gathers all particle system instanced objects.
 
@@ -242,6 +253,8 @@ def gather_instanced_objects(
                 continue
 
             instance_collection = mod.particle_system.settings.instance_collection
-            if polib.asset_pack_bpy.is_pps(mod.particle_system.name) \
-               and instance_collection is not None:
+            if (
+                polib.asset_pack_bpy.is_pps(mod.particle_system.name)
+                and instance_collection is not None
+            ):
                 yield from instance_collection.all_objects

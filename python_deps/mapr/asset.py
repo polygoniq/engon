@@ -8,6 +8,7 @@ from . import file_provider
 from . import asset_data
 from . import known_metadata
 import logging
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -56,11 +57,7 @@ class Asset:
     @functools.cached_property
     def parameters(self) -> typing.Dict[str, typing.Any]:
         """Numeric, text and vector parameters combined in one dictionary."""
-        return {
-            **self.numeric_parameters,
-            **self.text_parameters,
-            **self.vector_parameters
-        }
+        return {**self.numeric_parameters, **self.text_parameters, **self.vector_parameters}
 
     @functools.cached_property
     def search_matter(self) -> typing.DefaultDict[str, float]:
@@ -75,32 +72,34 @@ class Asset:
         ret[self.title.lower()] = max(1.0, ret[self.title.lower()])
 
         for tag in self.tags:
-            search_weight = \
-                float(known_metadata.TAGS.get(tag, {}).get("search_weight", 1.0))
+            search_weight = float(known_metadata.TAGS.get(tag, {}).get("search_weight", 1.0))
             if search_weight <= 0.0:
                 continue
             token = tag.lower()
             ret[token] = max(search_weight, ret[token])
 
         for name, value in self.text_parameters.items():
-            search_weight = \
-                float(known_metadata.TEXT_PARAMETERS.get(name, {}).get("search_weight", 1.0))
+            search_weight = float(
+                known_metadata.TEXT_PARAMETERS.get(name, {}).get("search_weight", 1.0)
+            )
             if search_weight <= 0.0:
                 continue
             token = value.lower()
             ret[token] = max(search_weight, ret[token])
 
         for name, value in self.numeric_parameters.items():
-            search_weight = \
-                float(known_metadata.NUMERIC_PARAMETERS.get(name, {}).get("search_weight", 1.0))
+            search_weight = float(
+                known_metadata.NUMERIC_PARAMETERS.get(name, {}).get("search_weight", 1.0)
+            )
             if search_weight <= 0.0:
                 continue
             token = str(value).lower()
             ret[token] = max(search_weight, ret[token])
 
         for name, value in self.vector_parameters.items():
-            search_weight = \
-                float(known_metadata.VECTOR_PARAMETERS.get(name, {}).get("search_weight", 1.0))
+            search_weight = float(
+                known_metadata.VECTOR_PARAMETERS.get(name, {}).get("search_weight", 1.0)
+            )
             if search_weight <= 0.0:
                 continue
             token = str(value).lower()

@@ -9,12 +9,12 @@ import typing
 from . import utils_bpy
 
 import logging
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
 def polygoniq_duplicate_data_filter(
-    data: bpy.types.ID,
-    data_filepaths: typing.Optional[typing.Set[str]] = None
+    data: bpy.types.ID, data_filepaths: typing.Optional[typing.Set[str]] = None
 ) -> bool:
     """Filters polygoniq duplicate data based on addon prefix and duplicate suffix.
 

@@ -22,7 +22,8 @@
 import bpy
 import typing
 import logging
-import polib
+from .. import polib
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -31,8 +32,10 @@ MODULE_CLASSES: typing.List[typing.Type] = []
 
 class MaterialWarning:
     VOLUME = "Object has to have volume for this material to work correctly."
-    SHORELINE = "Material is from the complex shoreline scene, open it to see how it works with\n" \
+    SHORELINE = (
+        "Material is from the complex shoreline scene, open it to see how it works with\n"
         "other materials to create the best result."
+    )
 
 
 MATERIAL_WARNING_MAP = {
@@ -44,10 +47,7 @@ MATERIAL_WARNING_MAP = {
 }
 
 
-def get_material_warnings_obj_based(
-    obj: bpy.types.Object,
-    material_name: str
-) -> typing.Set[str]:
+def get_material_warnings_obj_based(obj: bpy.types.Object, material_name: str) -> typing.Set[str]:
 
     warnings = MATERIAL_WARNING_MAP.get(material_name, None)
     if warnings is None:

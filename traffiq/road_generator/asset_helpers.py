@@ -68,21 +68,34 @@ def get_road_collection(context: bpy.types.Context) -> bpy.types.Collection:
 
 def get_modifiers_enum_items() -> typing.List[typing.Tuple[str, str, str]]:
     return [
-        (RoadNodegroup.Input.value, "Input",
-         "The first road generator modifier - this should be present in every road modifier "
-         "stack. Handles resampling, filleting and setups required attributes of the curve"),
-        (RoadNodegroup.RoadProfile.value, "Profile",
-         "Adds geometry to road modifier stack - can be used to create curbs, sidewalks, etc"),
-        (RoadNodegroup.Markings.value, "Road Markings",
-         "Adds road markings to road surface"),
-        (RoadNodegroup.Distribute.value, "Distribute Objects",
-         "Distributes selected objects with an offset on the input curve"),
-        (RoadNodegroup.Scatter.value, "Scatter To Target",
-         "Scatters assets to objects from selected collections near the road"),
-        (RoadNodegroup.Crosswalk.value, "Crosswalk",
-         "Adds a customizable crosswalk to the road"),
-        (RoadNodegroup.Cleanup.value, "Cleanup",
-         "Merges vertices and can realize instances for convert to mesh")
+        (
+            RoadNodegroup.Input.value,
+            "Input",
+            "The first road generator modifier - this should be present in every road modifier "
+            "stack. Handles resampling, filleting and setups required attributes of the curve",
+        ),
+        (
+            RoadNodegroup.RoadProfile.value,
+            "Profile",
+            "Adds geometry to road modifier stack - can be used to create curbs, sidewalks, etc",
+        ),
+        (RoadNodegroup.Markings.value, "Road Markings", "Adds road markings to road surface"),
+        (
+            RoadNodegroup.Distribute.value,
+            "Distribute Objects",
+            "Distributes selected objects with an offset on the input curve",
+        ),
+        (
+            RoadNodegroup.Scatter.value,
+            "Scatter To Target",
+            "Scatters assets to objects from selected collections near the road",
+        ),
+        (RoadNodegroup.Crosswalk.value, "Crosswalk", "Adds a customizable crosswalk to the road"),
+        (
+            RoadNodegroup.Cleanup.value,
+            "Cleanup",
+            "Merges vertices and can realize instances for convert to mesh",
+        ),
     ]
 
 

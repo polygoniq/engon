@@ -7,6 +7,7 @@ import enum
 import typing
 import collections
 import logging
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 

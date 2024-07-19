@@ -1,13 +1,14 @@
 # copyright (c) 2018- polygoniq xyz s.r.o.
 
 import bpy
-import polib
-import mapr
-import hatchery
 import typing
 import logging
+from . import polib
+from . import mapr
+from . import hatchery
 from . import asset_registry
 from . import preferences
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -23,13 +24,12 @@ MODULE_CLASSES: typing.List[typing.Any] = []
 def make_selection_linked(
     context: bpy.types.Context,
     asset_provider: mapr.asset_provider.AssetProvider,
-    file_provider: mapr.file_provider.FileProvider
+    file_provider: mapr.file_provider.FileProvider,
 ) -> typing.List[bpy.types.Object]:
     previous_active_obj_name = context.active_object.name if context.active_object else None
     converted_objects = []
 
-    spawner = mapr.blender_asset_spawner.AssetSpawner(
-        asset_provider, file_provider)
+    spawner = mapr.blender_asset_spawner.AssetSpawner(asset_provider, file_provider)
 
     for obj in polib.asset_pack_bpy.find_polygoniq_root_objects(context.selected_objects):
         if obj.instance_type == 'COLLECTION':
@@ -38,8 +38,7 @@ def make_selection_linked(
         id_from_object = obj.get(mapr.blender_asset_spawner.ASSET_ID_PROP_NAME, None)
         if id_from_object is None:
             # Object can have missing id if it comes from pre-engon asset pack
-            logger.error(
-                f"Object '{obj.name}' has no asset id, cannot convert to linked.")
+            logger.error(f"Object '{obj.name}' has no asset id, cannot convert to linked.")
             continue
 
         asset = asset_provider.get_asset(id_from_object)
@@ -64,13 +63,15 @@ def make_selection_linked(
         hierarchy_objects = polib.asset_pack_bpy.get_hierarchy(obj)
         for hierarchy_obj in hierarchy_objects:
             hierarchy_obj.name = polib.utils_bpy.generate_unique_name(
-                f"del_{hierarchy_obj.name}", bpy.data.objects)
+                f"del_{hierarchy_obj.name}", bpy.data.objects
+            )
 
         # Spawn the asset if its mapr id is found
-        spawned_data = spawner.spawn(context, asset, hatchery.spawn.ModelSpawnOptions(
-            parent_collection=None,
-            select_spawned=False
-        ))
+        spawned_data = spawner.spawn(
+            context,
+            asset,
+            hatchery.spawn.ModelSpawnOptions(parent_collection=None, select_spawned=False),
+        )
         if spawned_data is None:
             logger.error(f"Failed to spawn asset {asset.id_}")
             continue
@@ -99,8 +100,10 @@ def make_selection_linked(
     for obj in converted_objects:
         obj.select_set(True)
 
-    if previous_active_obj_name is not None and \
-            previous_active_obj_name in context.view_layer.objects:
+    if (
+        previous_active_obj_name is not None
+        and previous_active_obj_name in context.view_layer.objects
+    ):
         context.view_layer.objects.active = bpy.data.objects[previous_active_obj_name]
 
     return converted_objects
@@ -121,21 +124,24 @@ class MakeSelectionEditable(bpy.types.Operator):
     @polib.utils_bpy.blender_cursor('WAIT')
     def execute(self, context: bpy.types.Context):
         selected_objects_and_parents_names = polib.asset_pack_bpy.make_selection_editable(
-            context, True, keep_selection=True, keep_active=True)
+            context, True, keep_selection=True, keep_active=True
+        )
         pack_paths = asset_registry.instance.get_packs_paths()
 
-        logger.info(
-            f"Resulting objects and parents: {selected_objects_and_parents_names}")
+        logger.info(f"Resulting objects and parents: {selected_objects_and_parents_names}")
 
         prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
         if prefs.spawn_options.remove_duplicates:
             filters = [polib.remove_duplicates_bpy.polygoniq_duplicate_data_filter]
             polib.remove_duplicates_bpy.remove_duplicate_datablocks(
-                bpy.data.materials, filters, pack_paths)
+                bpy.data.materials, filters, pack_paths
+            )
             polib.remove_duplicates_bpy.remove_duplicate_datablocks(
-                bpy.data.images, filters, pack_paths)
+                bpy.data.images, filters, pack_paths
+            )
             polib.remove_duplicates_bpy.remove_duplicate_datablocks(
-                bpy.data.node_groups, filters, pack_paths)
+                bpy.data.node_groups, filters, pack_paths
+            )
 
         return {'FINISHED'}
 
@@ -147,26 +153,33 @@ MODULE_CLASSES.append(MakeSelectionEditable)
 class MakeSelectionLinked(bpy.types.Operator):
     bl_idname = "engon.make_selection_linked"
     bl_label = "Convert to Linked"
-    bl_description = "Converts selected objects to their linked variants from " \
-        "engon asset packs. WARNING: This operation removes " \
-        "all local changes. Doesn't work on particle systems, " \
+    bl_description = (
+        "Converts selected objects to their linked variants from "
+        "engon asset packs. WARNING: This operation removes "
+        "all local changes. Doesn't work on particle systems, "
         "only polygoniq assets are supported by this operator"
+    )
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
     def poll(cls, context: bpy.types.Context):
-        return context.mode == 'OBJECT' and next(
-            polib.asset_pack_bpy.get_polygoniq_objects(
-                context.selected_objects, include_linked=False),
-            None
-        ) is not None
+        return (
+            context.mode == 'OBJECT'
+            and next(
+                polib.asset_pack_bpy.get_polygoniq_objects(
+                    context.selected_objects, include_linked=False
+                ),
+                None,
+            )
+            is not None
+        )
 
     @polib.utils_bpy.blender_cursor('WAIT')
     def execute(self, context: bpy.types.Context):
         converted_objects = make_selection_linked(
             context,
             asset_registry.instance.master_asset_provider,
-            asset_registry.instance.master_file_provider
+            asset_registry.instance.master_file_provider,
         )
 
         self.report({'INFO'}, f"Converted {len(converted_objects)} object(s) to linked")

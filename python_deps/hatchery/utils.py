@@ -40,10 +40,7 @@ def copy_custom_prop(src: bpy.types.ID, dst: bpy.types.ID, prop_name: str) -> No
 
 
 def copy_custom_props(
-    src: bpy.types.ID,
-    dst: bpy.types.ID,
-    only_existing: bool = False,
-    recursive: bool = False
+    src: bpy.types.ID, dst: bpy.types.ID, only_existing: bool = False, recursive: bool = False
 ) -> None:
     """Copies all custom properties from 'src' to 'dst'
 
@@ -64,7 +61,9 @@ def copy_custom_props(
         copy_custom_prop(src, dst, prop_name)
 
 
-def ensure_particle_naming_consistency(modifier: bpy.types.ParticleSystemModifier, particle_system: bpy.types.ParticleSystem) -> None:
+def ensure_particle_naming_consistency(
+    modifier: bpy.types.ParticleSystemModifier, particle_system: bpy.types.ParticleSystem
+) -> None:
     """
     Particle data gets duplicated and has the object duplicate suffix on copy, but modifiers and particle system names do not.
     This function ensures the same naming on the whole particle system -> modifier, data, particle system, instance_collection
@@ -75,21 +74,20 @@ def ensure_particle_naming_consistency(modifier: bpy.types.ParticleSystemModifie
     """
     if modifier is None or particle_system is None:
         raise RuntimeError(
-            "Cannot ensure naming consistency if modifier or particle_system is None!")
+            "Cannot ensure naming consistency if modifier or particle_system is None!"
+        )
 
     ps_settings = particle_system.settings
     if ps_settings is None or ps_settings.instance_collection is None:
         raise RuntimeError(
-            f"Cannot ensure naming consistency if particle_system ({particle_system.name}) has no settings or no instance_collection!")
+            f"Cannot ensure naming consistency if particle_system ({particle_system.name}) has no settings or no instance_collection!"
+        )
 
     modifier.name = particle_system.name = ps_settings.name = ps_settings.instance_collection.name
 
 
 def get_area_based_particle_count(
-    obj: bpy.types.Object,
-    density: float,
-    max_particle_count: int,
-    include_weights: bool = False
+    obj: bpy.types.Object, density: float, max_particle_count: int, include_weights: bool = False
 ) -> typing.Tuple[int, int]:
     mesh_area = calculate_mesh_area(obj, include_weights)
     particle_count = int(mesh_area * density)
@@ -141,5 +139,12 @@ def can_have_materials_assigned(obj: bpy.types.Object) -> bool:
 
     # In theory checking the availability of material_slots is not necessary, all these
     # object types should have it. We check for it to avoid exceptions and errors in our code.
-    return obj.type in {'MESH', 'CURVE', 'SURFACE', 'META', 'FONT', 'GPENCIL', 'VOLUME'} \
-        and hasattr(obj, "material_slots")
+    return obj.type in {
+        'MESH',
+        'CURVE',
+        'SURFACE',
+        'META',
+        'FONT',
+        'GPENCIL',
+        'VOLUME',
+    } and hasattr(obj, "material_slots")

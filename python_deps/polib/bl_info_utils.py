@@ -44,7 +44,7 @@ def infer_version_from_bl_info(init_py_path: str) -> typing.Optional[typing.Tupl
 
 
 def infer_version_from_bl_info_from_zip_file(
-    zip_file_path: str
+    zip_file_path: str,
 ) -> typing.Optional[typing.Tuple[int, int, int]]:
     if not zipfile.is_zipfile(zip_file_path):
         return None

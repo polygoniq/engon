@@ -16,6 +16,7 @@ if "bounding_box" not in locals():
     from . import utils
 else:
     import importlib
+
     bounding_box = importlib.reload(bounding_box)
     displacement = importlib.reload(displacement)
     load = importlib.reload(load)
@@ -29,6 +30,15 @@ bl_info = {
     "name": "hatchery",
     "description": "",
 }
+
+
+def register():  # stub just to avoid an AttributeError when using blender_vscode extension
+    pass
+
+
+def unregister():  # stub just to avoid an AttributeError when using blender_vscode extension
+    pass
+
 
 __all__ = [
     "bounding_box",

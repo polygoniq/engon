@@ -42,9 +42,9 @@ def XYZ_to_LAB(xyz: tuple[float, float, float]) -> tuple[float, float, float]:
     var_Z = Z / 1.08883
 
     # Apply the transformation functions
-    var_X = (var_X ** (1/3)) if var_X > 0.008856 else (7.787 * var_X + 16 / 116)
-    var_Y = (var_Y ** (1/3)) if var_Y > 0.008856 else (7.787 * var_Y + 16 / 116)
-    var_Z = (var_Z ** (1/3)) if var_Z > 0.008856 else (7.787 * var_Z + 16 / 116)
+    var_X = (var_X ** (1 / 3)) if var_X > 0.008856 else (7.787 * var_X + 16 / 116)
+    var_Y = (var_Y ** (1 / 3)) if var_Y > 0.008856 else (7.787 * var_Y + 16 / 116)
+    var_Z = (var_Z ** (1 / 3)) if var_Z > 0.008856 else (7.787 * var_Z + 16 / 116)
 
     CIE_L_star = (116 * var_Y) - 16
     CIE_a_star = 500 * (var_X - var_Y)
@@ -53,11 +53,13 @@ def XYZ_to_LAB(xyz: tuple[float, float, float]) -> tuple[float, float, float]:
     return (CIE_L_star, CIE_a_star, CIE_b_star)
 
 
-def perceptual_color_distance(rgb_1: tuple[float, float, float],
-                              rgb_2: tuple[float, float, float],
-                              weight_luminosity: float = 1.0,
-                              weight_chroma: float = 1.0,
-                              weight_hue: float = 1.0) -> float:
+def perceptual_color_distance(
+    rgb_1: tuple[float, float, float],
+    rgb_2: tuple[float, float, float],
+    weight_luminosity: float = 1.0,
+    weight_chroma: float = 1.0,
+    weight_hue: float = 1.0,
+) -> float:
     """Implements CIEDE2000 formula for perceptual color distance.
 
     Expects RGB values between 0 and 1.
@@ -83,8 +85,7 @@ def perceptual_color_distance(rgb_1: tuple[float, float, float],
     G = 0.5 * (
         1
         - numpy.sqrt(
-            numpy.power(avg_C1_C2, 7.0)
-            / (numpy.power(avg_C1_C2, 7.0) + numpy.power(25.0, 7.0))
+            numpy.power(avg_C1_C2, 7.0) / (numpy.power(avg_C1_C2, 7.0) + numpy.power(25.0, 7.0))
         )
     )
 
@@ -121,16 +122,14 @@ def perceptual_color_distance(rgb_1: tuple[float, float, float],
     delta_Hp = 2 * numpy.sqrt(C2p * C1p) * numpy.sin(numpy.radians(delta_hp) / 2.0)
 
     S_L = 1 + (
-        (0.015 * numpy.power(avg_Lp - 50, 2))
-        / numpy.sqrt(20 + numpy.power(avg_Lp - 50, 2.0))
+        (0.015 * numpy.power(avg_Lp - 50, 2)) / numpy.sqrt(20 + numpy.power(avg_Lp - 50, 2.0))
     )
     S_C = 1 + 0.045 * avg_C1p_C2p
     S_H = 1 + 0.015 * avg_C1p_C2p * T
 
     delta_ro = 30 * numpy.exp(-(numpy.power(((avg_Hp - 275) / 25), 2.0)))
     R_C = numpy.sqrt(
-        (numpy.power(avg_C1p_C2p, 7.0))
-        / (numpy.power(avg_C1p_C2p, 7.0) + numpy.power(25.0, 7.0))
+        (numpy.power(avg_C1p_C2p, 7.0)) / (numpy.power(avg_C1p_C2p, 7.0) + numpy.power(25.0, 7.0))
     )
     R_T = -2 * R_C * numpy.sin(2 * numpy.radians(delta_ro))
 

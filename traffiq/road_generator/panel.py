@@ -20,11 +20,12 @@
 
 import bpy
 import logging
-import polib
+from ... import polib
 from . import props
 from . import build_roads_modal
 from . import asset_helpers
 from .. import panel as main_panel
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -43,18 +44,23 @@ class ConvertToMesh(bpy.types.Operator):
 
     def execute(self, context: bpy.types.Context):
         road_generator_objects = [
-            o for o in context.selected_objects if asset_helpers.is_road_generator_obj(o)]
+            o for o in context.selected_objects if asset_helpers.is_road_generator_obj(o)
+        ]
 
         # Switch all cleanup modifiers to realize instances, so the instances are
         # in the final converted geometry
         for obj in road_generator_objects:
-            cleanup_candidates = [mod for mod in obj.modifiers if mod.node_group.name.startswith(
-                asset_helpers.RoadNodegroup.Cleanup.value)]
+            cleanup_candidates = [
+                mod
+                for mod in obj.modifiers
+                if mod.node_group.name.startswith(asset_helpers.RoadNodegroup.Cleanup.value)
+            ]
             if len(cleanup_candidates) == 0:
                 continue
 
             cleanup_mod_view = polib.geonodes_mod_utils_bpy.NodesModifierInputsNameView(
-                cleanup_candidates[-1])
+                cleanup_candidates[-1]
+            )
             cleanup_mod_view.set_input_value("Realize Instances", True)
 
         if len(road_generator_objects) == 0:
@@ -142,8 +148,9 @@ MODULE_CLASSES.append(MassChangeResample)
 class MassChangeFillet(bpy.types.Operator):
     bl_idname = "engon.traffiq_road_generator_mass_change_fillet"
     bl_label = "Mass Change Fillet"
-    bl_description = "Sets Fillet Radius of all road generator input curve modifiers to a " \
-        "specified value"
+    bl_description = (
+        "Sets Fillet Radius of all road generator input curve modifiers to a " "specified value"
+    )
     bl_options = {'REGISTER', 'UNDO'}
 
     def draw(self, context: bpy.types.Context) -> None:
@@ -193,12 +200,12 @@ MODULE_CLASSES.append(MassChangeFillet)
 class AddRoadGeneratorModifier(bpy.types.Operator):
     bl_idname = "engon.traffiq_road_generator_add_modifier"
     bl_label = "Add Modifier"
-    bl_description = "Add additional road feature. This links road generator node group and adds " \
+    bl_description = (
+        "Add additional road feature. This links road generator node group and adds "
         "it as a new modifier"
-
-    mod_type: bpy.props.EnumProperty(
-        items=asset_helpers.get_modifiers_enum_items()
     )
+
+    mod_type: bpy.props.EnumProperty(items=asset_helpers.get_modifiers_enum_items())
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
@@ -224,8 +231,7 @@ MODULE_CLASSES.append(AddRoadGeneratorModifier)
 
 
 class RoadGeneratorPanelMixin(
-    main_panel.TraffiqPanelInfoMixin,
-    polib.geonodes_mod_utils_bpy.GeoNodesModifierInputsPanelMixin
+    main_panel.TraffiqPanelInfoMixin, polib.geonodes_mod_utils_bpy.GeoNodesModifierInputsPanelMixin
 ):
     pass
 
@@ -248,8 +254,12 @@ class RoadGeneratorPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
 
         # Draw mode user interface
         active_tool = context.workspace.tools.from_space_view3d_mode(context.mode, create=False)
-        if context.active_object is not None and context.active_object.mode == 'EDIT' and \
-           active_tool is not None and active_tool.idname == "builtin.draw":
+        if (
+            context.active_object is not None
+            and context.active_object.mode == 'EDIT'
+            and active_tool is not None
+            and active_tool.idname == "builtin.draw"
+        ):
             layout.label(text="Currently in Draw Mode", icon='GREASEPENCIL')
             row = layout.row()
             row.enabled = False
@@ -267,7 +277,8 @@ class RoadGeneratorPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
         is_build_roads_modal_running = build_roads_modal.BuildRoads.is_running
         row.enabled = not is_build_roads_modal_running
         row.operator(
-            build_roads_modal.BuildRoads.bl_idname, text="Build Roads", icon='GP_MULTIFRAME_EDITING')
+            build_roads_modal.BuildRoads.bl_idname, text="Build Roads", icon='GP_MULTIFRAME_EDITING'
+        )
 
         if is_build_roads_modal_running:
             col.separator()
@@ -289,7 +300,9 @@ class RoadGeneratorPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
             col.prop(
                 rg_props.crossroad,
                 "points_offset",
-                text="Crossroad Points Offset", icon='ORIENTATION_LOCAL')
+                text="Crossroad Points Offset",
+                icon='ORIENTATION_LOCAL',
+            )
 
             col.separator()
             row = col.row(align=True)
@@ -304,9 +317,7 @@ class RoadGeneratorPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
             row.label(text="Utilities")
             col.operator(ConvertToMesh.bl_idname, icon='MESH_DATA')
             col.operator_menu_enum(
-                AddRoadGeneratorModifier.bl_idname,
-                "mod_type",
-                text="Add Road Generator Modifier"
+                AddRoadGeneratorModifier.bl_idname, "mod_type", text="Add Road Generator Modifier"
             )
 
         row = col.row()
@@ -325,15 +336,20 @@ class RoadGeneratorInputCurvePanel(RoadGeneratorPanelMixin, bpy.types.Panel):
     bl_parent_id = RoadGeneratorPanel.bl_idname
     bl_label = "Input Curve"
 
-    template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
-        asset_helpers.RoadNodegroup.Input.value
-    )
+    template = polib.node_utils_bpy.NodeSocketsDrawTemplate(asset_helpers.RoadNodegroup.Input.value)
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.active_object
-        return obj is not None and len(polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
-            obj, RoadGeneratorInputCurvePanel.template.name)) > 0
+        return (
+            obj is not None
+            and len(
+                polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
+                    obj, RoadGeneratorInputCurvePanel.template.name
+                )
+            )
+            > 0
+        )
 
     def draw(self, context: bpy.types.Context):
         self.draw_active_object_modifiers_node_group_inputs_template(
@@ -354,17 +370,21 @@ class RoadGeneratorProfilePanel(RoadGeneratorPanelMixin, bpy.types.Panel):
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
         asset_helpers.RoadNodegroup.RoadProfile.value,
-        socket_names_drawn_first=[
-            "Profile Object",
-            "Material"
-        ]
+        socket_names_drawn_first=["Profile Object", "Material"],
     )
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.active_object
-        return obj is not None and len(polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
-            obj, RoadGeneratorProfilePanel.template.name)) > 0
+        return (
+            obj is not None
+            and len(
+                polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
+                    obj, RoadGeneratorProfilePanel.template.name
+                )
+            )
+            > 0
+        )
 
     def draw(self, context: bpy.types.Context):
         self.draw_active_object_modifiers_node_group_inputs_template(
@@ -372,7 +392,7 @@ class RoadGeneratorProfilePanel(RoadGeneratorPanelMixin, bpy.types.Panel):
             context,
             RoadGeneratorProfilePanel.template,
             draw_modifier_header=True,
-            max_occurrences=self.DRAW_ALL
+            max_occurrences=self.DRAW_ALL,
         )
 
 
@@ -386,17 +406,21 @@ class RoadGeneratorRoadMarkingPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
     bl_options = {'DEFAULT_CLOSED'}
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
-        asset_helpers.RoadNodegroup.Markings.value,
-        socket_names_drawn_first=[
-            "Material"
-        ]
+        asset_helpers.RoadNodegroup.Markings.value, socket_names_drawn_first=["Material"]
     )
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.active_object
-        return obj is not None and len(polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
-            obj, RoadGeneratorRoadMarkingPanel.template.name)) > 0
+        return (
+            obj is not None
+            and len(
+                polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
+                    obj, RoadGeneratorRoadMarkingPanel.template.name
+                )
+            )
+            > 0
+        )
 
     def draw(self, context: bpy.types.Context):
         self.draw_active_object_modifiers_node_group_inputs_template(
@@ -404,7 +428,7 @@ class RoadGeneratorRoadMarkingPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
             context,
             RoadGeneratorRoadMarkingPanel.template,
             draw_modifier_header=True,
-            max_occurrences=self.DRAW_ALL
+            max_occurrences=self.DRAW_ALL,
         )
 
 
@@ -418,17 +442,21 @@ class RoadGeneratorDistributePanel(RoadGeneratorPanelMixin, bpy.types.Panel):
     bl_options = {'DEFAULT_CLOSED'}
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
-        asset_helpers.RoadNodegroup.Distribute.value,
-        socket_names_drawn_first=[
-            "Collection"
-        ]
+        asset_helpers.RoadNodegroup.Distribute.value, socket_names_drawn_first=["Collection"]
     )
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.active_object
-        return obj is not None and len(polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
-            obj, RoadGeneratorDistributePanel.template.name)) > 0
+        return (
+            obj is not None
+            and len(
+                polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
+                    obj, RoadGeneratorDistributePanel.template.name
+                )
+            )
+            > 0
+        )
 
     def draw(self, context: bpy.types.Context):
         self.draw_active_object_modifiers_node_group_inputs_template(
@@ -436,7 +464,7 @@ class RoadGeneratorDistributePanel(RoadGeneratorPanelMixin, bpy.types.Panel):
             context,
             RoadGeneratorDistributePanel.template,
             draw_modifier_header=True,
-            max_occurrences=self.DRAW_ALL
+            max_occurrences=self.DRAW_ALL,
         )
 
 
@@ -450,17 +478,21 @@ class RoadGeneratorCrosswalkPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
     bl_options = {'DEFAULT_CLOSED'}
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
-        asset_helpers.RoadNodegroup.Crosswalk.value,
-        socket_names_drawn_first=[
-            "Material"
-        ]
+        asset_helpers.RoadNodegroup.Crosswalk.value, socket_names_drawn_first=["Material"]
     )
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.active_object
-        return obj is not None and len(polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
-            obj, RoadGeneratorCrosswalkPanel.template.name)) > 0
+        return (
+            obj is not None
+            and len(
+                polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
+                    obj, RoadGeneratorCrosswalkPanel.template.name
+                )
+            )
+            > 0
+        )
 
     def draw(self, context: bpy.types.Context):
         self.draw_active_object_modifiers_node_group_inputs_template(
@@ -468,7 +500,7 @@ class RoadGeneratorCrosswalkPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
             context,
             RoadGeneratorCrosswalkPanel.template,
             draw_modifier_header=True,
-            max_occurrences=self.DRAW_ALL
+            max_occurrences=self.DRAW_ALL,
         )
 
 
@@ -483,17 +515,21 @@ class RoadGeneratorScatterPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
         asset_helpers.RoadNodegroup.Scatter.value,
-        socket_names_drawn_first=[
-            "Instance Collection",
-            "Proximity Objects"
-        ]
+        socket_names_drawn_first=["Instance Collection", "Proximity Objects"],
     )
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.active_object
-        return obj is not None and len(polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
-            obj, RoadGeneratorScatterPanel.template.name)) > 0
+        return (
+            obj is not None
+            and len(
+                polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
+                    obj, RoadGeneratorScatterPanel.template.name
+                )
+            )
+            > 0
+        )
 
     def draw(self, context: bpy.types.Context):
         self.draw_active_object_modifiers_node_group_inputs_template(
@@ -501,7 +537,7 @@ class RoadGeneratorScatterPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
             context,
             RoadGeneratorScatterPanel.template,
             draw_modifier_header=True,
-            max_occurrences=self.DRAW_ALL
+            max_occurrences=self.DRAW_ALL,
         )
 
 
@@ -521,14 +557,19 @@ class RoadGeneratorCleanupPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.active_object
-        return obj is not None and len(polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
-            obj, RoadGeneratorCleanupPanel.template.name)) > 0
+        return (
+            obj is not None
+            and len(
+                polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
+                    obj, RoadGeneratorCleanupPanel.template.name
+                )
+            )
+            > 0
+        )
 
     def draw(self, context: bpy.types.Context):
         self.draw_active_object_modifiers_node_group_inputs_template(
-            self.layout,
-            context,
-            RoadGeneratorCleanupPanel.template
+            self.layout, context, RoadGeneratorCleanupPanel.template
         )
 
 

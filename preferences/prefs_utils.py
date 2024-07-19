@@ -19,8 +19,9 @@
 # ##### END GPL LICENSE BLOCK #####
 
 import bpy
-import polib
 import typing
+from .. import __package__ as base_package
+
 if typing.TYPE_CHECKING:
     # TYPE_CHECKING is always False at runtime, so this block will never be executed
     # This import is used only for type hinting
@@ -30,13 +31,18 @@ if typing.TYPE_CHECKING:
 SCATTER_DISPLAY_ENUM_ITEMS = (
     ('BOUNDS', "Bounds", "Bounds, Display the bounds of the object"),
     ('WIRE', "Wire", "Wire, Display the object as a wireframe"),
-    ('SOLID', "Solid",
-        "Solid, Display the object as a solid (if solid drawing is enabled in the viewport)"),
-    ('TEXTURED', "Textured",
-        "Textured, Display the object with textures (if textures are enabled in the viewport)"),
+    (
+        'SOLID',
+        "Solid",
+        "Solid, Display the object as a solid (if solid drawing is enabled in the viewport)",
+    ),
+    (
+        'TEXTURED',
+        "Textured",
+        "Textured, Display the object with textures (if textures are enabled in the viewport)",
+    ),
 )
 
 
 def get_preferences(context: bpy.types.Context) -> 'preferences.Preferences':
-    engon_package = polib.utils_bpy.get_top_level_package_name(__package__)
-    return context.preferences.addons[engon_package].preferences
+    return context.preferences.addons[base_package].preferences

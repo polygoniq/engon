@@ -21,10 +21,11 @@
 import bpy
 import typing
 import logging
-import polib
+from .. import polib
 from . import filters
 from . import utils
 from .. import asset_registry
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -58,15 +59,14 @@ MODULE_CLASSES.append(MAPR_BrowserEnterCategory)
 
 
 def draw_category_pills_header(
-    context: bpy.types.Context,
-    layout: bpy.types.UILayout,
-    width: float
+    context: bpy.types.Context, layout: bpy.types.UILayout, width: float
 ) -> None:
     master_provider = asset_registry.instance.master_asset_provider
     ui_scale = context.preferences.system.ui_scale
     estimated_row_width_px = 0
     current_category = master_provider.get_category_id_from_string(
-        filters.asset_repository.current_category_id)
+        filters.asset_repository.current_category_id
+    )
     col = layout.column()
     row = col.row(align=True)
     row.alignment = 'LEFT'
@@ -86,14 +86,12 @@ def draw_category_pills_header(
 
     for i, category_part in enumerate(category_parts):
         category_id = "/".join(category_parts[:i] + [category_part])
-        is_embossed = (i < len(category_parts) - 1)
+        is_embossed = i < len(category_parts) - 1
         # Always display first button as root category "/"
         if i == 0:
             category_part = "/"
         left.operator(
-            MAPR_BrowserEnterCategory.bl_idname,
-            text=category_part,
-            emboss=is_embossed
+            MAPR_BrowserEnterCategory.bl_idname, text=category_part, emboss=is_embossed
         ).category_id = category_id
         # Prepend arbitrary spaces to embossed buttons, so it aligns nicely
         left.label(text="   >" if is_embossed else ">")
@@ -105,8 +103,9 @@ def draw_category_pills_header(
     # Draw child categories buttons, wrap if the estimated width is larger than wrap_width
     for category in master_provider.list_sorted_categories(current_category):
         last_part = category.id_.split("/")[-1]
-        right.operator(MAPR_BrowserEnterCategory.bl_idname,
-                       text=last_part).category_id = category.id_
+        right.operator(MAPR_BrowserEnterCategory.bl_idname, text=last_part).category_id = (
+            category.id_
+        )
         # 20 * ui_scale as a margin width for each button
         estimated_row_width_px += ui_scale * (len(last_part) * utils.EST_LETTER_WIDTH_PX + 20)
         if estimated_row_width_px > width:
@@ -122,7 +121,8 @@ def draw_tree_category_navigation(
 ) -> None:
     current_category = filters.asset_repository.current_category_id
     child_categories = asset_registry.instance.master_asset_provider.list_sorted_categories(
-        current_category)
+        current_category
+    )
 
     # Draw non-embossed clickable operator buttons of 'current_category' and parent categories
     category_parts: typing.List[str] = list(filter(None, current_category.split("/")))
@@ -151,7 +151,9 @@ def draw_tree_category_navigation(
     for i, category_part in enumerate(category_parts):
         category = master_provider.get_category_safe(
             master_provider.get_category_id_from_string(
-                "/".join(category_parts[:i] + [category_part])))
+                "/".join(category_parts[:i] + [category_part])
+            )
+        )
         # In case no category is found in the providers (or no providers are available),
 
         # Always display first button as root category "/"
@@ -159,25 +161,23 @@ def draw_tree_category_navigation(
             category_part = "/"
 
         icon_parameters = polib.ui_bpy.get_asset_pack_icon_parameters(
-            category_to_icon_id.get(category.title, None), 'FOLDER_REDIRECT')
+            category_to_icon_id.get(category.id_.lstrip("/"), None), 'FOLDER_REDIRECT'
+        )
 
         row = col.row(align=True)
         row.separator(factor=i * separator_factor)
         row.operator(
-            MAPR_BrowserEnterCategory.bl_idname,
-            text=category.title,
-            **icon_parameters
+            MAPR_BrowserEnterCategory.bl_idname, text=category.title, **icon_parameters
         ).category_id = category.id_
 
     for category in child_categories:
         icon_parameters = polib.ui_bpy.get_asset_pack_icon_parameters(
-            category_to_icon_id.get(category.title, None), 'FILE_FOLDER')
+            category_to_icon_id.get(category.id_.lstrip("/"), None), 'FILE_FOLDER'
+        )
         row = col.row(align=True)
         row.separator(factor=max_nesting * separator_factor)
         row.operator(
-            MAPR_BrowserEnterCategory.bl_idname,
-            text=category.title,
-            **icon_parameters
+            MAPR_BrowserEnterCategory.bl_idname, text=category.title, **icon_parameters
         ).category_id = category.id_
 
 
