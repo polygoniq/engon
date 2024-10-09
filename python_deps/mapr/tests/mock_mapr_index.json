@@ -49,7 +49,7 @@
                 "Restaurant"
             ],
             "text_parameters": {
-                "bpy.data.version": "3.3.6",
+                "bpy.data.version": "3.6.10",
                 "copyright": "(c) 2018- polygoniq xyz s.r.o.",
                 "country_of_origin": "USA",
                 "furniture_style": "Minimalist",
@@ -84,7 +84,7 @@
                 "Office"
             ],
             "text_parameters": {
-                "bpy.data.version": "3.3.6",
+                "bpy.data.version": "3.6.10",
                 "copyright": "(c) 2018- polygoniq xyz s.r.o.",
                 "country_of_origin": "Poland",
                 "furniture_style": "Modern",
@@ -118,7 +118,7 @@
                 "Office"
             ],
             "text_parameters": {
-                "bpy.data.version": "3.3.6",
+                "bpy.data.version": "3.6.10",
                 "brand": "Kart",
                 "copyright": "(c) 2018- polygoniq xyz s.r.o.",
                 "country_of_origin": "Germany",
@@ -155,7 +155,7 @@
                 "Outdoor"
             ],
             "text_parameters": {
-                "bpy.data.version": "3.3.6",
+                "bpy.data.version": "3.6.10",
                 "brand": "IKEA",
                 "copyright": "(c) 2018- polygoniq xyz s.r.o.",
                 "country_of_origin": "Romania",

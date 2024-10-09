@@ -6,19 +6,20 @@ import bpy.utils.previews
 import os
 import logging
 import typing
-import threading
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
 class PreviewManager:
-    """Loads previews from provided paths on demand based on basenames or custom ids."""
+    """Loads previews from provided paths on demand based on basenames or custom ids.
 
-    def __init__(self):
+    'blocking_load' forces the preview to load the image data immediately when requested."""
+
+    def __init__(self, blocking_load: bool = True) -> None:
         self.preview_collection = bpy.utils.previews.new()
-        self.lock = threading.Lock()
         self.id_path_map: typing.Dict[str, str] = {}
         self.allowed_extensions = {".png", ".jpg"}
+        self.blocking_load = blocking_load
 
     def add_preview_path(self, path: str, id_override: typing.Optional[str] = None) -> None:
         """Adds 'path' as a possible place from where preview can be loaded if requested.
@@ -105,15 +106,17 @@ class PreviewManager:
         Assumes 'full_path' is already existing file in the filesystem.
         """
 
-        with self.lock:
-            if id_ in self.preview_collection:
-                return
+        if id_ in self.preview_collection:
+            return
 
-            assert os.path.isfile(full_path)
-            try:
-                self.preview_collection.load(id_, full_path, 'IMAGE', True)
-            except KeyError as e:
-                logger.exception(f"Preview {id_} already loaded!")
+        assert os.path.isfile(full_path)
+        try:
+            self.preview_collection.load(id_, full_path, 'IMAGE', True)
+            if self.blocking_load:
+                # Accessing this property getter triggers bpy kernel to ensure the preview
+                self.preview_collection[id_].icon_size[:]
+        except KeyError as e:
+            logger.exception(f"Preview {id_} already loaded!")
 
     def __del__(self):
         self.preview_collection.close()

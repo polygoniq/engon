@@ -1,31 +1,32 @@
-<h1 align="center">
-  <a href="https://github.com/polygoniq/engon">
-    <img src="docs/images/logo.svg" alt="Logo" width="100" height="100">
-  </a>
-</h1>
-
 <div align="center">
-  engon
+  <a href="https://github.com/polygoniq/engon">
+    <img src="docs/images/logo.svg" alt="Logo" width="80" height="80"/>
+  </a>
+
+  <h3 align="center">engon</h3>
+
+  Asset browser and asset pack manager for Blender.
+  <br />
   <br />
   <a href="#about"><strong>Check out the screenshots »</strong></a>
-  <br />
   <br />
   <a href="https://github.com/polygoniq/engon/issues/new?assignees=&labels=bug&template=01_BUG_REPORT.md&title=bug%3A+">Report a Bug</a>
   ·
   <a href="https://github.com/polygoniq/engon/issues/new?assignees=&labels=enhancement&template=02_FEATURE_REQUEST.md&title=feat%3A+">Request a Feature</a>
   ·
   <a href="https://github.com/polygoniq/engon/issues/new?assignees=&labels=question&template=04_SUPPORT_QUESTION.md&title=support%3A+">Ask a Question</a>
-</div>
+  <br />
 
-<div align="center">
-<br />
+  [![Buy on BlenderMarket](https://img.shields.io/badge/Buy_on-BlenderMarket-orange?style=flat)](https://blendermarket.com/products/engon?ref=673)
+  [![Buy on Gumroad](https://img.shields.io/badge/Buy_on-Gumroad-blue?style=flat&color=%23fb80e8)](https://polygoniq.gumroad.com/l/engon/)
+  [![Project license](https://img.shields.io/github/license/polygoniq/engon.svg?style=flat)](LICENSE)
+  [![Pull Requests welcome](https://img.shields.io/badge/PRs-welcome-ff69b4.svg?style=flat)](https://github.com/polygoniq/engon/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
 
-[![Project license](https://img.shields.io/github/license/polygoniq/engon.svg?style=flat-square)](LICENSE)
-[![Pull Requests welcome](https://img.shields.io/badge/PRs-welcome-ff69b4.svg?style=flat-square)](https://github.com/polygoniq/engon/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
-[![Discord](https://img.shields.io/discord/742363791643115531)](https://polygoniq.com/discord/)
-[![Buy on BlenderMarket](https://img.shields.io/badge/Buy_on-BlenderMarket-orange)](https://blendermarket.com/products/engon?ref=673)
-[![Buy on Gumroad](https://img.shields.io/badge/Buy_on-Gumroad-blue)](https://polygoniq.gumroad.com/l/engon/)
-
+  [![Discord](https://img.shields.io/discord/742363791643115531?style=flat&logo=discord&color=%237785cc&label=Chat)](https://polygoniq.com/discord/)
+  [![X (formerly Twitter) Follow](https://img.shields.io/badge/Follow-@polygoniq-black?style=flat&logo=x)](https://x.com/polygoniq/)
+  [![Instagram](https://img.shields.io/badge/Follow-polygoniq.xyz-black?style=flat&logo=instagram&color=%238a3ab9)](https://www.instagram.com/polygoniq.xyz/)
+  [![Facebook](https://img.shields.io/badge/Follow-polygoniq-black?style=flat&logo=facebook&color=%231877f2)](https://www.facebook.com/polygoniq/)
+  [![Website](https://img.shields.io/badge/Visit-polygoniq.com-black?style=flat&logo=web&color=%23223DF0)](https://polygoniq.com/)
 </div>
 
 <details open="open">
@@ -64,7 +65,7 @@
 
 |                             Addon Panel                                      |                            Asset Browser                                     |
 | :--------------------------------------------------------------------------: | :--------------------------------------------------------------------------: |
-| <img src="docs/images/ui_overview.png" title="Addon Panel" width="100%">     | <img src="docs/images/browser.jpg" title="Asset Browser" width="100%">       |
+| <img src="docs/images/ui_overview.png" title="Addon Panel" width="100%"/>     | <img src="docs/images/browser.jpg" title="Asset Browser" width="100%"/>       |
 
 
 </details>
@@ -73,7 +74,7 @@
 
 ### Prerequisites
 
-> You need [Blender 3.3 LTS or higher](https://blender.org). Windows, macOS 10 and Linux are
+> You need [Blender 3.6 LTS or higher](https://blender.org). Windows, macOS 10 and Linux are
 > supported.
 
 ### Installation

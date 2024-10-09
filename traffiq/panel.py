@@ -37,18 +37,18 @@ TQ_COLLECTION_NAME = "traffiq"
 def set_car_paint_color(
     obj: bpy.types.Object, color: typing.Tuple[float, float, float, float]
 ) -> None:
-    if polib.asset_pack_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR in obj:
-        obj[polib.asset_pack_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR] = color
+    if polib.custom_props_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR in obj:
+        obj[polib.custom_props_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR] = color
         obj.update_tag(refresh={'OBJECT'})
 
 
 def get_car_paint_color(obj: bpy.types.Object) -> typing.Tuple[float, float, float, float]:
-    assert polib.asset_pack_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR in obj
-    return obj[polib.asset_pack_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR]
+    assert polib.custom_props_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR in obj
+    return obj[polib.custom_props_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR]
 
 
 def can_obj_change_car_paint_color(obj: bpy.types.Object) -> bool:
-    return polib.asset_pack_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR in obj
+    return polib.custom_props_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR in obj
 
 
 @polib.log_helpers_bpy.logged_operator
@@ -158,19 +158,21 @@ class ColorsPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
                 row.label(text="random")
             else:
                 row.prop(
-                    obj, f'["{polib.asset_pack_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR}"]', text=""
+                    obj,
+                    f'["{polib.custom_props_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR}"]',
+                    text="",
                 )
 
-            if polib.asset_pack_bpy.CustomPropertyNames.TQ_CLEARCOAT in obj:
+            if polib.custom_props_bpy.CustomPropertyNames.TQ_CLEARCOAT in obj:
                 row.label(
-                    text=f"{obj.get(polib.asset_pack_bpy.CustomPropertyNames.TQ_CLEARCOAT):.2f}"
+                    text=f"{obj.get(polib.custom_props_bpy.CustomPropertyNames.TQ_CLEARCOAT):.2f}"
                 )
             else:
                 row.label(text="-")
 
-            if polib.asset_pack_bpy.CustomPropertyNames.TQ_FLAKES_AMOUNT in obj:
+            if polib.custom_props_bpy.CustomPropertyNames.TQ_FLAKES_AMOUNT in obj:
                 row.label(
-                    text=f"{obj.get(polib.asset_pack_bpy.CustomPropertyNames.TQ_FLAKES_AMOUNT):.2f}"
+                    text=f"{obj.get(polib.custom_props_bpy.CustomPropertyNames.TQ_FLAKES_AMOUNT):.2f}"
                 )
             else:
                 row.label(text="-")
@@ -231,9 +233,9 @@ class LightsPanel(
             row.label(text=asset.name)
             row.prop(
                 lights_container,
-                f'["{polib.asset_pack_bpy.CustomPropertyNames.TQ_LIGHTS}"]',
+                f'["{polib.custom_props_bpy.CustomPropertyNames.TQ_LIGHTS}"]',
                 text=lights.get_main_lights_status_text(
-                    lights_container[polib.asset_pack_bpy.CustomPropertyNames.TQ_LIGHTS]
+                    lights_container[polib.custom_props_bpy.CustomPropertyNames.TQ_LIGHTS]
                 ),
             )
         col.separator()
@@ -297,9 +299,9 @@ class WearPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
         prefs = preferences.prefs_utils.get_preferences(context).traffiq_preferences
         row = self.layout.row()
         wear_props_set = {
-            polib.asset_pack_bpy.CustomPropertyNames.TQ_DIRT,
-            polib.asset_pack_bpy.CustomPropertyNames.TQ_SCRATCHES,
-            polib.asset_pack_bpy.CustomPropertyNames.TQ_BUMPS,
+            polib.custom_props_bpy.CustomPropertyNames.TQ_DIRT,
+            polib.custom_props_bpy.CustomPropertyNames.TQ_SCRATCHES,
+            polib.custom_props_bpy.CustomPropertyNames.TQ_BUMPS,
         }
         objs_with_wear = [
             ob
@@ -328,28 +330,28 @@ class WearPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
             row = right_col.row()
             row.label(
                 text=self.format_wear_node_input_value(
-                    obj, polib.asset_pack_bpy.CustomPropertyNames.TQ_DIRT
+                    obj, polib.custom_props_bpy.CustomPropertyNames.TQ_DIRT
                 )
             )
             row.label(
                 text=self.format_wear_node_input_value(
-                    obj, polib.asset_pack_bpy.CustomPropertyNames.TQ_SCRATCHES
+                    obj, polib.custom_props_bpy.CustomPropertyNames.TQ_SCRATCHES
                 )
             )
             row.label(
                 text=self.format_wear_node_input_value(
-                    obj, polib.asset_pack_bpy.CustomPropertyNames.TQ_BUMPS
+                    obj, polib.custom_props_bpy.CustomPropertyNames.TQ_BUMPS
                 )
             )
 
         any_object_with_applicable_dirt = any(
-            polib.asset_pack_bpy.CustomPropertyNames.TQ_DIRT in obj for obj in objs_with_wear
+            polib.custom_props_bpy.CustomPropertyNames.TQ_DIRT in obj for obj in objs_with_wear
         )
         any_object_with_applicable_scratches = any(
-            polib.asset_pack_bpy.CustomPropertyNames.TQ_SCRATCHES in obj for obj in objs_with_wear
+            polib.custom_props_bpy.CustomPropertyNames.TQ_SCRATCHES in obj for obj in objs_with_wear
         )
         any_object_with_applicable_bumps = any(
-            polib.asset_pack_bpy.CustomPropertyNames.TQ_BUMPS in obj for obj in objs_with_wear
+            polib.custom_props_bpy.CustomPropertyNames.TQ_BUMPS in obj for obj in objs_with_wear
         )
 
         col = self.layout.column(align=True)
@@ -502,22 +504,24 @@ class RigsRigPropertiesPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
         active_object = context.active_object
         layout.label(text="Wheels")
         for prop in active_object.keys():
-            if prop.startswith(polib.rigs_shared_bpy.TraffiqRigProperties.WHEEL_ROTATION):
+            if prop.startswith(polib.custom_props_bpy.CustomPropertyNames.TQ_WHEEL_ROTATION):
                 self.display_custom_property(active_object, layout, prop)
 
         layout.label(text="Suspension")
         self.display_custom_property(
-            active_object, layout, polib.rigs_shared_bpy.TraffiqRigProperties.SUSPENSION_FACTOR
+            active_object, layout, polib.custom_props_bpy.CustomPropertyNames.TQ_SUSPENSION_FACTOR
         )
         self.display_custom_property(
             active_object,
             layout,
-            polib.rigs_shared_bpy.TraffiqRigProperties.SUSPENSION_ROLLING_FACTOR,
+            polib.custom_props_bpy.CustomPropertyNames.TQ_SUSPENSION_ROLLING_FACTOR,
         )
 
         layout.label(text="Steering")
         self.display_custom_property(
-            active_object, layout, polib.rigs_shared_bpy.TraffiqRigProperties.STEERING
+            active_object,
+            layout,
+            polib.custom_props_bpy.CustomPropertyNames.TQ_STEERING,
         )
 
     def display_custom_property(
@@ -528,7 +532,7 @@ class RigsRigPropertiesPanel(TraffiqPanelInfoMixin, bpy.types.Panel):
         else:
             prop_display_name = prop_name
 
-        if prop_name.startswith(polib.rigs_shared_bpy.TraffiqRigProperties.WHEEL_ROTATION):
+        if prop_name.startswith(polib.custom_props_bpy.CustomPropertyNames.TQ_WHEEL_ROTATION):
             _, position = prop_display_name.split("_", 1)
             prop_display_name = f"{get_position_display_name(position)}"
 

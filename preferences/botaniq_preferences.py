@@ -184,10 +184,10 @@ class BotaniqPreferences(bpy.types.PropertyGroup):
         max=10.0,
         soft_max=1.0,
         step=0.1,
-        update=lambda self, context: polib.asset_pack_bpy.update_custom_prop(
+        update=lambda self, context: polib.custom_props_bpy.update_custom_prop(
             context,
             self.get_adjustment_affected_objects(context),
-            polib.asset_pack_bpy.CustomPropertyNames.BQ_BRIGHTNESS,
+            polib.custom_props_bpy.CustomPropertyNames.BQ_BRIGHTNESS,
             self.brightness,
         ),
     )
@@ -199,10 +199,10 @@ class BotaniqPreferences(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         step=0.1,
-        update=lambda self, context: polib.asset_pack_bpy.update_custom_prop(
+        update=lambda self, context: polib.custom_props_bpy.update_custom_prop(
             context,
             self.get_adjustment_affected_objects(context),
-            polib.asset_pack_bpy.CustomPropertyNames.BQ_RANDOM_PER_BRANCH,
+            polib.custom_props_bpy.CustomPropertyNames.BQ_RANDOM_PER_BRANCH,
             self.hue_per_branch,
         ),
     )
@@ -214,10 +214,10 @@ class BotaniqPreferences(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         step=0.1,
-        update=lambda self, context: polib.asset_pack_bpy.update_custom_prop(
+        update=lambda self, context: polib.custom_props_bpy.update_custom_prop(
             context,
             self.get_adjustment_affected_objects(context),
-            polib.asset_pack_bpy.CustomPropertyNames.BQ_RANDOM_PER_LEAF,
+            polib.custom_props_bpy.CustomPropertyNames.BQ_RANDOM_PER_LEAF,
             self.hue_per_leaf,
         ),
     )
@@ -229,10 +229,10 @@ class BotaniqPreferences(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         step=0.1,
-        update=lambda self, context: polib.asset_pack_bpy.update_custom_prop(
+        update=lambda self, context: polib.custom_props_bpy.update_custom_prop(
             context,
             self.get_adjustment_affected_objects(context),
-            polib.asset_pack_bpy.CustomPropertyNames.BQ_SEASON_OFFSET,
+            polib.custom_props_bpy.CustomPropertyNames.BQ_SEASON_OFFSET,
             self.season_offset,
         ),
     )

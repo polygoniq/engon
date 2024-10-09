@@ -15,82 +15,11 @@ except ImportError:
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-if "linalg_bpy" not in locals():
-    from . import linalg_bpy
-    from . import utils_bpy
-    from . import rigs_shared_bpy
-else:
-    import importlib
-
-    linalg_bpy = importlib.reload(linalg_bpy)
-    utils_bpy = importlib.reload(utils_bpy)
-    rigs_shared_bpy = importlib.reload(rigs_shared_bpy)
-
-
-CustomAttributeValueType = typing.Union[
-    str,
-    int,
-    float,
-    typing.Tuple[int, ...],
-    typing.Tuple[float, ...],
-    typing.List[int],
-    typing.List[float],
-]
-
-
-# Maps asset pack names to blender Collection color_tags
-ASSET_PACK_COLLECTION_COLOR_MAP = {
-    "botaniq": 'COLOR_04',  # green
-    "traffiq": 'COLOR_02',  # orange
-    "aquatiq": 'COLOR_05',  # blue
-}
-
-
-PARTICLE_SYSTEM_TOKEN = "pps"
-PREVIEW_NOT_FOUND = "No-Asset-Found"
-
-
-BOTANIQ_SEASONS = {"spring", "summer", "autumn", "winter"}
-
-
-# order matters, assets often have multiple seasons, color is set according to the first
-# matched season
-BOTANIQ_SEASONS_WITH_COLOR_CHANNEL = (
-    ("summer", 1.0),
-    ("spring", 0.75),
-    ("winter", 0.5),
-    ("autumn", 0.25),
-)
-
-BOTANIQ_ANIMATED_CATEGORIES = {
-    "coniferous",
-    "deciduous",
-    "shrubs",
-    "flowers",
-    "grass",
-    "ivy",
-    "plants",
-    "sapling",
-    "tropical",
-    "vine",
-    "weed",
-}
-
-
-class CustomPropertyNames:
-    # traffiq specific custom property names
-    TQ_DIRT = "tq_dirt"
-    TQ_SCRATCHES = "tq_scratches"
-    TQ_BUMPS = "tq_bumps"
-    TQ_PRIMARY_COLOR = "tq_primary_color"
-    TQ_FLAKES_AMOUNT = "tq_flakes_amount"
-    TQ_CLEARCOAT = "tq_clearcoat"
-    TQ_LIGHTS = "tq_main_lights"
-    # botaniq specific custom property names
-    BQ_BRIGHTNESS = "bq_brightness"
-    BQ_RANDOM_PER_BRANCH = "bq_random_per_branch"
-    BQ_RANDOM_PER_LEAF = "bq_random_per_leaf"
-    BQ_SEASON_OFFSET = "bq_season_offset"
+from . import asset_pack
+from . import utils_bpy
+from . import rigs_shared_bpy
+from . import custom_props_bpy
+from . import node_utils_bpy
 
 
 def get_all_object_ancestors(obj: bpy.types.Object) -> typing.Iterable[bpy.types.Object]:
@@ -127,24 +56,37 @@ def filter_out_descendants_from_objects(
 
 
 def is_polygoniq_object(
-    obj: bpy.types.Object,
+    obj: bpy.types.ID,
     addon_name_filter: typing.Optional[typing.Callable[[str], bool]] = None,
     include_editable: bool = True,
     include_linked: bool = True,
 ) -> bool:
-    if include_editable and obj.instance_type == 'NONE' and obj.get("polygoniq_addon", None):
-        # only non-'EMPTY' objects can be considered editable
-        return addon_name_filter is None or addon_name_filter(obj.get("polygoniq_addon", None))
+    return custom_props_bpy.has_property(
+        obj,
+        "polygoniq_addon",
+        addon_name_filter,
+        include_editable=include_editable,
+        include_linked=include_linked,
+    )
 
-    elif include_linked and obj.instance_collection is not None:
-        # the object is linked and the custom properties are in the linked collection
-        # in most cases there will be exactly one linked object but we want to play it
-        # safe and will check all of them. if any linked object is a polygoniq object
-        # we assume the whole instance collection is
-        for linked_obj in obj.instance_collection.objects:
-            if is_polygoniq_object(linked_obj, addon_name_filter):
-                return True
 
+def has_engon_property_feature(
+    obj: bpy.types.ID, feature: str, include_editable: bool = True, include_linked: bool = True
+) -> bool:
+    if not is_polygoniq_object(obj):
+        return False
+
+    # check if obj has at least one of the given properties of the property features
+    feature_properties = custom_props_bpy.PROPERTY_FEATURE_PROPERTIES_MAP.get(feature, [])
+
+    for feature_property in feature_properties:
+        if custom_props_bpy.has_property(
+            obj,
+            feature_property,
+            include_editable=include_editable,
+            include_linked=include_linked,
+        ):
+            return True
     return False
 
 
@@ -298,7 +240,7 @@ def get_entire_object_hierarchy(obj: bpy.types.Object) -> typing.Iterable[bpy.ty
     for child in obj.children:
         yield from get_entire_object_hierarchy(child)
 
-    if obj.instance_type == 'COLLECTION':
+    if obj.instance_type == 'COLLECTION' and obj.instance_collection is not None:
         yield from obj.instance_collection.objects
     else:
         yield obj
@@ -342,12 +284,25 @@ def find_traffiq_asset_parts(
             yield hierarchy_obj
 
 
-def is_pps(name: str) -> bool:
-    split = name.split("_")
-    if len(split) < 3:
-        return False
+InstancedObjectInfo = typing.Tuple[
+    bpy.types.Object, bpy.types.Collection, str, typing.Tuple[float, float, float, float]
+]
 
-    return split[1] == PARTICLE_SYSTEM_TOKEN
+
+def find_instanced_collection_objects(
+    obj: bpy.types.Object, instanced_collection_objects: typing.Dict[str, InstancedObjectInfo]
+) -> None:
+    for child in obj.children:
+        find_instanced_collection_objects(child, instanced_collection_objects)
+
+    if obj.instance_type == 'COLLECTION':
+        if obj.name not in instanced_collection_objects:
+            instanced_collection_objects[obj.name] = (
+                obj,
+                obj.instance_collection,
+                obj.parent.name if obj.parent else None,
+                obj.color,
+            )
 
 
 def make_selection_editable(
@@ -361,7 +316,7 @@ def make_selection_editable(
             apply_botaniq_particle_system_modifiers(child)
 
         for modifier in obj.modifiers:
-            if modifier.type != 'PARTICLE_SYSTEM' or is_pps(modifier.name):
+            if modifier.type != 'PARTICLE_SYSTEM' or asset_pack.is_pps_name(modifier.name):
                 continue
 
             clear_selection(context)
@@ -379,24 +334,13 @@ def make_selection_editable(
 
             obj.modifiers.remove(modifier)
 
-    InstancedObjectInfo = typing.Tuple[
-        bpy.types.Object, bpy.types.Collection, str, typing.Tuple[float, float, float, float]
-    ]
+    OBJECT_CHILDREN_EMPTY_SIZE = 0.1  # size not too distracting for small objects but still visible
 
-    def find_instanced_collection_objects(
-        obj: bpy.types.Object, instanced_collection_objects: typing.Dict[str, InstancedObjectInfo]
-    ):
+    def set_object_empties_size(obj: bpy.types.Object, size: float) -> None:
         for child in obj.children:
-            find_instanced_collection_objects(child, instanced_collection_objects)
-
-        if obj.instance_type == 'COLLECTION':
-            if obj.name not in instanced_collection_objects:
-                instanced_collection_objects[obj.name] = (
-                    obj,
-                    obj.instance_collection,
-                    obj.parent.name if obj.parent else None,
-                    obj.color,
-                )
+            set_object_empties_size(child, OBJECT_CHILDREN_EMPTY_SIZE)
+        if obj.type == 'EMPTY':
+            obj.empty_display_size = size
 
     def copy_polygoniq_custom_props_from_children(obj: bpy.types.Object) -> None:
         """Tries to copy Polygoniq custom properties from children to 'obj'.
@@ -464,7 +408,8 @@ def make_selection_editable(
         obj: bpy.types.Object,
         get_data_to_struct_map: GetNameToUsersMapCallable,
         datablock_name: str,
-    ):
+    ) -> typing.Dict[bpy.types.ID, bpy.types.ID]:
+        old_new_datablock_map = {}
         datablocks_to_owner_structs: typing.DefaultDict[str, typing.List[bpy.types.ID]] = (
             collections.defaultdict(list)
         )
@@ -482,6 +427,57 @@ def make_selection_editable(
             datablock_duplicate = first_datablock.copy()
             for owner_struct in owner_structs:
                 setattr(owner_struct, datablock_name, datablock_duplicate)
+                old_new_datablock_map[first_datablock] = datablock_duplicate
+        return old_new_datablock_map
+
+    def try_make_auto_smooth_modifier_local(obj: bpy.types.Object) -> None:
+        """Make 'Auto Smooth' geometry nodes modifier local for objects in 'obj' hierarchy."""
+        # Blender 4.1.0 changed how auto smooth works, there is a Auto Smooth modifier that replaced
+        # auto smooth behavior from object data. We need to make the node group local to the object
+        # otherwise it is auto version linked from the source .blend. However the source .blend is
+        # never saved thus upon reloading of the scene (saving and opening again), the node group
+        # is lost, as it is not available in the source.
+        for child in obj.children:
+            try_make_auto_smooth_modifier_local(child)
+
+        if bpy.app.version < (4, 1, 0) or obj.type != 'MESH':
+            return
+
+        auto_smooth_mod = obj.modifiers.get("Auto Smooth", None)
+        if auto_smooth_mod is None:
+            return
+
+        if auto_smooth_mod.node_group is not None:
+            auto_smooth_mod.node_group.make_local()
+
+    def update_geometry_node_materials(
+        obj: bpy.types.Object, old_new_material_map: typing.Dict[bpy.types.ID, bpy.types.ID]
+    ):
+        """If geometry nodes reference material, use local version instead of linked.
+
+        Linked material is still referenced after asset is converted to local. If we use material
+        selection node it will not return the assigned geometry as it is different material.
+        """
+
+        for child in obj.children:
+            update_geometry_node_materials(child, old_new_material_map)
+
+        for mod in obj.modifiers:
+            if not isinstance(mod, bpy.types.NodesModifier):
+                continue
+            if mod.node_group is None:
+                continue
+
+            for input_identifier, input_ in node_utils_bpy.get_node_tree_inputs_map(
+                mod.node_group
+            ).items():
+                if node_utils_bpy.get_socket_type(input_) == 'NodeSocketMaterial':
+                    mat = mod[input_.identifier]
+                    new_mat = old_new_material_map.get(mat)
+                    # We enforce materials referenced in geonodes to be present in object material
+                    # slots, but this operator can be used for non-polygoniq assets as well.
+                    if new_mat is not None:
+                        mod[input_identifier] = new_mat
 
     selected_objects_names = [obj.name for obj in context.selected_objects]
     prev_active_object_name = context.active_object.name if context.active_object else None
@@ -521,6 +517,7 @@ def make_selection_editable(
         assert obj is not None
 
         for child in obj.children:
+            set_object_empties_size(child, obj.empty_display_size)
             child.color = prev_color
             # Create mapr_asset_id and mapr_data_asset_id custom properties on the child if they
             # don't exist already. Otherwise the properties would not get copied because we use
@@ -585,10 +582,17 @@ def make_selection_editable(
         # Create copy of meshes shared with other objects or linked from library
         make_datablocks_unique_per_object(obj, get_mesh_to_objects_map, "data")
         # Create copy of materials shared with other objects or linked from library
-        make_datablocks_unique_per_object(obj, get_material_to_slots_map, "material")
+        old_new_material_map = make_datablocks_unique_per_object(
+            obj, get_material_to_slots_map, "material"
+        )
         # Create copy of armature data shared with other objects or linked from library
         make_datablocks_unique_per_object(obj, get_armatures_to_objects_map, "data")
-
+        # Make auto smooth modifier local to the object, so objects don't disappear when the modifier
+        # is missing.
+        try_make_auto_smooth_modifier_local(obj)
+        # When converted to editable geometry node setups still reference linked version of materials
+        # in some cases (iq lights) we read the material on the object which is the local version
+        update_geometry_node_materials(obj, old_new_material_map)
         # Blender operator duplicates_make_real doesn't append animation data with drivers.
         # Thus we have to create those drivers dynamically based on bone names.
         if rigs_shared_bpy.is_object_rigged(obj):
@@ -671,14 +675,14 @@ def collection_get(
         parent.children.link(coll)
 
     if hasattr(coll, "color_tag"):  # coloring is only supported if this attribute is present
-        coll_color = ASSET_PACK_COLLECTION_COLOR_MAP.get(name, None)
+        coll_color = asset_pack.ASSET_PACK_COLLECTION_COLOR_MAP.get(name, None)
         if coll_color is not None:
             coll.color_tag = coll_color
         elif (
             parent is not None
         ):  # color direct descendants by their parent color - e.g. botaniq/weed
             parent_name = utils_bpy.remove_object_duplicate_suffix(parent.name)
-            parent_color = ASSET_PACK_COLLECTION_COLOR_MAP.get(parent_name, None)
+            parent_color = asset_pack.ASSET_PACK_COLLECTION_COLOR_MAP.get(parent_name, None)
             if parent_color is not None:
                 coll.color_tag = parent_color
     return coll
@@ -776,28 +780,3 @@ def append_modifiers_from_library(
             # copy those properties
             for prop in properties:
                 setattr(dest_modifier, prop, getattr(src_modifier, prop))
-
-
-def update_custom_prop(
-    context: bpy.types.Context,
-    objs: typing.Iterable[bpy.types.Object],
-    prop_name: str,
-    value: CustomAttributeValueType,
-    update_tag_refresh: typing.Set[str] = {'OBJECT'},
-) -> None:
-    """Update custom properties of given objects and force 3D view to redraw
-
-    When we set values of custom properties from code, affected objects don't get updated in 3D View
-    automatically. We need to call obj.update_tag() and then refresh 3D view areas manually.
-
-    'update_tag_refresh' set of enums {'OBJECT', 'DATA', 'TIME'}, updating DATA is really slow
-    as it forces Blender to recompute the whole mesh, we should use 'OBJECT' wherever it's enough.
-    """
-    for obj in objs:
-        if prop_name in obj:
-            obj[prop_name] = value
-            obj.update_tag(refresh=update_tag_refresh)
-
-    for area in context.screen.areas:
-        if area.type == 'VIEW_3D':
-            area.tag_redraw()

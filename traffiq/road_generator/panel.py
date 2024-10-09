@@ -248,9 +248,6 @@ class RoadGeneratorPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
     def draw(self, context: bpy.types.Context) -> None:
         rg_props = props.get_rg_props(context)
         layout = self.layout
-        if bpy.app.version < (3, 3, 0):
-            layout.label(text="Supported from version 3.3.0")
-            return
 
         # Draw mode user interface
         active_tool = context.workspace.tools.from_space_view3d_mode(context.mode, create=False)

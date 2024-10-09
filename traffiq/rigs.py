@@ -306,7 +306,7 @@ class BakeWheelRotation(bpy.types.Operator, BakingOperatorBase):
 
     def execute(self, context: bpy.types.Context):
         logger.info(f"Working on target object: {context.object.name}")
-        context.object[polib.rigs_shared_bpy.TraffiqRigProperties.WHEELS_Y_ROLLING] = False
+        context.object[polib.custom_props_bpy.CustomPropertyNames.TQ_WHEELS_Y_ROLLING] = False
         if not check_rig_drivers(context.object):
             self.report({'ERROR'}, f"Corrupted animation drivers in '{context.object.name}'")
             return {'CANCELLED'}
@@ -489,11 +489,11 @@ class BakeSteering(bpy.types.Operator, BakingOperatorBase):
         self, context: bpy.types.Context, bone_offset: float, bone: bpy.types.Bone
     ) -> None:
         clear_object_animation_property(
-            context.object, polib.rigs_shared_bpy.TraffiqRigProperties.STEERING
+            context.object, polib.custom_props_bpy.CustomPropertyNames.TQ_STEERING
         )
         fc_rot = create_fcurve(
             context.object.animation_data.action,
-            polib.rigs_shared_bpy.TraffiqRigProperties.STEERING,
+            polib.custom_props_bpy.CustomPropertyNames.TQ_STEERING,
         )
         baked_action = self._bake_action(context, [bone])
         if baked_action is None:
@@ -895,7 +895,7 @@ class RemoveAnimation(bpy.types.Operator):
         active_object = context.active_object
         logger.info(f"Working on active object {active_object.name}")
         for prop in active_object.keys():
-            if not polib.rigs_shared_bpy.TraffiqRigProperties.is_rig_property(prop):
+            if not polib.custom_props_bpy.CustomPropertyNames.is_rig_property(prop):
                 continue
 
             clear_object_animation_property(active_object, prop)

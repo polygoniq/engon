@@ -11,14 +11,8 @@ import logging
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-if "linalg_bpy" not in locals():
-    from . import linalg_bpy
-    from . import utils_bpy
-else:
-    import importlib
-
-    linalg_bpy = importlib.reload(linalg_bpy)
-    utils_bpy = importlib.reload(utils_bpy)
+from . import linalg_bpy
+from . import utils_bpy
 
 
 def find_bounding_wheels(wheels: typing.List[bpy.types.Object]) -> typing.List[bpy.types.Object]:
@@ -90,7 +84,7 @@ def snap_to_ground_iterate(
     instance_old_matrix_world: mathutils.Matrix,
     get_ray_casted_plane: GetRayCastedPlaneCallable,
     debug: bool = False,
-) -> None:
+) -> bool:
     """Snap to ground iteratively, we first estimate final rotation until angular delta
     is lower than our tolerance. Only then we can get an accurate raycast position delta.
     """
@@ -107,7 +101,7 @@ def snap_to_ground_iterate(
                     f"for {obj.name}, instance={instance.name}. Skipping..."
                 )
             instance.matrix_world = instance_old_matrix_world
-            return
+            return False
 
         orig_plane_normal, _, orig_plane_centroid = linalg_bpy.fit_plane_to_points(bottom_corners)
         altered_plane_normal, _, altered_plane_centroid = linalg_bpy.fit_plane_to_points(
@@ -158,7 +152,7 @@ def snap_to_ground_iterate(
                 f"for {obj.name}, instance={instance.name}. Skipping..."
             )
         instance.matrix_world = instance_old_matrix_world
-        return
+        return False
 
     orig_plane_normal, _, orig_plane_centroid = linalg_bpy.fit_plane_to_points(bottom_corners)
     altered_plane_normal, _, altered_plane_centroid = linalg_bpy.fit_plane_to_points(
@@ -166,6 +160,7 @@ def snap_to_ground_iterate(
     )
     delta_location = altered_plane_centroid - orig_plane_centroid
     instance.matrix_world = mathutils.Matrix.Translation(delta_location) @ instance.matrix_world
+    return True
 
 
 def ray_cast_plane(
@@ -221,7 +216,7 @@ def snap_to_ground_separate_wheels(
     wheels: typing.List[bpy.types.Object],
     ground_objects: typing.List[bpy.types.Object],
     debug: bool = False,
-) -> None:
+) -> bool:
     instance_old_matrix_world = copy.deepcopy(instance.matrix_world)
 
     def get_ray_casted_plane() -> (
@@ -230,7 +225,9 @@ def snap_to_ground_separate_wheels(
         bottom_corners = get_wheel_contact_points(wheels, instance, debug)
         return ray_cast_plane(ground_objects, bottom_corners)
 
-    snap_to_ground_iterate(instance, obj, instance_old_matrix_world, get_ray_casted_plane, debug)
+    return snap_to_ground_iterate(
+        instance, obj, instance_old_matrix_world, get_ray_casted_plane, debug
+    )
 
 
 def snap_to_ground_adjust_rotation(
@@ -238,10 +235,12 @@ def snap_to_ground_adjust_rotation(
     obj: bpy.types.Object,
     ground_objects: typing.List[bpy.types.Object],
     debug: bool = False,
-) -> None:
+) -> bool:
     instance_old_matrix_world = copy.deepcopy(instance.matrix_world)
 
-    def get_ray_casted_plane():
+    def get_ray_casted_plane() -> (
+        typing.Tuple[typing.List[mathutils.Vector], typing.Optional[typing.List[mathutils.Vector]]]
+    ):
         # get bounding box corners in world space
         bbox_corners = [
             instance.matrix_world @ mathutils.Vector(corner) for corner in obj.bound_box
@@ -250,7 +249,9 @@ def snap_to_ground_adjust_rotation(
         bottom_corners = [bbox_corners[0], bbox_corners[3], bbox_corners[4], bbox_corners[7]]
         return ray_cast_plane(ground_objects, bottom_corners)
 
-    snap_to_ground_iterate(instance, obj, instance_old_matrix_world, get_ray_casted_plane, debug)
+    return snap_to_ground_iterate(
+        instance, obj, instance_old_matrix_world, get_ray_casted_plane, debug
+    )
 
 
 def snap_to_ground_no_rotation(
@@ -258,7 +259,7 @@ def snap_to_ground_no_rotation(
     obj: bpy.types.Object,
     ground_objects: typing.List[bpy.types.Object],
     debug: bool = False,
-) -> None:
+) -> bool:
     def get_ray_casted_point(
         grace_padding: float = 0.1,
     ) -> typing.Tuple[mathutils.Vector, mathutils.Vector]:
@@ -312,7 +313,8 @@ def snap_to_ground_no_rotation(
                 f"Failed to raycast the highest altered point while estimating position "
                 f"for {obj.name}, instance={instance.name}. Skipping..."
             )
-        return
+        return False
 
     delta_location = altered_highest_point - obj_lowest_point
     instance.matrix_world = mathutils.Matrix.Translation(delta_location) @ instance.matrix_world
+    return True

@@ -25,6 +25,8 @@ logger = logging.getLogger(f"polygoniq.{__name__}")
 POLYGONIQ_DOCS_URL = "https://docs.polygoniq.com"
 POLYGONIQ_GITHUB_REPO_API_URL = "https://api.github.com/repos/polygoniq"
 
+DUPLICATE_SUFFIX_PATTERN = re.compile(r"^\.[0-9]{3}$")
+
 
 def autodetect_install_path(
     product: str, init_path: str, install_path_checker: typing.Callable[[str], bool]
@@ -119,8 +121,7 @@ def absolutize_preferences_path(
 
 
 def contains_object_duplicate_suffix(name: str) -> bool:
-    pattern = re.compile(r"^\.[0-9]{3}$")
-    return bool(pattern.match(name[-4:]))
+    return bool(DUPLICATE_SUFFIX_PATTERN.match(name[-4:]))
 
 
 def remove_object_duplicate_suffix(name: str) -> str:
@@ -367,6 +368,51 @@ def get_addon_mod_info(module_name: str) -> typing.Dict[str, typing.Any]:
 
 def get_release_tag_from_version(version: typing.Tuple[int, int, int]) -> str:
     return f"v{'.'.join(map(str, version))}"
+
+
+def get_conflicting_addons(module_name: str) -> typing.List[str]:
+    """Returns a list of messages about possibly conflicting addon installations based on 'module_name'."""
+    this_addon_simple_name = module_name.replace("_addon", "")
+    if "bl_ext" in this_addon_simple_name:
+        # Get the name of the addon if this is an extension module "bl_ext.REPO.ADDON_NAME"
+        assert "bl_ext" in this_addon_simple_name
+        assert this_addon_simple_name.count(".") >= 2
+        this_addon_simple_name = this_addon_simple_name.rsplit(".", 1)[-1]
+        # Remove any variant suffixes like _personal, _pro, _studio
+        this_addon_simple_name = (
+            this_addon_simple_name.replace("_personal", "")
+            .replace("_pro", "")
+            .replace("_studio", "")
+        )
+
+    # Before engon and paq system, each asset pack had its own addon, there was a brief transition period
+    # with materialiq 5, when megaddon was what's engon became.
+    old_addons = {
+        "aquatiq",
+        "botaniq",  # also contains "botaniq_evermotion_XX"
+        "traffiq",
+        "materialiq",
+        "megaddon",
+    }
+
+    conflicts: typing.List[str] = []
+
+    for mod in addon_utils.modules():
+        for candidate in old_addons:
+            if candidate in mod.__name__:
+                conflicts.append(
+                    f"Old polygoniq addon found '{mod.__name__}'. "
+                    "This is no longer supported and can cause issues with other addons. "
+                    f"Migrate to 'engon' and 'paq' system. More info in documentation."
+                )
+        if this_addon_simple_name in mod.__name__ and module_name != mod.__name__:
+            conflicts.insert(
+                0,
+                f"Another installation of '{this_addon_simple_name}' found - '{mod.__name__} from {mod.__file__}'! "
+                "Keep only one installation please!",
+            )
+
+    return conflicts
 
 
 def get_addon_docs_page(module_name: str) -> str:

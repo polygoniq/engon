@@ -3,29 +3,7 @@
 
 import bpy
 import typing
-
-
-class TraffiqRigProperties:
-    CAR_RIG = "tq_Car_Rig"
-    WHEELS_Y_ROLLING = "tq_WheelsYRolling"
-    STEERING = "tq_SteeringRotation"
-    WHEEL_ROTATION = "tq_WheelRotation"
-    SUSPENSION_FACTOR = "tq_SuspensionFactor"
-    SUSPENSION_ROLLING_FACTOR = "tq_SuspensionRollingFactor"
-
-    @classmethod
-    def is_rig_property(cls, prop: str) -> bool:
-        if prop.startswith(TraffiqRigProperties.WHEEL_ROTATION):
-            return True
-
-        return prop in {
-            cls.CAR_RIG,
-            cls.WHEELS_Y_ROLLING,
-            cls.STEERING,
-            cls.WHEEL_ROTATION,
-            cls.SUSPENSION_FACTOR,
-            cls.SUSPENSION_ROLLING_FACTOR,
-        }
+from . import custom_props_bpy
 
 
 class RigDrivers:
@@ -51,23 +29,25 @@ class RigDrivers:
         for bone in self.pose.bones.values():
             if bone.name.startswith("MCH_WheelRotation"):
                 _, _, suffix = bone.name.split("_", 2)
-                data_path = f'["{TraffiqRigProperties.WHEEL_ROTATION}_{suffix}"]'
+                data_path = f'["{custom_props_bpy.CustomPropertyNames.TQ_WHEEL_ROTATION}_{suffix}"]'
                 self.__create_rotation_euler_x_driver(bone, data_path)
             elif bone.name == "MCH_SteeringRotation":
-                self.__create_translation_x_driver(bone, f'["{TraffiqRigProperties.STEERING}"]')
+                self.__create_translation_x_driver(
+                    bone, f'["{custom_props_bpy.CustomPropertyNames.TQ_STEERING}"]'
+                )
             elif bone.name == "MCH_Axis":
                 front_constraint = bone.constraints.get("Rotation from MCH_Axis_F", None)
                 if front_constraint is not None:
                     self.__create_constraint_influence_driver(
                         front_constraint,
-                        f'["{TraffiqRigProperties.SUSPENSION_ROLLING_FACTOR}"]',
+                        f'["{custom_props_bpy.CustomPropertyNames.TQ_SUSPENSION_ROLLING_FACTOR}"]',
                         1.0,
                     )
                 rear_constraint = bone.constraints.get("Rotation from MCH_Axis_B", None)
                 if rear_constraint is not None:
                     self.__create_constraint_influence_driver(
                         rear_constraint,
-                        f'["{TraffiqRigProperties.SUSPENSION_ROLLING_FACTOR}"]',
+                        f'["{custom_props_bpy.CustomPropertyNames.TQ_SUSPENSION_ROLLING_FACTOR}"]',
                         0.5,
                     )
 
@@ -135,4 +115,7 @@ def is_object_rigged(obj: bpy.types.Object) -> bool:
     if obj.data is None:
         return False
 
-    return TraffiqRigProperties.CAR_RIG in obj.data and obj.data[TraffiqRigProperties.CAR_RIG] == 1
+    return (
+        custom_props_bpy.CustomPropertyNames.TQ_CAR_RIG in obj.data
+        and obj.data[custom_props_bpy.CustomPropertyNames.TQ_CAR_RIG] == 1
+    )

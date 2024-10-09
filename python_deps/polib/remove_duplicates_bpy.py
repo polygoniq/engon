@@ -21,9 +21,7 @@ def polygoniq_duplicate_data_filter(
     If 'data_filepaths' argument is provided, images with path common to paths provided are also
     considered duplicates.
     """
-    # Pattern to check if the object contains a duplicate suffix - .001 - .999 after the name
-    pattern = re.compile(r"^\.[0-9]{3}$")
-    if not pattern.match(data.name[-4:]):
+    if not utils_bpy.contains_object_duplicate_suffix(data.name):
         return False
 
     if data_filepaths is None:
@@ -47,7 +45,6 @@ def polygoniq_duplicate_data_filter(
             except ValueError:
                 continue
 
-    # TODO: log warning or raise exception?
     return False
 
 

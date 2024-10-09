@@ -256,17 +256,32 @@ class GeneralPreferences(bpy.types.PropertyGroup):
                     "'Updates' section.",
                 )
 
+    def get_all_discovered_asset_packs(self) -> typing.Iterable[asset_registry.AssetPack]:
+        """Returns discovered asset packs from all search paths."""
+        for search_path in self.pack_info_search_paths:
+            yield from search_path.get_discovered_asset_packs()
+
     def draw_pack_info_search_paths(
         self, context: bpy.types.Context, layout: bpy.types.UILayout
     ) -> None:
         gen_prefs = prefs_utils.get_preferences(context).general_preferences
         gen_prefs.pack_info_search_path_list_ensure_valid_index()
 
+        discovered_asset_packs = self.get_all_discovered_asset_packs()
+        registered_asset_packs = asset_registry.instance.get_registered_packs()
+        discovered_but_unregistered_packs = set(discovered_asset_packs) - set(
+            registered_asset_packs
+        )
+
+        discovered_but_unregistered_packs_count = len(discovered_but_unregistered_packs)
+
         row = layout.row()
         col = row.column(align=True)
         col.operator(PackInfoSearchPathList_OT_AddItem.bl_idname, text="", icon='ADD')
         col.operator(PackInfoSearchPathList_OT_DeleteItem.bl_idname, text="", icon='REMOVE')
-        col.operator(PackInfoSearchPathList_RefreshPacks.bl_idname, text="", icon='FILE_REFRESH')
+        sub = col.row()
+        sub.alert = discovered_but_unregistered_packs_count > 0
+        sub.operator(PackInfoSearchPathList_RefreshPacks.bl_idname, text="", icon='FILE_REFRESH')
         col.separator()
         col.operator(
             PackInfoSearchPathList_OT_MoveItem.bl_idname, text="", icon='TRIA_UP'
@@ -291,7 +306,14 @@ class GeneralPreferences(bpy.types.PropertyGroup):
         row.operator(PackInfoSearchPathList_Import.bl_idname, icon='IMPORT')
         row.operator(PackInfoSearchPathList_Export.bl_idname, icon='EXPORT')
 
-        row = layout.row()
+        if discovered_but_unregistered_packs_count > 0:
+            row = layout.row()
+            row.alert = True
+            row.label(
+                text=f"Refresh Asset Packs to register {discovered_but_unregistered_packs_count} "
+                f"newly discovered pack{'' if discovered_but_unregistered_packs_count == 1 else 's'}!",
+                icon='FILE_REFRESH',
+            )
 
 
 MODULE_CLASSES.append(GeneralPreferences)
@@ -451,6 +473,9 @@ class PackInfoSearchPathList_RemoveAll(bpy.types.Operator):
 
         return {'FINISHED'}
 
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+        return context.window_manager.invoke_confirm(self, event)
+
 
 MODULE_CLASSES.append(PackInfoSearchPathList_RemoveAll)
 
@@ -513,6 +538,12 @@ class AssetPackInstallationDialog(
         description="If checked, proceeding with the installation will start an UPDATE dialog for this Asset Pack",
     )
 
+    try_reregistering: bpy.props.BoolProperty(
+        get=lambda self: asset_pack_installer.instance.try_reregistering,
+        set=lambda self, value: setattr(asset_pack_installer.instance, "try_reregistering", value),
+        description="If checked, proceeding with the installation will RE-REGISTER this Asset Pack",
+    )
+
     try_reinstalling: bpy.props.BoolProperty(
         get=lambda self: asset_pack_installer.instance.try_reinstalling,
         set=lambda self, value: setattr(asset_pack_installer.instance, "try_reinstalling", value),
@@ -551,16 +582,22 @@ class AssetPackInstallationDialog(
             row = col.box().row(align=True)
             row.prop(self, "try_updating", text="")
             row.label(text="Update Pack")
+        elif installer.is_reregister_available:
+            row = col.box().row(align=True)
+            row.prop(self, "try_reregistering", text="")
+            row.label(text="Re-register Pack")
         elif installer.is_reinstall_available:
             row = col.box().row(align=True)
             row.prop(self, "try_reinstalling", text="")
-            row.label(text="Reinstall Pack")
+            row.label(text="Re-install Pack")
 
         col = layout.box().column(align=True)
         if not installer.is_ready:
             col.label(text="Clicking 'OK' will ABORT the installation.")
         elif self.try_updating:
             col.label(text="Clicking 'OK' will start an UPDATE dialog for this Asset Pack.")
+        elif self.try_reregistering:
+            col.label(text="Clicking 'OK' will RE-REGISTER the already present Asset Pack.")
         elif self.try_reinstalling:
             col.label(text="Clicking 'OK' will REMOVE the already present Asset Pack.")
             col.label(
@@ -576,19 +613,12 @@ class AssetPackInstallationDialog(
         if bpy.app.version < (4, 1, 0):
             layout.prop(self, "canceled", toggle=True, text="Cancel Installation", icon='CANCEL')
 
-    @polib.utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
+    @staticmethod
+    def _install_pack(
+        context: bpy.types.Context, installer: asset_pack_installer.AssetPackInstaller
+    ) -> None:
         prefs = prefs_utils.get_preferences(context)
         gen_prefs = prefs.general_preferences
-        installer = asset_pack_installer.instance
-
-        if self.close:
-            return {'FINISHED'}
-
-        if self.try_updating:
-            installer.load_update(installer.uninstall_path, self.filepath)
-            bpy.ops.engon.asset_pack_update_dialog('INVOKE_DEFAULT')
-            return {'FINISHED'}
 
         pack_info_path_to_add: typing.Optional[str] = installer.execute_installation()
         if pack_info_path_to_add is not None and not installer.check_asset_pack_already_installed():
@@ -600,6 +630,20 @@ class AssetPackInstallationDialog(
                 pack_info_path_to_add, refresh_registry=False
             )
             gen_prefs.refresh_packs(save_prefs=prefs.save_prefs)
+
+    @polib.utils_bpy.blender_cursor('WAIT')
+    def execute(self, context: bpy.types.Context):
+        installer = asset_pack_installer.instance
+
+        if self.close:
+            return {'FINISHED'}
+
+        if self.try_updating:
+            installer.load_update(installer.uninstall_path, self.filepath)
+            bpy.ops.engon.asset_pack_update_dialog('INVOKE_DEFAULT')
+            return {'FINISHED'}
+
+        AssetPackInstallationDialog._install_pack(context, installer)
 
         bpy.ops.engon.asset_pack_install_dialog('INVOKE_DEFAULT')
         return {'FINISHED'}
@@ -673,14 +717,12 @@ class AssetPackUninstallationDialog(
         if bpy.app.version < (4, 1, 0):
             layout.prop(self, "canceled", toggle=True, text="Cancel Uninstallation", icon='CANCEL')
 
-    @polib.utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
+    @staticmethod
+    def _uninstall_pack(
+        context: bpy.types.Context, installer: asset_pack_installer.AssetPackInstaller
+    ):
         prefs = prefs_utils.get_preferences(context)
         gen_prefs = prefs.general_preferences
-        installer = asset_pack_installer.instance
-
-        if self.close:
-            return {'FINISHED'}
 
         pack_info_path_to_remove = installer.execute_uninstallation()
         if pack_info_path_to_remove is not None:
@@ -693,6 +735,15 @@ class AssetPackUninstallationDialog(
                 pack_info_path_to_remove, refresh_registry=False
             )
             gen_prefs.refresh_packs(save_prefs=prefs.save_prefs)
+
+    @polib.utils_bpy.blender_cursor('WAIT')
+    def execute(self, context: bpy.types.Context):
+        installer = asset_pack_installer.instance
+
+        if self.close:
+            return {'FINISHED'}
+
+        AssetPackUninstallationDialog._uninstall_pack(context, installer)
 
         bpy.ops.engon.asset_pack_uninstall_dialog('INVOKE_DEFAULT')
         return {'FINISHED'}
@@ -765,14 +816,12 @@ class AssetPackUpdateDialog(bpy.types.Operator, asset_pack_installer.AssetPackIn
         if bpy.app.version < (4, 1, 0):
             layout.prop(self, "canceled", toggle=True, text="Cancel Update", icon='CANCEL')
 
-    @polib.utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
+    @staticmethod
+    def _update_pack(
+        context: bpy.types.Context, installer: asset_pack_installer.AssetPackInstaller
+    ) -> None:
         prefs = prefs_utils.get_preferences(context)
         gen_prefs = prefs.general_preferences
-        installer = asset_pack_installer.instance
-
-        if self.close:
-            return {'FINISHED'}
 
         update_paths = installer.execute_update()
         if update_paths is not None:
@@ -794,6 +843,17 @@ class AssetPackUpdateDialog(bpy.types.Operator, asset_pack_installer.AssetPackIn
             )
             gen_prefs.refresh_packs(save_prefs=prefs.save_prefs)
 
+    @polib.utils_bpy.blender_cursor('WAIT')
+    def execute(self, context: bpy.types.Context):
+        prefs = prefs_utils.get_preferences(context)
+        gen_prefs = prefs.general_preferences
+        installer = asset_pack_installer.instance
+
+        if self.close:
+            return {'FINISHED'}
+
+        AssetPackUpdateDialog._update_pack(context, installer)
+
         bpy.ops.engon.asset_pack_update_dialog('INVOKE_DEFAULT')
         return {'FINISHED'}
 
@@ -802,14 +862,9 @@ MODULE_CLASSES.append(AssetPackUpdateDialog)
 
 
 @polib.log_helpers_bpy.logged_operator
-class SelectAssetPackInstallPath(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
+class SelectAssetPackInstallPath(bpy.types.Operator, polib.ui_bpy.SelectFolderPathMixin):
     bl_idname = "engon.select_asset_pack_install_path"
-    bl_label = "Select Path"
     bl_description = "Select a Custom Install Path for the Asset Pack"
-    bl_options = {'REGISTER', 'INTERNAL'}
-
-    # Empty filer_glob to show folders only
-    filter_glob: bpy.props.StringProperty(default="", options={'HIDDEN'})
 
     def execute(self, context: bpy.types.Context):
         installer = asset_pack_installer.instance

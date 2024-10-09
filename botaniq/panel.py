@@ -39,31 +39,6 @@ logger = logging.getLogger(f"polygoniq.{__name__}")
 MODULE_CLASSES: typing.List[typing.Type] = []
 
 
-def botaniq_duplicate_data_filter(data: bpy.types.ID) -> bool:
-    pattern = re.compile(r"^\.[0-9]{3}$")
-    if not pattern.match(data.name[-4:]):
-        return False
-
-    orig_name = polib.utils_bpy.remove_object_duplicate_suffix(data.name)
-    if isinstance(data, bpy.types.NodeGroup):
-        return orig_name.startswith("bq_")
-
-    if isinstance(data, bpy.types.Material):
-        return orig_name.startswith("bq_")
-
-    if isinstance(data, bpy.types.Image):
-        img_path = os.path.abspath(bpy.path.abspath(data.filepath, library=data.library))
-        install_path = preferences.prefs_utils.get_preferences(bpy.context).install_path
-        try:
-            return os.path.commonpath([img_path, install_path]) == install_path
-        except ValueError:
-            # not on the same drive
-            return False
-
-    # TODO: log warning or raise exception?
-    return False
-
-
 @polib.log_helpers_bpy.logged_operator
 class SetColor(bpy.types.Operator):
     bl_idname = "engon.botaniq_set_color_of_active_obj"
@@ -112,7 +87,7 @@ class RandomizeFloatProperty(bpy.types.Operator):
             if custom_prop is None:
                 continue
             random_value = random.uniform(prefs.float_min, prefs.float_max)
-            polib.asset_pack_bpy.update_custom_prop(
+            polib.custom_props_bpy.update_custom_prop(
                 context, [obj], self.custom_property_name, random_value
             )
 
@@ -166,7 +141,7 @@ class AdjustmentMixin:
     @classmethod
     def has_pps(cls, obj: bpy.types.Object) -> bool:
         for particle_system in obj.particle_systems:
-            if polib.asset_pack_bpy.is_pps(particle_system.name):
+            if polib.asset_pack.is_pps_name(particle_system.name):
                 return True
         return False
 
@@ -179,7 +154,7 @@ class AdjustmentMixin:
             objects.add(context.active_object)
 
         return filter(
-            lambda obj: asset_helpers.is_asset_with_engon_feature(obj, "botaniq"),
+            lambda obj: asset_helpers.is_obj_with_engon_feature(obj, "botaniq"),
             polib.asset_pack_bpy.find_polygoniq_root_objects(objects),
         )
 
@@ -211,7 +186,7 @@ class AdjustmentsPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
         # We need to do a bit of math to move it to get proper ranges. -0.125 moves from center to
         # start of the range, + 1.0 because fmod doesn't work with negative values
         adjusted_value: float = math.fmod(value - 0.125 + 1.0, 1.0)
-        for season, max_value in reversed(polib.asset_pack_bpy.BOTANIQ_SEASONS_WITH_COLOR_CHANNEL):
+        for season, max_value in reversed(polib.asset_pack.BOTANIQ_SEASONS_WITH_COLOR_CHANNEL):
             if adjusted_value <= max_value:
                 return season
         return "unknown"
@@ -227,12 +202,14 @@ class AdjustmentsPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
         row.label(text=f"{spaces * ' '}{obj.name}")
         row = right_col.row()
 
-        brightness = obj.get(polib.asset_pack_bpy.CustomPropertyNames.BQ_BRIGHTNESS, None)
-        season = obj.get(polib.asset_pack_bpy.CustomPropertyNames.BQ_SEASON_OFFSET, None)
+        brightness = obj.get(polib.custom_props_bpy.CustomPropertyNames.BQ_BRIGHTNESS, None)
+        season = obj.get(polib.custom_props_bpy.CustomPropertyNames.BQ_SEASON_OFFSET, None)
         random_per_branch = obj.get(
-            polib.asset_pack_bpy.CustomPropertyNames.BQ_RANDOM_PER_BRANCH, None
+            polib.custom_props_bpy.CustomPropertyNames.BQ_RANDOM_PER_BRANCH, None
         )
-        random_per_leaf = obj.get(polib.asset_pack_bpy.CustomPropertyNames.BQ_RANDOM_PER_LEAF, None)
+        random_per_leaf = obj.get(
+            polib.custom_props_bpy.CustomPropertyNames.BQ_RANDOM_PER_LEAF, None
+        )
         if brightness is not None:
             row.label(text=f"{brightness:.2f}")
         else:
@@ -317,7 +294,7 @@ class AdjustmentsPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
         row.prop(prefs, "brightness", text="Brightness", slider=True)
         row.operator(
             RandomizeFloatProperty.bl_idname, text="", icon='FILE_3D'
-        ).custom_property_name = polib.asset_pack_bpy.CustomPropertyNames.BQ_BRIGHTNESS
+        ).custom_property_name = polib.custom_props_bpy.CustomPropertyNames.BQ_BRIGHTNESS
 
         row = layout.row(align=True)
         row.label(text="", icon='BRUSH_MIX')
@@ -330,21 +307,21 @@ class AdjustmentsPanel(BotaniqPanelInfoMixin, bpy.types.Panel):
         )
         row.operator(
             RandomizeFloatProperty.bl_idname, text="", icon='FILE_3D'
-        ).custom_property_name = polib.asset_pack_bpy.CustomPropertyNames.BQ_SEASON_OFFSET
+        ).custom_property_name = polib.custom_props_bpy.CustomPropertyNames.BQ_SEASON_OFFSET
 
         row = layout.row(align=True)
         row.label(text="", icon='COLORSET_12_VEC')
         row.prop(prefs, "hue_per_branch", text="Hue per Branch", slider=True)
         row.operator(
             RandomizeFloatProperty.bl_idname, text="", icon='FILE_3D'
-        ).custom_property_name = polib.asset_pack_bpy.CustomPropertyNames.BQ_RANDOM_PER_BRANCH
+        ).custom_property_name = polib.custom_props_bpy.CustomPropertyNames.BQ_RANDOM_PER_BRANCH
 
         row = layout.row(align=True)
         row.label(text="", icon='COLORSET_02_VEC')
         row.prop(prefs, "hue_per_leaf", text="Hue per Leaf", slider=True)
         row.operator(
             RandomizeFloatProperty.bl_idname, text="", icon='FILE_3D'
-        ).custom_property_name = polib.asset_pack_bpy.CustomPropertyNames.BQ_RANDOM_PER_LEAF
+        ).custom_property_name = polib.custom_props_bpy.CustomPropertyNames.BQ_RANDOM_PER_LEAF
 
 
 MODULE_CLASSES.append(AdjustmentsPanel)

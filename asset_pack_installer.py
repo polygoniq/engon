@@ -106,10 +106,16 @@ class AssetPackInstaller:
         self._update_available: bool = False
         self._try_updating: bool = False
 
-        # Flags for for reinstalling already installed Asset Pack - if asset pack is found
-        # in install directory but it's not registered in engon yet
+        # Flags for for re-installing already installed Asset Pack - if asset pack is found
+        # in install directory but it's not registered in engon. It could differ from the installed
+        # version, so we have to replace all contents
         self._reinstall_available: bool = False
         self._try_reinstalling: bool = False
+
+        # Flags for re-registering already installed Asset Pack - if asset pack is being installed
+        # from the same pack-info file already present in the install directory
+        self._reregister_available: bool = False
+        self._try_reregistering: bool = False
 
     @property
     def status(self) -> InstallerStatus:
@@ -198,6 +204,19 @@ class AssetPackInstaller:
         self._validate_install_path()
 
     @property
+    def is_reregister_available(self) -> bool:
+        return self._reregister_available
+
+    @property
+    def try_reregistering(self) -> bool:
+        return self._try_reregistering
+
+    @try_reregistering.setter
+    def try_reregistering(self, value: bool) -> None:
+        self._try_reregistering = value
+        self._validate_install_path()
+
+    @property
     def status_description(self) -> str:
         # Return the status description containing the current operation name
         description = INSTALLER_OPERATION_DESCRIPTIONS.get(self.status, None)
@@ -232,6 +251,7 @@ class AssetPackInstaller:
         self._warning_messages.clear()
         self._update_available = False
         self._reinstall_available = False
+        self._reregister_available = False
         free_space = 0
         closest_existing_directory: typing.Optional[str] = (
             polib.utils_bpy.get_first_existing_ancestor_directory(
@@ -276,11 +296,31 @@ class AssetPackInstaller:
                     # This cannot be resolved
                     self.record_error_message("This Asset Pack is already installed.")
             elif already_exists and self._operation == InstallerOperation.INSTALL:
-                self._reinstall_available = True
-                if not self._try_reinstalling:
-                    self.record_warning_message(
-                        "Install Path already contains an unregistered copy of this Asset Pack. Try reinstalling it."
-                    )
+                # The pack might be loaded from an extracted pack within the install directory
+                if os.path.abspath(
+                    os.path.join(pack_destination, self.pack_info_basename)
+                ) == os.path.abspath(self._pack_info_path):
+                    self._reregister_available = True
+                    if not self._try_reregistering:
+                        self.record_warning_message(
+                            "Install Path already contains an unregistered copy of this Asset Pack. Try re-registering it."
+                        )
+                else:
+                    # The pack is not loaded from an extracted pack within the install directory
+                    # We need full re-installation
+                    self._reinstall_available = True
+                    if not self._try_reinstalling:
+                        self.record_warning_message(
+                            "Install Path already contains the same version of this Asset Pack. Try re-installing it."
+                        )
+
+            # Disable 'try_operation' if the operation is not available
+            if not self._update_available:
+                self._try_updating = False
+            if not self._reinstall_available:
+                self._try_reinstalling = False
+            if not self._reregister_available:
+                self._try_reregistering = False
 
         if self.error_messages_present:
             self.abort_operation()
@@ -467,6 +507,8 @@ class AssetPackInstaller:
         self._try_updating = False
         self._reinstall_available = False
         self._try_reinstalling = False
+        self._reregister_available = False
+        self._try_reregistering = False
 
     def _load_installer(
         self,
@@ -577,11 +619,18 @@ class AssetPackInstaller:
             return None
 
         try:
+            if self._try_reregistering:
+                logger.info(f"Re-register enabled. No installation needed.")
+                self.status = InstallerStatus.FINISHED
+                return os.path.join(
+                    self._install_path, self.pack_root_directory, self.pack_info_basename
+                )
+
             logger.info(f"Executing installation to '{self._install_path}'")
             destination = os.path.join(self.install_path, self.pack_root_directory)
             if os.path.exists(destination):
                 if self.try_reinstalling:
-                    logger.info(f"Reinstall enabled. Deleting '{destination}'")
+                    logger.info(f"Re-install enabled. Deleting '{destination}'")
                     shutil.rmtree(destination)
                 else:
                     self.record_error_message("Install Path already contains this Asset Pack.")

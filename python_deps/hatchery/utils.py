@@ -3,7 +3,7 @@
 import bpy
 import typing
 import bmesh
-import rna_prop_ui
+import idprop
 
 
 def copy_custom_prop(src: bpy.types.ID, dst: bpy.types.ID, prop_name: str) -> None:
@@ -11,9 +11,16 @@ def copy_custom_prop(src: bpy.types.ID, dst: bpy.types.ID, prop_name: str) -> No
     # In order to copy the property with its configuration (min, max, subtype, etc)
     # we need to use following code. Code is taken from the "Copy Attributes" addon that's
     # shipped within Blender.
+    if prop_name not in src:
+        return
+
+    if isinstance(src[prop_name], idprop.types.IDPropertyGroup):
+        # Skip if the property is a PropertyGroup, as it cannot be copied by assignment
+        return
 
     # Create the property.
     dst[prop_name] = src[prop_name]
+
     # Copy the settings of the property.
     try:
         dst_prop_manager = dst.id_properties_ui(prop_name)

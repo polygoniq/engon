@@ -75,9 +75,22 @@ class SnapToGround(bpy.types.Operator):
             for obj in context.visible_objects
             if obj.type == 'MESH' and obj not in objects_to_snap_hierarchy
         ]
+        if len(ground_objects) == 0:
+            logger.warning("Ground object not found")
+            self.report(
+                {'WARNING'},
+                "Ground object was not found, make sure there is "
+                "another object under the selected objects",
+            )
+            return {'FINISHED'}
+
         snapped_objects_names = []
+        no_ground_object_names = []
+        wrong_type_object_names = []
 
         for obj in objects_to_snap:
+            is_snapped = False
+
             if polib.asset_pack_bpy.is_polygoniq_object(obj, lambda x: x == "traffiq"):
                 logger.info(f"Determined that {obj.name} is a traffiq asset.")
                 # if editable car is selected with all its child objects -> skip these child objects
@@ -106,7 +119,7 @@ class SnapToGround(bpy.types.Operator):
                         logger.info(
                             f"Using {len(wheels)} separate wheels to determine final rotation..."
                         )
-                        polib.snap_to_ground_bpy.snap_to_ground_separate_wheels(
+                        is_snapped = polib.snap_to_ground_bpy.snap_to_ground_separate_wheels(
                             obj, root_object, wheels, ground_objects
                         )
                     else:
@@ -114,11 +127,9 @@ class SnapToGround(bpy.types.Operator):
                             f"No wheels present in this asset, using snap normal to determine "
                             f"final rotation..."
                         )
-                        polib.snap_to_ground_bpy.snap_to_ground_adjust_rotation(
+                        is_snapped = polib.snap_to_ground_bpy.snap_to_ground_adjust_rotation(
                             obj, root_object, ground_objects
                         )
-
-                    snapped_objects_names.append(obj.name)
 
             elif polib.asset_pack_bpy.is_polygoniq_object(obj, lambda x: x == "botaniq"):
                 logger.info(
@@ -127,18 +138,21 @@ class SnapToGround(bpy.types.Operator):
                 )
 
                 if obj.type == 'MESH':
-                    polib.snap_to_ground_bpy.snap_to_ground_no_rotation(obj, obj, ground_objects)
-                    snapped_objects_names.append(obj.name)
+                    is_snapped = polib.snap_to_ground_bpy.snap_to_ground_no_rotation(
+                        obj, obj, ground_objects
+                    )
                 elif obj.type == 'EMPTY' and obj.instance_type == 'COLLECTION':
                     collection = obj.instance_collection
                     if len(collection.objects) >= 1:
                         for collection_object in collection.objects:
                             if collection_object.type == 'MESH':
-                                polib.snap_to_ground_bpy.snap_to_ground_no_rotation(
+                                is_snapped = polib.snap_to_ground_bpy.snap_to_ground_no_rotation(
                                     obj, collection_object, ground_objects
                                 )
-                                snapped_objects_names.append(obj.name)
                                 break
+                else:
+                    wrong_type_object_names.append(obj.name)
+                    continue
 
             else:  # generic behavior
                 logger.info(
@@ -147,20 +161,52 @@ class SnapToGround(bpy.types.Operator):
                 )
 
                 if obj.type == 'MESH':
-                    polib.snap_to_ground_bpy.snap_to_ground_adjust_rotation(
+                    is_snapped = polib.snap_to_ground_bpy.snap_to_ground_adjust_rotation(
                         obj, obj, ground_objects
                     )
-                    snapped_objects_names.append(obj.name)
                 elif obj.type == 'EMPTY' and obj.instance_type == 'COLLECTION':
                     collection = obj.instance_collection
                     if len(collection.objects) >= 1:
                         for collection_object in collection.objects:
                             if collection_object.type == 'MESH':
-                                polib.snap_to_ground_bpy.snap_to_ground_adjust_rotation(
-                                    obj, collection_object, ground_objects
+                                is_snapped = (
+                                    polib.snap_to_ground_bpy.snap_to_ground_adjust_rotation(
+                                        obj, collection_object, ground_objects
+                                    )
                                 )
-                                snapped_objects_names.append(obj.name)
                                 break
+                else:
+                    wrong_type_object_names.append(obj.name)
+                    continue
+
+            if is_snapped:
+                snapped_objects_names.append(obj.name)
+            else:
+                no_ground_object_names.append(obj.name)
+
+        if len(no_ground_object_names + wrong_type_object_names) > 0:
+            problems = []
+
+            if len(no_ground_object_names) > 0:
+                problems.append(
+                    "Ground object was not found, make sure there is another object under "
+                    "the selected objects"
+                )
+            if len(wrong_type_object_names) > 0:
+                problems.append("This object type can not be snapped")
+
+            message = (
+                f"{len(no_ground_object_names) + len(wrong_type_object_names)}"
+                f" object(s) were not snapped to the ground"
+            )
+
+            logger.warning(
+                f"{message}. "
+                f"Ground object was not found: {no_ground_object_names}, "
+                f"Object type can not be snapped: {wrong_type_object_names}."
+            )
+            problems_string = ". ".join(problems)
+            self.report({'WARNING'}, f"{message}. Encountered issues: {problems_string}")
 
         logger.info(f"Snapped the following objects to the ground: {snapped_objects_names}")
         return {'FINISHED'}
@@ -389,8 +435,11 @@ class EngonPanel(EngonPanelMixin, bpy.types.Panel):
         )
 
     def draw(self, context: bpy.types.Context):
+        polib.ui_bpy.draw_conflicting_addons(
+            self.layout, __package__, preferences.CONFLICTING_ADDONS
+        )
         prefs = preferences.prefs_utils.get_preferences(context)
-        mapr_prefs = prefs.mapr_preferences
+        mapr_prefs = prefs.browser_preferences
         what_is_new_prefs = prefs.what_is_new_preferences
         col = self.layout.column(align=True)
         row = col.row(align=True)

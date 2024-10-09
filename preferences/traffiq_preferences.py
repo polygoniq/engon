@@ -49,10 +49,10 @@ class CarPaintProperties(bpy.types.PropertyGroup):
         if all(v > 0.99 for v in value[:3]):
             value = (0.99, 0.99, 0.99, value[3])
 
-        polib.asset_pack_bpy.update_custom_prop(
+        polib.custom_props_bpy.update_custom_prop(
             context,
             context.selected_objects,
-            polib.asset_pack_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR,
+            polib.custom_props_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR,
             value,
         )
 
@@ -75,10 +75,10 @@ class CarPaintProperties(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         step=0.1,
-        update=lambda self, context: polib.asset_pack_bpy.update_custom_prop(
+        update=lambda self, context: polib.custom_props_bpy.update_custom_prop(
             context,
             context.selected_objects,
-            polib.asset_pack_bpy.CustomPropertyNames.TQ_FLAKES_AMOUNT,
+            polib.custom_props_bpy.CustomPropertyNames.TQ_FLAKES_AMOUNT,
             self.flakes_amount,
         ),
     )
@@ -89,10 +89,10 @@ class CarPaintProperties(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         step=0.1,
-        update=lambda self, context: polib.asset_pack_bpy.update_custom_prop(
+        update=lambda self, context: polib.custom_props_bpy.update_custom_prop(
             context,
             context.selected_objects,
-            polib.asset_pack_bpy.CustomPropertyNames.TQ_CLEARCOAT,
+            polib.custom_props_bpy.CustomPropertyNames.TQ_CLEARCOAT,
             self.clearcoat,
         ),
     )
@@ -108,7 +108,7 @@ class WearProperties(bpy.types.PropertyGroup):
         bumps_objs = [
             obj
             for obj in context.selected_objects
-            if polib.asset_pack_bpy.CustomPropertyNames.TQ_BUMPS in obj
+            if polib.custom_props_bpy.CustomPropertyNames.TQ_BUMPS in obj
         ]
 
         modifier_library_path = None
@@ -135,8 +135,8 @@ class WearProperties(bpy.types.PropertyGroup):
             assert BUMPS_MODIFIER_NAME in obj.modifiers
             obj.modifiers[BUMPS_MODIFIER_NAME].strength = value
 
-        polib.asset_pack_bpy.update_custom_prop(
-            context, bumps_objs, polib.asset_pack_bpy.CustomPropertyNames.TQ_BUMPS, value
+        polib.custom_props_bpy.update_custom_prop(
+            context, bumps_objs, polib.custom_props_bpy.CustomPropertyNames.TQ_BUMPS, value
         )
 
     dirt_wear_strength: bpy.props.FloatProperty(
@@ -146,10 +146,10 @@ class WearProperties(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         step=0.1,
-        update=lambda self, context: polib.asset_pack_bpy.update_custom_prop(
+        update=lambda self, context: polib.custom_props_bpy.update_custom_prop(
             context,
             context.selected_objects,
-            polib.asset_pack_bpy.CustomPropertyNames.TQ_DIRT,
+            polib.custom_props_bpy.CustomPropertyNames.TQ_DIRT,
             self.dirt_wear_strength,
         ),
     )
@@ -160,10 +160,10 @@ class WearProperties(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         step=0.1,
-        update=lambda self, context: polib.asset_pack_bpy.update_custom_prop(
+        update=lambda self, context: polib.custom_props_bpy.update_custom_prop(
             context,
             context.selected_objects,
-            polib.asset_pack_bpy.CustomPropertyNames.TQ_SCRATCHES,
+            polib.custom_props_bpy.CustomPropertyNames.TQ_SCRATCHES,
             self.scratches_wear_strength,
         ),
     )
@@ -209,7 +209,7 @@ class LightsProperties(bpy.types.PropertyGroup):
     main_lights_status: bpy.props.EnumProperty(
         name="Main Lights Status",
         items=MAIN_LIGHT_STATUS,
-        update=lambda self, context: polib.asset_pack_bpy.update_custom_prop(
+        update=lambda self, context: polib.custom_props_bpy.update_custom_prop(
             context,
             (
                 lights_obj
@@ -217,7 +217,7 @@ class LightsProperties(bpy.types.PropertyGroup):
                     context.selected_objects
                 )
             ),
-            polib.asset_pack_bpy.CustomPropertyNames.TQ_LIGHTS,
+            polib.custom_props_bpy.CustomPropertyNames.TQ_LIGHTS,
             float(self.main_lights_status),
         ),
     )
@@ -227,7 +227,7 @@ class LightsProperties(bpy.types.PropertyGroup):
     ) -> typing.Iterable[typing.Tuple[bpy.types.Object, bpy.types.Object]]:
         return polib.asset_pack_bpy.get_root_objects_with_matched_child(
             objects,
-            lambda x, _: x.get(polib.asset_pack_bpy.CustomPropertyNames.TQ_LIGHTS, None)
+            lambda x, _: x.get(polib.custom_props_bpy.CustomPropertyNames.TQ_LIGHTS, None)
             is not None,
         )
 

@@ -86,7 +86,9 @@ try:
     if os.path.isdir(ADDITIONAL_DEPS_DIR) and ADDITIONAL_DEPS_DIR not in sys.path:
         sys.path.insert(0, ADDITIONAL_DEPS_DIR)
 
-    dependencies = {"polib", "hatchery", "mapr"}
+    # We import in reverse order of dependencies, to import dependencies first before they are
+    # imported in the libraries. Technically this shouldn't matter.
+    dependencies = ["hatchery", "polib", "mapr"]
     for dependency in dependencies:
         logger.debug(f"Importing additional dependency {dependency}")
         dependency_module = importlib.import_module(dependency)
@@ -102,6 +104,7 @@ try:
 
     from . import ui_utils
     from . import asset_registry
+    from . import asset_pack_installer
     from . import pack_info_search_paths
     from . import asset_helpers
     from . import preferences
@@ -112,9 +115,11 @@ try:
 
     from . import aquatiq
     from . import botaniq
+    from . import interniq
     from . import materialiq
     from . import traffiq
     from . import scatter
+    from . import features
 
     from . import keymaps
 
@@ -130,12 +135,12 @@ finally:
 bl_info = {
     "name": "engon",
     "author": "polygoniq xyz s.r.o.",
-    "version": (1, 2, 1),  # bump doc_url and version in register as well!
-    "blender": (3, 3, 0),
+    "version": (1, 3, 0),  # bump doc_url and version in register as well!
+    "blender": (3, 6, 0),
     "location": "polygoniq tab in the sidebar of the 3D View window",
     "description": "",
     "category": "Object",
-    "doc_url": "https://docs.polygoniq.com/engon/1.2.1/",
+    "doc_url": "https://docs.polygoniq.com/engon/1.3.0/",
     "tracker_url": "https://polygoniq.com/discord/",
 }
 
@@ -156,7 +161,7 @@ def _post_register():
 def register():
     # We pass mock "bl_info" to the updater, as from Blender 4.2.0, the "bl_info" is
     # no longer available in this scope.
-    addon_updater_ops.register({"version": (1, 2, 1)})
+    addon_updater_ops.register({"version": (1, 3, 0)})
 
     ui_utils.register()
     pack_info_search_paths.register()
@@ -168,8 +173,10 @@ def register():
     browser.register()
     aquatiq.register()
     botaniq.register()
+    interniq.register()
     materialiq.register()
     traffiq.register()
+    features.register()
     keymaps.register()
 
     bpy.app.timers.register(
@@ -185,8 +192,10 @@ def register():
 
 def unregister():
     keymaps.unregister()
+    features.unregister()
     traffiq.unregister()
     materialiq.unregister()
+    interniq.unregister()
     botaniq.unregister()
     aquatiq.unregister()
     browser.unregister()

@@ -71,7 +71,7 @@ class MAPR_SpawnAssetBase(bpy.types.Operator):
         box.label(text="Or adjust your spawning options.", icon='OPTIONS')
 
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
-        prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
+        prefs = preferences.prefs_utils.get_preferences(context).browser_preferences
         asset_provider = asset_registry.instance.master_asset_provider
         asset = asset_provider.get_asset(self.asset_id)
         if asset is None:
@@ -119,20 +119,11 @@ class MAPR_BrowserSpawnAsset(MAPR_SpawnAssetBase):
 
     @polib.utils_bpy.blender_cursor('WAIT')
     def execute(self, context: bpy.types.Context):
-        prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
+        prefs = preferences.prefs_utils.get_preferences(context).browser_preferences
         asset = self._get_asset()
         if asset is None:
             self.report({'ERROR'}, f"Asset with id {self.asset_id} not found")
             return {'CANCELLED'}
-
-        # If no object is selected we will spawn a sphere and assign material on it
-        if (
-            asset.type_ == mapr.asset_data.AssetDataType.blender_material
-            and len(context.selected_objects) == 0
-        ):
-            bpy.ops.mesh.primitive_uv_sphere_add()
-            bpy.ops.object.shade_smooth()
-            bpy.ops.object.material_slot_add()
 
         self._spawn(context, asset, prefs.spawn_options.get_spawn_options(asset, context))
         # Make editable and remove duplicates is currently out of hatchery and works based on
@@ -191,7 +182,7 @@ class MAPR_BrowserSpawnAllDisplayed(bpy.types.Operator):
 
     @polib.utils_bpy.blender_cursor('WAIT')
     def execute(self, context: bpy.types.Context):
-        prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
+        prefs = preferences.prefs_utils.get_preferences(context).browser_preferences
         assets = filters.asset_repository.current_assets
         for asset in assets:
             MAPR_SpawnAssetBase._spawn(
@@ -223,7 +214,7 @@ class MAPR_BrowserDrawGeometryNodesAsset(MAPR_SpawnAssetBase):
 
     @polib.utils_bpy.blender_cursor('WAIT')
     def execute(self, context: bpy.types.Context):
-        prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
+        prefs = preferences.prefs_utils.get_preferences(context).browser_preferences
         # We spawn the container object to spawn all modifiers and dependencies with it.
         # Then we clear the data (currently splines, mesh) so the object data is empty, and
         # then we run the draw tool.
@@ -296,7 +287,7 @@ class MAPR_BrowserSpawnModelIntoParticleSystem(MAPR_SpawnAssetBase):
         )
 
     def execute(self, context: bpy.types.Context):
-        prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
+        prefs = preferences.prefs_utils.get_preferences(context).browser_preferences
         asset = self._get_asset()
         if asset is None:
             self.report({'ERROR'}, f"Asset with id {self.asset_id} not found")
@@ -349,7 +340,7 @@ class SpawnOptionsPopoverPanel(bpy.types.Panel):
 
     def draw(self, context: bpy.types.Context):
         prefs = preferences.prefs_utils.get_preferences(context)
-        spawning_options = prefs.mapr_preferences.spawn_options
+        spawning_options = prefs.browser_preferences.spawn_options
         layout = self.layout
         col = layout.column()
         col.label(text="Asset Spawn Options", icon='OPTIONS')

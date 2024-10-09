@@ -134,7 +134,7 @@ class MigrateFromMaterialiq4(bpy.types.Operator):
     def execute(self, context: bpy.types.Context):
         spawn_options = preferences.prefs_utils.get_preferences(
             context
-        ).mapr_preferences.spawn_options
+        ).browser_preferences.spawn_options
         asset_provider = asset_registry.instance.master_asset_provider
         file_provider = asset_registry.instance.master_file_provider
         spawner = mapr.blender_asset_spawner.AssetSpawner(asset_provider, file_provider)
@@ -405,14 +405,7 @@ class MigrateLibraryPaths(bpy.types.Operator):
                 # we can not fix a datablock that is not in a valid library
                 continue
 
-            # Verify that the datablock needs relinking
-            if bpy.app.version >= (3, 6, 0):
-                data_missing = datablock.is_missing
-            else:
-                lib_datablocks = get_blend_datablock_names(datablock.library.filepath)
-                data_missing = datablock.name not in lib_datablocks.get(datablock_type, [])
-
-            if not data_missing:
+            if not datablock.is_missing:
                 continue
 
             fixed = self.fix_one_datablock(datablock, datablock_type, asset_pack_migrations)
@@ -430,6 +423,8 @@ class MigrateLibraryPaths(bpy.types.Operator):
         new custom props from source blend for them and even if we update custom props, features may
         still not work because datablock is old.
         """
+        FEATURE_PROPERTIES_PREFIXES = ("bq_", "tq_", "pq_")
+
         for root_obj in bpy.data.objects:
             if root_obj.instance_type != 'COLLECTION' or root_obj.instance_collection is None:
                 continue
@@ -445,7 +440,7 @@ class MigrateLibraryPaths(bpy.types.Operator):
                 for prop_name in child_obj.keys():
                     # Don't override values of feature-specific custom props, we don't want to
                     # change e.g. saturation of trees when migrating.
-                    if prop_name.startswith(("bq_", "tq_")) and prop_name in root_obj:
+                    if prop_name.startswith(FEATURE_PROPERTIES_PREFIXES) and prop_name in root_obj:
                         continue
                     hatchery.utils.copy_custom_prop(child_obj, root_obj, prop_name)
 

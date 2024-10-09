@@ -6,12 +6,8 @@ import itertools
 import collections
 import dataclasses
 
-if "utils_bpy" not in locals():
-    from . import utils_bpy
-else:
-    import importlib
-
-    utils_bpy = importlib.reload(utils_bpy)
+from . import utils_bpy
+from . import custom_props_bpy
 
 
 # Type that's compatible with both old and new node tree interfaces
@@ -319,6 +315,7 @@ def find_nodegroup_users(
         nodes = find_nodes_in_tree(
             material.node_tree,
             lambda x: isinstance(x, bpy.types.ShaderNodeGroup)
+            and x.node_tree is not None
             and x.node_tree.name == nodegroup_name,
         )
 
@@ -588,3 +585,151 @@ def draw_node_tree(
         return
 
     draw_node_and_recurse(layout, material_output_nodes.pop(), None, 0)
+
+
+def get_node_input_value_from_datablock(
+    datablock: bpy.types.ID,
+    node_name: str,
+    input_name: str,
+) -> typing.Any:
+    """Returns value of input with 'input_name' from node with 'node_name' in the node tree of 'datablock'"""
+    assert hasattr(datablock, "node_tree")
+    nodes = find_nodes_by_name(datablock.node_tree, node_name)
+
+    if len(nodes) == 0:
+        raise ValueError(f"Node '{node_name}' not found in node tree of '{datablock}'")
+
+    for node in nodes:
+        input_socket = get_node_input_socket(node, input_name)
+        if input_socket is not None:
+            return input_socket.default_value
+
+    raise ValueError(f"Input '{input_name}' not found in node '{node_name}'")
+
+
+def get_nodegroup_input_value_from_datablock(
+    datablock: bpy.types.ID,
+    nodegroup_name: str,
+    input_name: str,
+) -> typing.Any:
+    """Returns value of input with 'input_name' from nodegroup with 'nodegroup_name' in the node tree of 'datablock'"""
+    assert hasattr(datablock, "node_tree")
+    nodegroups = find_nodegroups_by_name(datablock.node_tree, nodegroup_name)
+
+    if len(nodegroups) == 0:
+        raise ValueError(f"Nodegroup '{nodegroup_name}' not found in node tree of '{datablock}'")
+
+    for nodegroup in nodegroups:
+        input_socket = get_node_input_socket(nodegroup, input_name)
+        if input_socket is not None:
+            return input_socket.default_value
+
+    raise ValueError(f"Input '{input_name}' not found in nodegroup '{nodegroup_name}'")
+
+
+def get_node_prop_value_from_datablock(
+    datablock: bpy.types.ID,
+    node_name: str,
+    prop_name: str,
+) -> typing.Any:
+    """Returns value of a property with 'prop_name' from node with 'node_name' in the node tree of 'datablock'"""
+    assert hasattr(datablock, "node_tree")
+    nodes = find_nodes_by_name(datablock.node_tree, node_name)
+
+    if len(nodes) == 0:
+        raise ValueError(f"Node '{node_name}' not found in node tree of '{datablock}'")
+
+    for node in nodes:
+        if hasattr(node, prop_name):
+            return getattr(node, prop_name)
+
+    raise ValueError(f"Property '{prop_name}' not found in node '{node_name}'")
+
+
+def get_nodegroup_prop_value_from_datablock(
+    datablock: bpy.types.ID,
+    nodegroup_name: str,
+    prop_name: str,
+) -> typing.Any:
+    """Returns value of a property with 'prop_name' from nodegroup with 'nodegroup_name' in the node tree of 'datablock'"""
+    assert hasattr(datablock, "node_tree")
+    nodegroups = find_nodegroups_by_name(datablock.node_tree, nodegroup_name)
+
+    if len(nodegroups) == 0:
+        raise ValueError(f"Nodegroup '{nodegroup_name}' not found in node tree of '{datablock}'")
+
+    for nodegroup in nodegroups:
+        if hasattr(nodegroup, prop_name):
+            return getattr(nodegroup, prop_name)
+
+    raise ValueError(f"Property '{prop_name}' not found in nodegroup '{nodegroup_name}'")
+
+
+def update_node_props_of_datablocks(
+    datablocks: typing.Iterable[bpy.types.ID],
+    node_name: str,
+    prop_name: str,
+    value: typing.Any,
+    multiple_nodes: bool = False,
+) -> None:
+    """Update custom properties of a node inside node trees of given datablocks"""
+    assert all(hasattr(datablock, "node_tree") for datablock in datablocks)
+    for datablock in datablocks:
+        nodes = find_nodes_by_name(datablock.node_tree, node_name)
+        if not multiple_nodes and len(nodes) > 1:
+            raise ValueError(f"Multiple nodes with name '{node_name}' found in node tree")
+        for node in nodes:
+            if hasattr(node, prop_name):
+                setattr(node, prop_name, value)
+
+
+def update_nodegroup_props_of_datablocks(
+    datablocks: typing.Iterable[bpy.types.ID],
+    nodegroup_name: str,
+    prop_name: str,
+    value: typing.Any,
+    multiple_nodes: bool = False,
+) -> None:
+    """Update custom properties of a nodegroup inside node trees of given datablocks"""
+    assert all(hasattr(datablock, "node_tree") for datablock in datablocks)
+    for datablock in datablocks:
+        nodegroups = find_nodegroups_by_name(datablock.node_tree, nodegroup_name)
+        if not multiple_nodes and len(list(nodegroups)) > 1:
+            raise ValueError(f"Multiple nodegroups with name '{nodegroup_name}' found in node tree")
+        for nodegroup in nodegroups:
+            if hasattr(nodegroup, prop_name):
+                setattr(nodegroup, prop_name, value)
+
+
+def update_node_inputs_of_datablocks(
+    datablocks: typing.Iterable[bpy.types.ID],
+    node_name: str,
+    input_name: str,
+    value: typing.Any,
+    multiple_nodes: bool = False,
+) -> None:
+    """Update inputs of a node inside node trees of given datablocks."""
+    assert all(hasattr(datablock, "node_tree") for datablock in datablocks)
+    for datablock in datablocks:
+        nodes = find_nodes_by_name(datablock.node_tree, node_name)
+        if not multiple_nodes and len(nodes) > 1:
+            raise ValueError(f"Multiple nodes with name '{node_name}' found in node tree")
+        for node in nodes:
+            get_node_input_socket(node, input_name).default_value = value
+
+
+def update_nodegroup_inputs_of_datablocks(
+    datablocks: typing.Iterable[bpy.types.ID],
+    nodegroup_name: str,
+    input_name: str,
+    value: typing.Any,
+    multiple_nodegroups: bool = False,
+) -> None:
+    """Update inputs of a nodegroup inside node trees of given datablocks."""
+    assert all(hasattr(datablock, "node_tree") for datablock in datablocks)
+    for datablock in datablocks:
+        nodegroups = find_nodegroups_by_name(datablock.node_tree, nodegroup_name)
+        if not multiple_nodegroups and len(list(nodegroups)) > 1:
+            raise ValueError(f"Multiple nodegroups with name '{nodegroup_name}' found in node tree")
+        for nodegroup in nodegroups:
+            get_node_input_socket(nodegroup, input_name).default_value = value

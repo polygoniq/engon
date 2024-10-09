@@ -1,7 +1,9 @@
 # copyright (c) 2018- polygoniq xyz s.r.o.
+# TODO: This module is _bpy, as it is dependency of 'numpy' that's available
+# in Blender, and currently doesn't work from most places outside Blender, even
+# when using 'requirement("numpy")' in the bazel deps.
 
 # adapted code from http://www.easyrgb.com/en/math.php
-import math
 import numpy
 
 

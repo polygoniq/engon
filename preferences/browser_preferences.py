@@ -26,6 +26,7 @@ import logging
 from .. import polib
 from .. import hatchery
 from .. import mapr
+from .. import asset_registry
 from . import prefs_utils
 from .. import asset_helpers
 
@@ -247,8 +248,9 @@ class SpawnOptions(bpy.types.PropertyGroup):
         if self.use_collection == 'ACTIVE':
             return context.collection
         elif self.use_collection == 'PACK':
+            asset_pack = asset_registry.instance.get_asset_pack_of_asset(asset.id_)
             collection = polib.asset_pack_bpy.collection_get(
-                context, asset.text_parameters.get("polygoniq_addon", "unknown")
+                context, asset_pack.short_name if asset_pack is not None else "unknown"
             )
             return collection
 
@@ -277,7 +279,7 @@ class SpawnOptions(bpy.types.PropertyGroup):
 MODULE_CLASSES.append(SpawnOptions)
 
 
-class MaprPreferences(bpy.types.PropertyGroup):
+class BrowserPreferences(bpy.types.PropertyGroup):
     """Property group containing all the settings and customizable options for user interface"""
 
     preview_scale_percentage: bpy.props.FloatProperty(
@@ -311,7 +313,7 @@ class MaprPreferences(bpy.types.PropertyGroup):
     prefs_hijacked: bpy.props.BoolProperty(options={'HIDDEN'})
 
 
-MODULE_CLASSES.append(MaprPreferences)
+MODULE_CLASSES.append(BrowserPreferences)
 
 
 def register():

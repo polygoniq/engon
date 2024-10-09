@@ -2,11 +2,10 @@
 # copyright (c) 2018- polygoniq xyz s.r.o.
 
 import bpy
-import addon_utils
+import bpy_extras
 import sys
 import typing
 import re
-import functools
 import textwrap
 import os
 from . import utils_bpy
@@ -342,3 +341,116 @@ def show_release_notes_popup(
         title=f"{addon_name} {version} Release Notes",
         icon='INFO',
     )
+
+
+def draw_property(
+    obj: bpy.types.ID, layout: bpy.types.UILayout, prop_name: str, text: str = ""
+) -> None:
+    if prop_name in obj:
+        layout.prop(obj, f'["{prop_name}"]', text=text)
+    else:
+        layout.label(text="-")
+
+
+def draw_property_table(
+    displayable_objects: typing.List[bpy.types.ID],
+    left_col: bpy.types.UILayout,
+    right_col: bpy.types.UILayout,
+    property_func: typing.Callable[[bpy.types.UILayout, bpy.types.ID], None],
+    label_func: typing.Callable[
+        [bpy.types.UILayout, bpy.types.ID], None
+    ] = lambda row, obj: row.label(text=obj.name),
+    max_displayed_assets: int = 10,
+) -> None:
+    displayed_assets = 0
+    for obj in displayable_objects:
+        row = left_col.row()
+        if displayed_assets >= max_displayed_assets:
+            row.label(
+                text=f"... and {len(displayable_objects) - displayed_assets} additional asset(s)"
+            )
+            break
+        label_func(row, obj)
+        row = right_col.row(align=True)
+        property_func(row, obj)
+
+        displayed_assets += 1
+
+
+def draw_conflicting_addons(
+    layout: bpy.types.UILayout, module_name: str, conflicts: typing.List[str]
+) -> None:
+    """Draws a list of conflicting addons based on the 'module_name' name in 'layout'."""
+    if len(conflicts) == 0:
+        return
+
+    box = layout.box()
+    row = box.row()
+    sub = row.row()
+    sub.alert = True
+    sub.label(text="Conflicting addons found!", icon='ERROR')
+    draw_doc_button(
+        row.row(), module_name, "getting_started/installation#addon-installation-conflicts"
+    )
+    col = box.column(align=True)
+    for message in conflicts:
+        col.label(text=f"- {message}")
+
+    sub = box.column(align=True)
+    sub.enabled = False
+    sub.label(
+        text="This message will disappear after RESTARTING Blender with the conflicting addons removed!"
+    )
+    sub.label(text="Click documentation button in the corner for more info.", icon='HELP')
+
+
+class SelectFolderPathMixin(bpy_extras.io_utils.ImportHelper):
+    """Mixin class for directory properties that can be used in operator dialogs.
+
+    We have to use a custom operator for this because opening a file dialog inside an operator dialog
+    makes it crash. This behavior is fixed in Blender 4.1 but we have to support Blender 3.6.
+
+    If used in a classic UILayout, just point the folder property to the 'self.filepath'. If used inside
+    an operator dialog, do the same but return that operator's `bpy.ops` call with 'INVOKE_DEFAULT'
+    at the end of its execute.
+    """
+
+    bl_label = "Select Path"
+    bl_options = {'REGISTER', 'INTERNAL'}
+
+    # Empty filer_glob to show folders only
+    filter_glob: bpy.props.StringProperty(default="", options={'HIDDEN'})
+
+
+BpyOperator = typing.TypeVar("BpyOperator", bound=bpy.types.Operator)
+
+
+class OperatorButtonLoader(typing.Generic[BpyOperator]):
+    """Helper class for assigning properties to an operator that will be used as a button.
+
+    How to use:
+    For an operator that would be used as a button like this:
+        op = layout.operator(SomeOperator.bl_idname, text="Push me", icon='NONE')
+        op.some_property = 42
+        op.another_property = "Hello"
+
+    We can use this class to package the properties to be assigned while still
+    being able to change the text, icon, etc. of the button:
+        loader = OperatorButtonLoader(SomeOperator, some_property=42, another_property="Hello")
+        loader.draw_button(layout, text="Push me", icon='NONE')
+
+    This way we can prepare what properties we want to assign to the operator and then pass
+    this information to other functions that will draw the button.
+    """
+
+    def __init__(self, operator: typing.Type[BpyOperator], **operator_props):
+        self.bl_idname = operator.bl_idname
+        self.operator_props = operator_props
+
+    def draw_button(
+        self, layout: bpy.types.UILayout, **operator_kwargs
+    ) -> bpy.types.OperatorProperties:
+        op = layout.operator(self.bl_idname, **operator_kwargs)
+        for prop, value in self.operator_props.items():
+            setattr(op, prop, value)
+        return op

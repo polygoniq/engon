@@ -8,6 +8,7 @@ from . import category
 from . import asset
 from . import asset_data
 from . import query
+from . import filters
 from . import parameter_meta
 import logging
 
@@ -41,6 +42,8 @@ class DataView:
             return (lambda x: x.title, False)
         elif sort_mode == query.SortMode.ALPHABETICAL_DESC:
             return (lambda x: x.title, True)
+        elif sort_mode == query.SortMode.MOST_RELEVANT:
+            return (lambda x: filters.SEARCH_ASSET_SCORE.get(x.id_, 1.0), True)
         else:
             raise NotImplementedError(f"Unknown sort mode {sort_mode}")
 

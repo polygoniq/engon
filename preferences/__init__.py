@@ -32,11 +32,13 @@ import functools
 # it here to make sure we handle module cache reloads correctly
 from . import prefs_utils
 from . import general_preferences
-from . import mapr_preferences
+from . import browser_preferences
 from . import what_is_new_preferences
 from . import aquatiq_preferences
 from . import botaniq_preferences
 from . import traffiq_preferences
+from . import colorize_preferences
+from . import light_adjustments_preferences
 from .. import keymaps
 from .. import ui_utils
 from .. import polib
@@ -47,6 +49,7 @@ telemetry = polib.get_telemetry("engon")
 
 
 MODULE_CLASSES: typing.List[typing.Any] = []
+CONFLICTING_ADDONS = polib.utils_bpy.get_conflicting_addons(base_package)
 
 
 class ShowReleaseNotes(bpy.types.Operator):
@@ -114,16 +117,28 @@ class Preferences(bpy.types.AddonPreferences):
         type=general_preferences.GeneralPreferences,
     )
 
-    mapr_preferences: bpy.props.PointerProperty(
+    browser_preferences: bpy.props.PointerProperty(
         name="Browser Preferences",
         description="Preferences related to the mapr asset browser",
-        type=mapr_preferences.MaprPreferences,
+        type=browser_preferences.BrowserPreferences,
     )
 
     what_is_new_preferences: bpy.props.PointerProperty(
         name="\"See What's New\" preferences",
         description="Preferences related to the \"See What's New\" button",
         type=what_is_new_preferences.WhatIsNewPreferences,
+    )
+
+    colorize_preferences: bpy.props.PointerProperty(
+        name="Colorize Preferences",
+        description="Preferences related to the colorize engon feature",
+        type=colorize_preferences.ColorizePreferences,
+    )
+
+    light_adjustments_preferences: bpy.props.PointerProperty(
+        name="Colorize Preferences",
+        description="Preferences related to the colorize engon feature",
+        type=light_adjustments_preferences.LightAdjustmentsPreferences,
     )
 
     aquatiq_preferences: bpy.props.PointerProperty(
@@ -168,6 +183,7 @@ class Preferences(bpy.types.AddonPreferences):
     )
 
     def draw(self, context: bpy.types.Context) -> None:
+        polib.ui_bpy.draw_conflicting_addons(self.layout, base_package, CONFLICTING_ADDONS)
         col = self.layout.column()
 
         # Asset Packs section
@@ -281,11 +297,13 @@ MODULE_CLASSES.append(PackLogs)
 
 def register():
     general_preferences.register()
-    mapr_preferences.register()
+    browser_preferences.register()
     what_is_new_preferences.register()
     aquatiq_preferences.register()
     botaniq_preferences.register()
     traffiq_preferences.register()
+    colorize_preferences.register()
+    light_adjustments_preferences.register()
     for cls in MODULE_CLASSES:
         bpy.utils.register_class(cls)
 
@@ -293,9 +311,11 @@ def register():
 def unregister():
     for cls in reversed(MODULE_CLASSES):
         bpy.utils.unregister_class(cls)
+    light_adjustments_preferences.unregister()
+    colorize_preferences.unregister()
     traffiq_preferences.unregister()
     botaniq_preferences.unregister()
     aquatiq_preferences.unregister()
     what_is_new_preferences.unregister()
-    mapr_preferences.unregister()
+    browser_preferences.unregister()
     general_preferences.unregister()

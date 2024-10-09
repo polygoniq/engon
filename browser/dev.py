@@ -24,6 +24,7 @@ import typing
 import logging
 from . import filters
 from . import previews
+from . import utils
 from .. import mapr
 from .. import polib
 from .. import asset_registry
@@ -55,25 +56,13 @@ class MAPR_BrowserReconstructFilters(bpy.types.Operator):
     bl_label = "Reconstruct Filters"
 
     def execute(self, context: bpy.types.Context):
-        filters.get_filters().clear()
-        filters.get_filters().reconstruct()
+        filters_ = filters.get_filters()
+        filters_.clear_and_reconstruct()
+        filters_.reenable()
         return {'FINISHED'}
 
 
 MODULE_CLASSES.append(MAPR_BrowserReconstructFilters)
-
-
-class MAPR_BrowserReloadPreviews(bpy.types.Operator):
-    bl_idname = "engon.dev_browser_reload_previews"
-    bl_label = "Reload Previews (In Current View)"
-
-    def execute(self, context: bpy.types.Context):
-        assets = filters.asset_repository.current_assets
-        previews.preview_manager.clear(ids={asset.id_ for asset in assets})
-        return {'FINISHED'}
-
-
-MODULE_CLASSES.append(MAPR_BrowserReloadPreviews)
 
 
 class MAPR_BrowserOpenAssetSourceBlend(bpy.types.Operator):

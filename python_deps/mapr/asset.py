@@ -71,6 +71,11 @@ class Asset:
         ret: typing.DefaultDict[str, float] = self.type_.search_matter
         ret[self.title.lower()] = max(1.0, ret[self.title.lower()])
 
+        # The title tokens are weighted individually
+        title_tokens = self.title.lower().split(" ")
+        for kw in title_tokens:
+            ret[kw] = max(1.0, ret[kw])
+
         for tag in self.tags:
             search_weight = float(known_metadata.TAGS.get(tag, {}).get("search_weight", 1.0))
             if search_weight <= 0.0:

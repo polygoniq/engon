@@ -128,3 +128,12 @@ def load_master_object(blend_path: str) -> bpy.types.Object:
         data_to.objects = [asset_name]
 
     return data_to.objects[0]
+
+
+def load_object_by_name(blend_path: str, object_name: str) -> bpy.types.Object:
+    """Loads object with the given name from the given .blend path"""
+    with bpy.data.libraries.load(blend_path, link=False) as (data_from, data_to):
+        assert object_name in data_from.objects
+        data_to.objects = [object_name]
+
+    return data_to.objects[0]

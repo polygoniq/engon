@@ -1,4 +1,7 @@
 # copyright (c) 2018- polygoniq xyz s.r.o.
+# TODO: This whole module should get an audit based on how extensions work (encapsulation) since 4.2
+# so the packages are installed only for the addon itself (ideally not manipulate the whole sys.path)
+# Not sure if this will be still usable, as Blender suggest to package additional
 
 import typing
 import importlib
@@ -12,12 +15,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-if "utils_bpy" not in locals():
-    from . import utils_bpy
-else:
-    import importlib
-
-    utils_bpy = importlib.reload(utils_bpy)
+from . import utils_bpy
 
 
 @dataclasses.dataclass
@@ -37,13 +35,6 @@ class ModuleProvider:
     It is supposed to be used as singleton with only one instance and one 'install_path'. Because
     all addons using ModuleProvider should install their dependencies to the same place.
     Otherwise they could install potentially incompatible modules.
-
-    TODO: Adjust this after transition to engon
-    Currently 'install_path' is stored in preferences in each addon using ModuleProvider and nothing
-    enforces they store the same path. This will be inherently resolved after transition to one
-    common addon - engon which would define only one 'install_path' property in preferences.
-    It shouldn't be problem till that as we won't release multiple addons that needs additional
-    modules before full transition to engon.
     """
 
     def __init__(self) -> None:

@@ -246,6 +246,9 @@ class AssetTypesFilter(Filter):
         )
 
 
+SEARCH_ASSET_SCORE: typing.Dict[str, float] = {}
+
+
 class SearchFilter(Filter):
     def __init__(self, search: str):
         super().__init__("builtin:search")
@@ -259,23 +262,26 @@ class SearchFilter(Filter):
         if len(self.needle_keywords) == 0:
             return True
 
-        match_found = False
+        relevancy_score = 0.0
         for needle_keyword in self.needle_keywords:
+            should_exact_match = needle_keyword.startswith('"') and needle_keyword.endswith('"')
             for haystack_keyword, haystack_keyword_weight in asset_.search_matter.items():
-                # TODO: We want to do relevancy scoring in the future but for that the entire
-                #       mechanism has be moved into MAPR API
 
                 # this is guaranteed by the API
                 assert haystack_keyword_weight > 0.0
+                if should_exact_match:
+                    relevancy_score += (
+                        haystack_keyword_weight if haystack_keyword == needle_keyword[1:-1] else 0.0
+                    )
+                else:
+                    if needle_keyword == haystack_keyword:
+                        # bump exact matches even if exact match not requested
+                        relevancy_score += 3.0 * haystack_keyword_weight
+                    elif haystack_keyword.find(needle_keyword) >= 0:
+                        relevancy_score += haystack_keyword_weight
 
-                if haystack_keyword.find(needle_keyword) >= 0:
-                    match_found = True
-                    break
-
-            if match_found:
-                break
-
-        return match_found
+        SEARCH_ASSET_SCORE[asset_.id_] = relevancy_score
+        return relevancy_score > 0.0
 
     @staticmethod
     @functools.lru_cache(maxsize=128)

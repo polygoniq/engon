@@ -55,7 +55,7 @@ TQ_MODIFIER_LIBRARY_BLEND = "tq_Library_Modifiers.blend"
 TQ_EMERGENCY_LIGHTS_NODE_GROUP_NAME = "tq_Emergency_Lights"
 
 
-PARTICLE_SYSTEM_PREFIX = f"engon_{polib.asset_pack_bpy.PARTICLE_SYSTEM_TOKEN}_"
+PARTICLE_SYSTEM_PREFIX = f"engon_{polib.asset_pack.PARTICLE_SYSTEM_TOKEN}_"
 
 
 # Inputs for the aquatiq puddle nodes
@@ -90,18 +90,20 @@ def has_active_object_with_particle_system(context: bpy.types.Context) -> bool:
     return has_active_particle_system(context.active_object)
 
 
-def is_asset_with_engon_feature(
+def is_obj_with_engon_feature(
     obj: bpy.types.Object, feature: str, include_editable: bool = True, include_linked: bool = True
 ) -> bool:
-    engon_feature_packs = asset_registry.instance.get_packs_by_engon_feature(feature)
-    polygoniq_addon = obj.get("polygoniq_addon", None)
-    if polygoniq_addon is None or polygoniq_addon not in (
-        x.file_id_prefix.strip("/") for x in engon_feature_packs
+    if not polib.asset_pack_bpy.is_polygoniq_object(
+        obj, include_editable=include_editable, include_linked=include_linked
     ):
         return False
-    return polib.asset_pack_bpy.is_polygoniq_object(
-        obj, lambda x: x == polygoniq_addon, include_editable, include_linked
-    )
+
+    mapr_asset_id = obj.get("mapr_asset_id", None)
+    if mapr_asset_id is None:
+        return False
+
+    asset_pack = asset_registry.instance.get_asset_pack_of_asset(mapr_asset_id)
+    return feature in asset_pack.engon_features
 
 
 def is_object_from_seasons(obj: bpy.types.Object, seasons: typing.Set[str]) -> bool:
@@ -254,7 +256,7 @@ def gather_instanced_objects(
 
             instance_collection = mod.particle_system.settings.instance_collection
             if (
-                polib.asset_pack_bpy.is_pps(mod.particle_system.name)
+                polib.asset_pack.is_pps_name(mod.particle_system.name)
                 and instance_collection is not None
             ):
                 yield from instance_collection.all_objects

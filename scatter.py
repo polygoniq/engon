@@ -285,7 +285,7 @@ class ScatterWeightPaint(bpy.types.Operator):
         vertex_group = active_object.vertex_groups.get(vertex_group_name, None)
         if vertex_group is None:
             vertex_group = active_object.vertex_groups.new(
-                name=f"{polib.asset_pack_bpy.PARTICLE_SYSTEM_TOKEN}_{self.target}"
+                name=f"{polib.asset_pack.PARTICLE_SYSTEM_TOKEN}_{self.target}"
             )
             setattr(particle_system, target_vertex_group_prop, vertex_group.name)
 
@@ -335,7 +335,7 @@ class RenameParticleSystem(bpy.types.Operator):
         if self.old_name == self.new_name:
             return {'FINISHED'}
 
-        if not polib.asset_pack_bpy.is_pps(self.new_name):
+        if not polib.asset_pack.is_pps_name(self.new_name):
             self.new_name = f"{asset_helpers.PARTICLE_SYSTEM_PREFIX}{self.new_name}"
         active_object = context.active_object
         active_particle_system = active_object.particle_systems.active
@@ -368,7 +368,7 @@ class RenameParticleSystem(bpy.types.Operator):
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
         # If the particle system contains prefix "engon_pps", then we know its ours and we
         # treat it without prefix. Otherwise take the full name.
-        if polib.asset_pack_bpy.is_pps(context.active_object.particle_systems.active.name):
+        if polib.asset_pack.is_pps_name(context.active_object.particle_systems.active.name):
             _, _, name = context.active_object.particle_systems.active.name.split("_", 2)
         else:
             name = context.active_object.particle_systems.active.name
@@ -407,7 +407,7 @@ MODULE_CLASSES.append(ReturnToObjectMode)
 class RemoveParticleSystem(bpy.types.Operator):
     bl_idname = "engon.scatter_particles_remove"
     bl_label = "Remove Particle System"
-    bl_description = "Removes active particle system from active object"
+    bl_description = "Removes active particle system from selected objects"
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -424,7 +424,24 @@ class RemoveParticleSystem(bpy.types.Operator):
         ps_settings_to_remove = ps_to_remove.settings
         ps_settings_to_remove_name = ps_settings_to_remove.name
 
-        logger.info(f"Going to remove {ps_settings_to_remove_name} from {active_object.name}")
+        logger.info(
+            f"Going to remove {ps_settings_to_remove_name} from {[obj.name for obj in context.selected_objects]}"
+        )
+
+        # Remove particle system from selected objects only
+        for obj in context.selected_objects:
+            for modifier in obj.modifiers:
+                if modifier.type != 'PARTICLE_SYSTEM':
+                    continue
+                if modifier.particle_system.settings.name == ps_settings_to_remove_name:
+                    # Store previous index, so we can keep it on the next item from deleted.
+                    prev_index = particle_systems.active_index
+                    obj.modifiers.remove(modifier)
+                    particle_systems.active_index = max(0, prev_index - 1)
+
+        # If some users of the particle system still exist, we can keep the particle system data
+        if ps_settings_to_remove.users > 0:
+            return {'FINISHED'}
 
         instance_collection = ps_settings_to_remove.instance_collection
 
@@ -463,17 +480,6 @@ class RemoveParticleSystem(bpy.types.Operator):
         for coll in collection_candidates:
             if len(coll.all_objects) == 0 and coll.use_fake_user is False:
                 bpy.data.collections.remove(coll)
-
-        # Find particle system modifier which contains current particle system as data
-        found_modifier = find_modifier_containing_particle_system(
-            active_object.modifiers, ps_to_remove
-        )
-
-        if found_modifier is not None:
-            # Store previous index, so we can keep it on the next item from deleted.
-            prev_index = particle_systems.active_index
-            active_object.modifiers.remove(found_modifier)
-            particle_systems.active_index = max(0, prev_index - 1)
 
         if ps_settings_to_remove.users == 0:
             bpy.data.particles.remove(ps_settings_to_remove)
@@ -735,7 +741,7 @@ class ParticlesChangeDisplay(bpy.types.Operator):
         if self.all_systems:
             return list(
                 filter(
-                    lambda x: polib.asset_pack_bpy.is_pps(x.name) if self.only_pps else True,
+                    lambda x: polib.asset_pack.is_pps_name(x.name) if self.only_pps else True,
                     obj.particle_systems,
                 )
             )
@@ -743,9 +749,9 @@ class ParticlesChangeDisplay(bpy.types.Operator):
             active_system = obj.particle_systems.active
             if active_system is None:
                 return []
-            if self.only_pps and polib.asset_pack_bpy.is_pps(active_system.name):
+            if self.only_pps and polib.asset_pack.is_pps_name(active_system.name):
                 return [active_system]
-            elif not polib.asset_pack_bpy.is_pps(active_system.name):
+            elif not polib.asset_pack.is_pps_name(active_system.name):
                 return [active_system]
             else:
                 return []

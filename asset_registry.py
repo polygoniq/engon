@@ -26,6 +26,7 @@ import json
 import zipfile
 import logging
 import functools
+import enum
 from . import mapr
 from . import polib
 
@@ -155,6 +156,9 @@ class AssetPack:
         # with that name. If there are multiple versions available the user should register the
         # newest one.
         self.full_name = full_name
+        # Short name of the asset pack, without variant
+        assert "_" in full_name
+        self.short_name = full_name.rsplit("_")[0]
         # Semantic version of the asset pack
         self.version = version
         # Who is the author of the asset pack
@@ -162,13 +166,9 @@ class AssetPack:
         # Which engon set of features should be enable when this asset pack is present. For
         # example the core botaniq assets open the botaniq features - scatter, wind animation, etc.
         # The same features are also opened by the Evermotion asset packs.
-        # TODO: For now we support only one engon_feature but this is an artificial limitation of
-        #       the API.
-        if len(engon_features) > 1:
-            raise NotImplementedError("For now we only support one engon_feature per asset pack!")
         if len(engon_features) == 0:
             raise NotImplementedError("At least one engon feature required in each asset pack!")
-        self.engon_feature = engon_features[0]
+        self.engon_features = engon_features
         self.min_engon_version = min_engon_version
         self.install_path = install_path
         self.pack_info_path = pack_info_path
@@ -198,11 +198,17 @@ class AssetPack:
 
         # we remember which providers we registered to MAPR to be able to unregister them
         self.asset_providers: typing.List[mapr.asset_provider.AssetProvider] = []
-        self.asset_multiplexer: typing.Optional[mapr.asset_provider.AssetProviderMultiplexer] = None
         self.file_providers: typing.List[mapr.asset_provider.FileProvider] = []
+
+        # we remember root pack multiplexers to be able to query against one pack easily
+        self.asset_multiplexer: typing.Optional[mapr.asset_provider.AssetProviderMultiplexer] = None
+        self.file_multiplexer: typing.Optional[mapr.file_provider.FileProviderMultiplexer] = None
 
         # we remember which blender asset library entry we added
         self.blender_asset_library_entry: typing.Optional[bpy.types.UserAssetLibrary] = None
+
+    def __del__(self):
+        del self.icon_manager
 
     def check_pack_validity(self) -> None:
         """Checks whether the provided Asset Pack is valid, throwing Exceptions if not"""
@@ -299,8 +305,10 @@ class AssetPack:
             master_asset_provider.add_asset_provider(asset_multiplexer)
             master_file_provider.add_file_provider(file_multiplexer)
             self.asset_providers.append(asset_multiplexer)
-            self.asset_multiplexer = asset_multiplexer
             self.file_providers.append(file_multiplexer)
+
+            self.asset_multiplexer = asset_multiplexer
+            self.file_multiplexer = file_multiplexer
 
     def _unregister_from_mapr(
         self,
@@ -310,11 +318,13 @@ class AssetPack:
         for asset_provider in self.asset_providers:
             master_asset_provider.remove_asset_provider(asset_provider)
         self.asset_providers.clear()
-        self.asset_multiplexer = None
 
         for file_provider in self.file_providers:
             master_file_provider.remove_file_provider(file_provider)
         self.file_providers.clear()
+
+        self.asset_multiplexer = None
+        self.file_multiplexer = None
 
     def _register_blender_asset_library(self) -> None:
         assert self.blender_asset_library_entry is None
@@ -359,6 +369,23 @@ class AssetPack:
 
             self.blender_asset_library_entry = None
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, AssetPack):
+            raise ValueError(f"Can't compare AssetPack with '{type(other)}' type!")
+
+        # We can assume that full_name is the id and is unique. If the versions are equal
+        # then other fields of the pack should be equal as well, as we increment versions
+        # when making changes.
+        return self.full_name == other.full_name and self.version == other.version
+
+    def __hash__(self) -> int:
+        return hash((self.full_name, self.version))
+
+
+class AssetPackChange(enum.Enum):
+    REGISTERED = "REGISTERED"
+    UNREGISTERED = "UNREGISTERED"
+
 
 class AssetRegistry:
     """Stores information about all asset packs registered into engon.
@@ -379,6 +406,12 @@ class AssetRegistry:
         self.master_file_provider: mapr.file_provider.FileProvider = (
             mapr.file_provider.FileProviderMultiplexer()
         )
+        self.on_changed: typing.List[
+            typing.Callable[
+                [AssetPack, AssetPackChange],
+                None,
+            ]
+        ] = []
         self.on_refresh: typing.List[typing.Callable[[], None]] = []
 
     def get_pack_by_full_name(self, full_name: str) -> typing.Optional[AssetPack]:
@@ -386,8 +419,18 @@ class AssetRegistry:
         return self._packs_by_full_name.get(full_name, None)
 
     def get_packs_by_engon_feature(self, engon_feature: str) -> typing.List[AssetPack]:
-        """Returns registered addons with given 'addon_name'"""
+        """Returns registered addons with given 'engon_feature'"""
         return self._packs_by_engon_feature[engon_feature]
+
+    def get_asset_pack_of_asset(self, asset_id: mapr.asset.AssetID) -> typing.Optional[AssetPack]:
+        """Returns asset pack that contains the asset with 'asset_id' if present, None otherwise"""
+        # Assumes asset_id is shipped only in one asset pack at a time.
+        for asset_pack in self._packs_by_full_name.values():
+            asset = asset_pack.asset_multiplexer.get_asset(asset_id)
+            if asset is not None:
+                return asset_pack
+
+        return None
 
     def get_pack_by_pack_info_path(self, pack_info_path: str) -> typing.Optional[AssetPack]:
         """Returns registered asset pack based on 'pack_info_path' if present, None otherwise"""
@@ -409,19 +452,24 @@ class AssetRegistry:
 
         assert asset_pack.full_name not in self._packs_by_full_name
         self._packs_by_full_name[asset_pack.full_name] = asset_pack
-        self._packs_by_engon_feature[asset_pack.engon_feature].append(asset_pack)
+        for feature in asset_pack.engon_features:
+            self._packs_by_engon_feature[feature].append(asset_pack)
         assert asset_pack.pack_info_path not in self._packs_by_pack_info_path
         self._packs_by_pack_info_path[asset_pack.pack_info_path] = asset_pack
 
         asset_pack._register_in_mapr(self.master_asset_provider, self.master_file_provider)
         asset_pack._register_blender_asset_library()
+        self._asset_pack_changed(asset_pack, AssetPackChange.REGISTERED)
 
     def _unregister_pack(self, asset_pack: AssetPack) -> None:
+        self._asset_pack_changed(asset_pack, AssetPackChange.UNREGISTERED)
+
         asset_pack._unregister_blender_asset_library()
         asset_pack._unregister_from_mapr(self.master_asset_provider, self.master_file_provider)
 
         del self._packs_by_full_name[asset_pack.full_name]
-        self._packs_by_engon_feature[asset_pack.engon_feature].remove(asset_pack)
+        for feature in asset_pack.engon_features:
+            self._packs_by_engon_feature[feature].remove(asset_pack)
         del self._packs_by_pack_info_path[asset_pack.pack_info_path]
 
     def get_registered_packs(self) -> typing.Iterable[AssetPack]:
@@ -493,6 +541,15 @@ class AssetRegistry:
         """
         for func in self.on_refresh:
             func()
+
+    def _asset_pack_changed(self, asset_pack: AssetPack, change: AssetPackChange) -> None:
+        """Calls all 'on_changed' callbacks to the registry.
+
+        This should be called whenever a new asset pack is registered or unregistered with the
+        relevant value of 'change'.
+        """
+        for func in self.on_changed:
+            func(asset_pack, change)
 
 
 instance = AssetRegistry()

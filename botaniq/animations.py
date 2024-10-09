@@ -403,7 +403,7 @@ def get_animated_objects(
         if anim_obj.type != 'MESH':
             continue
 
-        if not asset_helpers.is_asset_with_engon_feature(anim_obj, "botaniq"):
+        if not asset_helpers.is_obj_with_engon_feature(anim_obj, "botaniq"):
             continue
 
         if include_muted:
@@ -718,7 +718,7 @@ class AnimationAddWind(bpy.types.Operator):
             self.report({'INFO'}, f"{obj.name} already contains animation data!")
             return False
 
-        if not asset_helpers.is_asset_with_engon_feature(obj, "botaniq"):
+        if not asset_helpers.is_obj_with_engon_feature(obj, "botaniq"):
             return False
 
         asset_id = obj.get(mapr.blender_asset_spawner.ASSET_ID_PROP_NAME, None)
@@ -940,7 +940,7 @@ class AnimationAddWind(bpy.types.Operator):
 
         for obj in selected_objects:
             if (
-                any(polib.asset_pack_bpy.is_pps(ps.name) for ps in obj.particle_systems)
+                any(polib.asset_pack.is_pps_name(ps.name) for ps in obj.particle_systems)
                 and auto_make_instance
             ):
                 self.report(
@@ -1035,7 +1035,7 @@ class AnimationRemoveWind(bpy.types.Operator):
             if anim_obj is None:
                 continue
 
-            if not asset_helpers.is_asset_with_engon_feature(anim_obj, "botaniq"):
+            if not asset_helpers.is_obj_with_engon_feature(anim_obj, "botaniq"):
                 continue
 
             if anim_obj.animation_data is not None:

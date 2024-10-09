@@ -130,7 +130,7 @@ class MakeSelectionEditable(bpy.types.Operator):
 
         logger.info(f"Resulting objects and parents: {selected_objects_and_parents_names}")
 
-        prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
+        prefs = preferences.prefs_utils.get_preferences(context).browser_preferences
         if prefs.spawn_options.remove_duplicates:
             filters = [polib.remove_duplicates_bpy.polygoniq_duplicate_data_filter]
             polib.remove_duplicates_bpy.remove_duplicate_datablocks(

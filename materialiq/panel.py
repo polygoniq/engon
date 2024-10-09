@@ -166,7 +166,7 @@ class MaterialiqPanel(MaterialiqPanelMixin, bpy.types.Panel):
             row.operator("object.material_slot_deselect", text="Deselect")
 
     def draw(self, context: bpy.types.Context) -> None:
-        prefs = preferences.prefs_utils.get_preferences(context).mapr_preferences
+        prefs = preferences.prefs_utils.get_preferences(context).browser_preferences
         row = self.layout.row(align=True)
         row.label(text="Default Texture Size:")
         row = row.row()
@@ -411,7 +411,8 @@ class AdjustmentsSpecularPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
     bl_options = {'DEFAULT_CLOSED'}
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
-        "mq_Adjust", filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(x, "specular")
+        "mq_Adjust",
+        filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(x, "specular"),
     )
 
     def draw_header(self, context: bpy.types.Context) -> None:
@@ -438,7 +439,8 @@ class AdjustmentsRoughnessPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel)
     bl_options = {'DEFAULT_CLOSED'}
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
-        "mq_Adjust", filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(x, "roughness")
+        "mq_Adjust",
+        filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(x, "roughness"),
     )
 
     def draw_header(self, context: bpy.types.Context) -> None:
@@ -465,7 +467,8 @@ class AdjustmentsNormalPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
     bl_options = {'DEFAULT_CLOSED'}
 
     adjustment_template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
-        "mq_Adjust", filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(x, "normal")
+        "mq_Adjust",
+        filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(x, "normal"),
     )
 
     # There should be only one Bevel node on top level of materialiq material
