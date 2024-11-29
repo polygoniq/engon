@@ -48,11 +48,13 @@ AQ_MATERIALS_LIBRARY_BLEND = "aq_Library_Materials.blend"
 BOTANIQ_ALL_SEASONS_RAW = "spring-summer-autumn-winter"
 BQ_COLLECTION_NAME = "botaniq"
 BQ_VINE_GENERATOR_NODE_GROUP_NAME = "bq_Vine_Generator"
+BQ_CURVES_GENERATOR_NODE_GROUP_NAME = "bq_Generator_Curves"
 BQ_ANIM_LIBRARY_BLEND = "bq_Library_Animation_Data.blend"
 
 # traffiq constants
 TQ_MODIFIER_LIBRARY_BLEND = "tq_Library_Modifiers.blend"
 TQ_EMERGENCY_LIGHTS_NODE_GROUP_NAME = "tq_Emergency_Lights"
+TQ_LICENSE_PLATE_NODE_GROUP_NAME_PREFIX = "tq_License-Plate_"
 
 
 PARTICLE_SYSTEM_PREFIX = f"engon_{polib.asset_pack.PARTICLE_SYSTEM_TOKEN}_"
@@ -100,9 +102,18 @@ def is_obj_with_engon_feature(
 
     mapr_asset_id = obj.get("mapr_asset_id", None)
     if mapr_asset_id is None:
+        # The asset might be ours but if it doesn't have a MAPR ID we can't figure out which asset
+        # pack it's from.
         return False
 
     asset_pack = asset_registry.instance.get_asset_pack_of_asset(mapr_asset_id)
+    if asset_pack is None:
+        # The asset has a mapr ID but we can't find an enabled asset pack that has it
+        # this is unusual and most probably somebody spawned an asset from an asset pack, then
+        # disabled or uninstalled the pack. Either way we can't figure out which engon feature it
+        # has if it's not present.
+        return False
+
     return feature in asset_pack.engon_features
 
 

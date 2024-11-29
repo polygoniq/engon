@@ -143,7 +143,7 @@ class SpawnOptions(bpy.types.PropertyGroup):
             )
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_material:
             return hatchery.spawn.MaterialSpawnOptions(
-                int(self.texture_size), self.use_displacement, context.selected_objects
+                int(self.texture_size), self.use_displacement, set(context.selected_objects)
             )
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_particle_system:
             return hatchery.spawn.ParticleSystemSpawnOptions(

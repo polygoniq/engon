@@ -26,6 +26,33 @@ class AssetPackMigrations(typing.NamedTuple):
 
 
 # versions in the names reflect the last version of asset pack without given changes
+
+_botaniq_7_0_0_drop_dead_from_leaf_names = {
+    r"^bq_Leaf-Dead-Group_Fagus-sylvatica_([A])_spring-summer": r"bq_Leaf-Group_Fagus-sylvatica_\1_spring-summer",
+    r"^bq_Leaf-Dead_Fagus-sylvatica_([ABC])_spring-summer-autumn-winter": r"bq_Leaf_Fagus-sylvatica_\1_spring-summer-autumn-winter",
+}
+
+botaniq_7_0_0_drop_dead_from_leaf_names = AssetPackMigration(
+    [
+        RegexMapping(re.compile(f"{pattern}.blend$"), f"{replacement}.blend")
+        for pattern, replacement in _botaniq_7_0_0_drop_dead_from_leaf_names.items()
+    ],
+    {
+        "collections": [
+            RegexMapping(re.compile(pattern), replacement)
+            for pattern, replacement in _botaniq_7_0_0_drop_dead_from_leaf_names.items()
+        ],
+        "meshes": [
+            RegexMapping(re.compile(pattern), replacement)
+            for pattern, replacement in _botaniq_7_0_0_drop_dead_from_leaf_names.items()
+        ],
+        "objects": [
+            RegexMapping(re.compile(pattern), replacement)
+            for pattern, replacement in _botaniq_7_0_0_drop_dead_from_leaf_names.items()
+        ],
+    },
+)
+
 botaniq_6_8_0_unify_bq_prefix = AssetPackMigration(
     [
         RegexMapping(re.compile(r"^(?!bq_|Library_Botaniq)([^\\/]+)(\.blend$)"), r"bq_\1\2"),
@@ -292,6 +319,7 @@ ASSET_PACK_MIGRATIONS = [
             botaniq_6_8_0_rename_vases_to_pots,
             botaniq_6_8_0_english_names_to_latin,
             botaniq_6_8_0_decapitalize_cortaderia,
+            botaniq_7_0_0_drop_dead_from_leaf_names,
         ],
     ),
     AssetPackMigrations(

@@ -56,13 +56,13 @@ def filter_out_descendants_from_objects(
 
 
 def is_polygoniq_object(
-    obj: bpy.types.ID,
+    datablock: bpy.types.ID,
     addon_name_filter: typing.Optional[typing.Callable[[str], bool]] = None,
     include_editable: bool = True,
     include_linked: bool = True,
 ) -> bool:
     return custom_props_bpy.has_property(
-        obj,
+        datablock,
         "polygoniq_addon",
         addon_name_filter,
         include_editable=include_editable,
@@ -70,30 +70,14 @@ def is_polygoniq_object(
     )
 
 
-def has_engon_property_feature(
-    obj: bpy.types.ID, feature: str, include_editable: bool = True, include_linked: bool = True
-) -> bool:
-    if not is_polygoniq_object(obj):
-        return False
-
-    # check if obj has at least one of the given properties of the property features
-    feature_properties = custom_props_bpy.PROPERTY_FEATURE_PROPERTIES_MAP.get(feature, [])
-
-    for feature_property in feature_properties:
-        if custom_props_bpy.has_property(
-            obj,
-            feature_property,
-            include_editable=include_editable,
-            include_linked=include_linked,
-        ):
-            return True
-    return False
-
-
-def find_polygoniq_root_objects(
-    objects: typing.Iterable[bpy.types.Object], addon_name: typing.Optional[str] = None
+def find_root_objects(
+    objects: typing.Iterable[bpy.types.Object],
+    addon_name: typing.Optional[str] = None,
+    only_polygoniq: bool = True,
 ) -> typing.Set[bpy.types.Object]:
     """Finds and returns polygoniq root objects in 'objects'.
+
+    'only_polygoniq' parameter can be used to filter out non-polygoniq objects.
 
     Returned objects are either root or their parent isn't polygoniq object.
     E. g. for 'objects' selected from hierarchy:
@@ -115,6 +99,8 @@ def find_polygoniq_root_objects(
 
             if current_obj.parent is None:
                 if is_polygoniq_object(current_obj, addon_name_filter):
+                    root_objects.add(current_obj)
+                if not only_polygoniq:
                     root_objects.add(current_obj)
                 break
 
@@ -640,10 +626,15 @@ def find_object_in_hierarchy(
 
 
 def get_root_objects_with_matched_child(
-    objects: typing.Iterable[bpy.types.Object], comparator: HierarchyNameComparator
+    objects: typing.Iterable[bpy.types.Object],
+    comparator: HierarchyNameComparator,
+    only_polygoniq=True,
 ) -> typing.Iterable[typing.Tuple[bpy.types.Object, bpy.types.Object]]:
-    """Searches hierarchies of objects and returns objects that satisfy the 'comparator', and their root objects"""
-    for root_obj in find_polygoniq_root_objects(objects):
+    """Searches hierarchies of objects and returns objects that satisfy the 'comparator', and their root objects.
+
+    'only_polygoniq' parameter can be used to filter out non-polygoniq objects.
+    """
+    for root_obj in find_root_objects(objects, only_polygoniq=only_polygoniq):
         searched_obj = find_object_in_hierarchy(root_obj, comparator)
         if searched_obj is not None:
             yield (root_obj, searched_obj)

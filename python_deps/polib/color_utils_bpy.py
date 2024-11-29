@@ -5,6 +5,7 @@
 
 # adapted code from http://www.easyrgb.com/en/math.php
 import numpy
+import math
 
 
 def RGB_to_XYZ(rgb: tuple[float, float, float]) -> tuple[float, float, float]:
@@ -148,3 +149,7 @@ def perceptual_color_distance(
         distance == cap
 
     return distance / cap
+
+
+def is_close_color(color1, color2):
+    return all([math.isclose(c1, c2, abs_tol=0.001) for (c1, c2) in zip(color1, color2)])

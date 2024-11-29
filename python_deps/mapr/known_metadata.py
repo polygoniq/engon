@@ -12,6 +12,7 @@ TAGS = {
     "Electronics": {"description": ""},
     "Enterprise": {"description": ""},
     "Entertainment": {"description": ""},
+    "Textiles": {"description": ""},
     "Furniture": {"description": ""},
     "Hallway": {"description": ""},
     "Indoor": {"description": ""},
@@ -158,15 +159,27 @@ TEXT_PARAMETERS = {
         "description": "Most fitting style for this piece of furniture or room",
     },
     "species": {"description": "Scientific (usually Latin) taxonomy name for the species"},
-    "species_en": {"description": "English common name for the species"},
+    "species_en": {"description": "English common name for the species", "search_weight": 1.0},
     "class": {"description": "Scientific (usually Latin) taxonomy class name for the species"},
-    "class_en": {"description": "English common name for class of the species"},
+    "class_en": {
+        "description": "English common name for class of the species",
+        "search_weight": 1.0,
+    },
     "order": {"description": "Scientific (usually Latin) taxonomy order name for the species"},
-    "order_en": {"description": "English common name for order of the species"},
+    "order_en": {
+        "description": "English common name for order of the species",
+        "search_weight": 1.0,
+    },
     "family": {"description": "Scientific (usually Latin) taxonomy family name for the species"},
-    "family_en": {"description": "English common name for family of the species"},
+    "family_en": {
+        "description": "English common name for family of the species",
+        "search_weight": 1.0,
+    },
     "genus": {"description": "Scientific (usually Latin) taxonomy genus name for the species"},
-    "genus_en": {"description": "English common name for genus of the species"},
+    "genus_en": {
+        "description": "English common name for genus of the species",
+        "search_weight": 1.0,
+    },
     "conservation_status": {
         "choices": [
             "? - Not evaluated (NE)",

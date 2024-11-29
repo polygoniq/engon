@@ -67,8 +67,8 @@ class AddEmptyScatter(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     link_instance_collection: bpy.props.BoolProperty(
-        description="If true, this setting links particle system instance collection to scene. "
-        "Objects from instance collection are spawned on (0, -10, 0).",
+        description="If true, the particle system instance collection will be linked to the scene. "
+        "Objects from the instance collection are spawned on (0, 0, -10)",
         name="Link Instance Collection To Scene",
         default=True,
     )
@@ -788,6 +788,19 @@ class ParticlesChangeDisplay(bpy.types.Operator):
 MODULE_CLASSES.append(ParticlesChangeDisplay)
 
 
+class SCATTER_MT_Utilities(bpy.types.Menu):
+    bl_label = "Scatter Utilities"
+    bl_idname = "SCATTER_MT_Utilities"
+
+    def draw(self, context: typing.Optional[bpy.types.Context]) -> None:
+        layout = self.layout
+        layout.operator(RenameParticleSystem.bl_idname, text="Rename", icon='GREASEPENCIL')
+        layout.operator("particle.duplicate_particle_system", text="Duplicate", icon='DUPLICATE')
+
+
+MODULE_CLASSES.append(SCATTER_MT_Utilities)
+
+
 @polib.log_helpers_bpy.logged_panel
 class ScatterPanel(panel.EngonPanelMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_engon_scatter"
@@ -836,7 +849,8 @@ class ScatterPanel(panel.EngonPanelMixin, bpy.types.Panel):
         row.alignment = 'RIGHT'
         row.operator(AddEmptyScatter.bl_idname, text="", icon='ADD')
         row.operator(RemoveParticleSystem.bl_idname, text="", icon='REMOVE')
-        row.operator(RenameParticleSystem.bl_idname, text="", icon='GREASEPENCIL')
+        sub = row.column()
+        sub.menu(SCATTER_MT_Utilities.bl_idname, icon='DOWNARROW_HLT', text="")
 
         row = col.row()
         row.template_list(

@@ -166,8 +166,6 @@ class AssetPack:
         # Which engon set of features should be enable when this asset pack is present. For
         # example the core botaniq assets open the botaniq features - scatter, wind animation, etc.
         # The same features are also opened by the Evermotion asset packs.
-        if len(engon_features) == 0:
-            raise NotImplementedError("At least one engon feature required in each asset pack!")
         self.engon_features = engon_features
         self.min_engon_version = min_engon_version
         self.install_path = install_path
@@ -198,7 +196,7 @@ class AssetPack:
 
         # we remember which providers we registered to MAPR to be able to unregister them
         self.asset_providers: typing.List[mapr.asset_provider.AssetProvider] = []
-        self.file_providers: typing.List[mapr.asset_provider.FileProvider] = []
+        self.file_providers: typing.List[mapr.file_provider.FileProvider] = []
 
         # we remember root pack multiplexers to be able to query against one pack easily
         self.asset_multiplexer: typing.Optional[mapr.asset_provider.AssetProviderMultiplexer] = None
@@ -400,10 +398,10 @@ class AssetRegistry:
             collections.defaultdict(list)
         )
         self._packs_by_pack_info_path: typing.Dict[str, AssetPack] = {}
-        self.master_asset_provider: mapr.asset_provider.AssetProvider = (
+        self.master_asset_provider: mapr.asset_provider.AssetProviderMultiplexer = (
             mapr.asset_provider.CachedAssetProviderMultiplexer()
         )
-        self.master_file_provider: mapr.file_provider.FileProvider = (
+        self.master_file_provider: mapr.file_provider.FileProviderMultiplexer = (
             mapr.file_provider.FileProviderMultiplexer()
         )
         self.on_changed: typing.List[

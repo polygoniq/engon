@@ -53,7 +53,7 @@ class Session:
         self._uuid = uuid.uuid4().hex
         self.telemetry_api_version = API_VERSION
         self.telemetry_implementation_path = os.path.abspath(__file__)
-        self.start_timestamp = datetime.datetime.utcnow().isoformat()
+        self.start_timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
 
 class Machine:
@@ -168,7 +168,7 @@ class Message:
     ):
         self._session_uuid: str = "unknown"
 
-        self._timestamp = datetime.datetime.utcnow().isoformat()
+        self._timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
         self._type = type
         self.data: typing.Any = None
         if text is not None:

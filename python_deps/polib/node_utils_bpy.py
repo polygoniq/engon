@@ -137,16 +137,26 @@ def find_nodes_by_bl_idname(
             yield from find_nodes_by_bl_idname(node.node_tree.nodes, bl_idname)
 
 
-def find_nodes_by_name(node_tree: bpy.types.NodeTree, name: str) -> typing.Set[bpy.types.Node]:
+def find_nodes_by_name(
+    node_tree: bpy.types.NodeTree, name_prefix: str, exact_match: bool = True
+) -> typing.Set[bpy.types.Node]:
     """Returns set of nodes from 'node_tree' which name without duplicate suffix is 'name'"""
     nodes = find_nodes_in_tree(
-        node_tree, lambda x: utils_bpy.remove_object_duplicate_suffix(x.name) == name
+        node_tree,
+        lambda x: (exact_match and utils_bpy.remove_object_duplicate_suffix(x.name) == name_prefix)
+        or (
+            not exact_match
+            and utils_bpy.remove_object_duplicate_suffix(x.name).startswith(name_prefix)
+        ),
     )
     return nodes
 
 
 def find_nodegroups_by_name(
-    node_tree: typing.Optional[bpy.types.NodeTree], name: str, use_node_tree_name: bool = True
+    node_tree: typing.Optional[bpy.types.NodeTree],
+    name_prefix: str,
+    use_node_tree_name: bool = True,
+    exact_match: bool = True,
 ) -> typing.Set[bpy.types.NodeGroup]:
     """Returns set of node groups from 'node_tree' which name without duplicate suffix is 'name'
 
@@ -162,8 +172,12 @@ def find_nodegroups_by_name(
         if use_node_tree_name and node.node_tree is None:
             return False
 
-        name_for_comparing = node.node_tree.name if use_node_tree_name else node.name
-        return utils_bpy.remove_object_duplicate_suffix(name_for_comparing) == name
+        name_for_comparing = utils_bpy.remove_object_duplicate_suffix(
+            node.node_tree.name if use_node_tree_name else node.name
+        )
+        return (exact_match and name_for_comparing == name_prefix) or (
+            not exact_match and name_for_comparing.startswith(name_prefix)
+        )
 
     nodes = find_nodes_in_tree(node_tree, nodegroup_filter)
     return nodes
@@ -416,11 +430,12 @@ class NodeSocketsDrawTemplate:
     and 'filter_' is applied to the rest.
     """
 
-    name: str
+    name_prefix: str
     filter_: typing.Callable[[bpy.types.NodeSocket | NodeSocketInterfaceCompat], bool] = (
         lambda _: True
     )
     socket_names_drawn_first: typing.Optional[typing.List[str]] = None
+    exact_match: bool = True
 
     def draw_from_material(
         self,
@@ -432,13 +447,15 @@ class NodeSocketsDrawTemplate:
             return
         nodegroups = list(
             itertools.chain(
-                find_nodes_by_name(mat.node_tree, self.name),
-                find_nodegroups_by_name(mat.node_tree, self.name),
+                find_nodes_by_name(mat.node_tree, self.name_prefix, exact_match=self.exact_match),
+                find_nodegroups_by_name(
+                    mat.node_tree, self.name_prefix, exact_match=self.exact_match
+                ),
             )
         )
 
         if len(nodegroups) == 0:
-            layout.label(text=f"No '{self.name}' nodegroup found", icon='INFO')
+            layout.label(text=f"No '{self.name_prefix}' nodegroup found", icon='INFO')
             return
 
         for i, group in enumerate(nodegroups):
@@ -456,8 +473,11 @@ class NodeSocketsDrawTemplate:
         mod: bpy.types.NodesModifier,
     ) -> None:
         assert mod.type == 'NODES'
-        if mod.node_group is None or mod.node_group.name != self.name:
-            layout.label(text=f"No '{self.name}' nodegroup found", icon='INFO')
+        if self.exact_match and mod.node_group.name != self.name_prefix:
+            layout.label(text=f"No '{self.name_prefix}' nodegroup found", icon='INFO')
+            return
+        elif not self.exact_match and not mod.node_group.name.startswith(self.name_prefix):
+            layout.label(text=f"No nodegroup starting with '{self.name_prefix}' found", icon='INFO')
             return
 
         inputs = list(

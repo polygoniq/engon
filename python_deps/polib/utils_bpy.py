@@ -181,6 +181,28 @@ def blender_cursor(cursor_name: str = 'WAIT'):
     return cursor_decorator
 
 
+def safe_modal(
+    on_exception: typing.Optional[
+        typing.Callable[[typing.Any, bpy.types.Context, bpy.types.Event, Exception], typing.Any]
+    ] = None
+):
+    """Decorator that executes a modal method of modal operator and cancels on exception with a possibility of handling it"""
+
+    def modal_decorator(fn):
+        def wrapper(self, context: bpy.types.Context, event: bpy.types.Event):
+            try:
+                return fn(self, context, event)
+            except Exception as e:
+                logger.exception(f"Raised exception in modal operator '{self.__class__.__name__}'")
+                if on_exception is not None:
+                    return on_exception(self, context, event, e)
+                return {'CANCELLED'}
+
+        return wrapper
+
+    return modal_decorator
+
+
 def timeit(fn):
     def timed(*args, **kw):
         ts = time.time()
@@ -195,13 +217,13 @@ def timeit(fn):
 def timed_cache(**timedelta_kwargs):
     def _wrapper(f):
         update_delta = datetime.timedelta(**timedelta_kwargs)
-        next_update = datetime.datetime.utcnow() + update_delta
+        next_update = datetime.datetime.now(datetime.timezone.utc) + update_delta
         f = functools.lru_cache(None)(f)
 
         @functools.wraps(f)
         def _wrapped(*args, **kwargs):
             nonlocal next_update
-            now = datetime.datetime.utcnow()
+            now = datetime.datetime.now(datetime.timezone.utc)
             if now >= next_update:
                 f.cache_clear()
                 next_update = now + update_delta
@@ -452,3 +474,8 @@ def get_addon_release_info(
             return json.JSONDecoder().decode(result_string.decode())
         except json.JSONDecodeError as e:
             logger.error("API response has invalid JSON format")
+
+
+def get_name_from_blend_path(path: str) -> str:  # folder/structure/name.blend
+    asset_name, _ = os.path.splitext(os.path.basename(path))
+    return asset_name

@@ -31,13 +31,38 @@ import itertools
 import mathutils
 import collections
 import logging
+from . import feature_utils
 from .. import polib
 from .. import preferences
+from . import asset_pack_panels
+
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
 MODULE_CLASSES: typing.List[typing.Type] = []
+
+
+class TraffiqRigsPreferences(bpy.types.PropertyGroup):
+    auto_bake_steering: bpy.props.BoolProperty(
+        name="Auto Bake Steering",
+        description="If true, follow path operator will automatically try to bake steering",
+        default=True,
+    )
+    auto_bake_wheels: bpy.props.BoolProperty(
+        name="Auto Bake Wheel Rotation",
+        description="If true, follow path operator will automatically try to bake wheel rotation",
+        default=True,
+    )
+    auto_reset_transforms: bpy.props.BoolProperty(
+        name="Auto Reset Transforms",
+        description="If true, follow path operator will automatically reset transforms"
+        "of needed objects to give the expected results",
+        default=True,
+    )
+
+
+MODULE_CLASSES.append(TraffiqRigsPreferences)
 
 
 class GroundSensorsManipulator:
@@ -575,9 +600,7 @@ class FollowPath(bpy.types.Operator):
         )
 
     def draw(self, context: bpy.types.Context):
-        rig_properties = preferences.prefs_utils.get_preferences(
-            context
-        ).traffiq_preferences.rig_properties
+        rig_properties = preferences.prefs_utils.get_preferences(context).traffiq_rigs_preferences
         layout = self.layout
         layout.prop(rig_properties, "auto_bake_steering", text="Bake Steering")
         layout.prop(rig_properties, "auto_bake_wheels", text="Bake Wheel Rotation")
@@ -598,9 +621,7 @@ class FollowPath(bpy.types.Operator):
         return context.window_manager.invoke_props_dialog(self)
 
     def execute(self, context: bpy.types.Context):
-        rig_properties = preferences.prefs_utils.get_preferences(
-            context
-        ).traffiq_preferences.rig_properties
+        rig_properties = preferences.prefs_utils.get_preferences(context).traffiq_rigs_preferences
         target_path = context.scene.tq_target_path_object
         if target_path is None:
             self.report({'ERROR'}, "No target path selected!")
@@ -728,13 +749,15 @@ class ChangeFollowPathSpeed(bpy.types.Operator):
 
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
         active_object: bpy.types.Object = context.active_object
-        self.root_bone: bpy.types.PoseBone = active_object.pose.bones.get("Root", None)
+        self.root_bone: typing.Optional[bpy.types.PoseBone] = active_object.pose.bones.get(
+            "Root", None
+        )
         if self.root_bone is None:
             self.report({'ERROR'}, "No root bone found")
             return {'CANCELLED'}
 
-        self.fp_constraint: bpy.types.FollowPathConstraint = self.root_bone.constraints.get(
-            FollowPath.CONSTRAINT_NAME
+        self.fp_constraint: typing.Optional[bpy.types.FollowPathConstraint] = (
+            self.root_bone.constraints.get(FollowPath.CONSTRAINT_NAME)
         )
         if self.fp_constraint is None:
             self.report({'ERROR'}, f"Follow path constraint not found on '{active_object.name}'")
@@ -909,10 +932,247 @@ class RemoveAnimation(bpy.types.Operator):
 MODULE_CLASSES.append(RemoveAnimation)
 
 
+@feature_utils.register_feature
+@polib.log_helpers_bpy.logged_panel
+class TraffiqRigsPanel(bpy.types.Panel, feature_utils.PropertyAssetFeatureControlPanelMixin):
+    bl_idname = "VIEW_3D_PT_engon_feature_traffiq_rigs"
+    bl_parent_id = asset_pack_panels.TraffiqPanel.bl_idname
+    bl_label = "Rigs"
+    feature_name = "traffiq_rigs"
+    related_custom_properties = {
+        polib.custom_props_bpy.CustomPropertyNames.TQ_WHEEL_ROTATION,
+        polib.custom_props_bpy.CustomPropertyNames.TQ_STEERING,
+        polib.custom_props_bpy.CustomPropertyNames.TQ_SUSPENSION_FACTOR,
+        polib.custom_props_bpy.CustomPropertyNames.TQ_SUSPENSION_ROLLING_FACTOR,
+        polib.custom_props_bpy.CustomPropertyNames.TQ_WHEELS_Y_ROLLING,
+        polib.custom_props_bpy.CustomPropertyNames.TQ_CAR_RIG,
+    }
+
+    @classmethod
+    def filter_adjustable_assets(
+        cls,
+        possible_assets: typing.Iterable[bpy.types.ID],
+    ) -> typing.Iterable[bpy.types.ID]:
+        return cls.filter_adjustable_assets_simple(possible_assets)
+
+    def draw_header(self, context: bpy.types.Context) -> None:
+        self.layout.label(text="", icon='AUTO')
+
+    def draw_properties(self, datablock: bpy.types.ID, layout: bpy.types.UILayout) -> None:
+        raise NotImplementedError()
+
+    def draw(self, context: bpy.types.Context):
+        layout = self.layout.column()
+        layout.use_property_decorate = False
+        layout.use_property_split = True
+        if self.conditionally_draw_warning_no_adjustable_active_object(context, layout):
+            return
+
+        layout.prop(context.scene, "tq_target_path_object", text="Path", icon='CON_FOLLOWPATH')
+        layout.prop(context.scene, "tq_ground_object", text="Ground", icon='IMPORT')
+        col = layout.column(align=True)
+        row = col.row()
+        row.scale_x = row.scale_y = 1.5
+        row.operator(FollowPath.bl_idname, icon='TRACKING')
+        row = col.row()
+        row.scale_x = row.scale_y = 1.25
+        row.operator(ChangeFollowPathSpeed.bl_idname, icon='FORCE_FORCE')
+
+        layout.separator()
+
+        col = layout.column(align=True)
+        col.operator(BakeSteering.bl_idname, icon='GIZMO')
+        col.operator(BakeWheelRotation.bl_idname, icon='PHYSICS')
+        layout.separator()
+
+        self.layout.operator(RemoveAnimation.bl_idname, icon='PANEL_CLOSE')
+
+
+MODULE_CLASSES.append(TraffiqRigsPanel)
+
+
+def get_position_display_name(position: str) -> str:
+    """Returns human readable form of our wheel position naming conventions
+    (e. g. BL_0 -> Back Left (0))
+    """
+
+    raw_position_to_display_map = {
+        "BL": "Back Left",
+        "BR": "Back Right",
+        "FR": "Front Right",
+        "FL": "Front Left",
+        "F": "Front",
+        "B": "Back",
+    }
+
+    position_split = position.split("_", 1)
+    if len(position_split) == 2:
+        position, index = position_split
+    else:
+        position, index = position_split[0], "0"
+
+    index_suffix = f" ({index})" if int(index) > 0 else ""
+    return f"{raw_position_to_display_map.get(position, '')}{index_suffix}"
+
+
+@polib.log_helpers_bpy.logged_panel
+class RigsGroundSensorsPanel(feature_utils.EngonAssetFeatureControlPanelMixin, bpy.types.Panel):
+    bl_idname = "VIEW_3D_PT_engon_traffiq_rigs_ground_sensors"
+    bl_parent_id = TraffiqRigsPanel.bl_idname
+    bl_label = "Rig Ground Sensors"
+
+    feature_name = "traffiq_rigs"
+
+    @classmethod
+    def get_possible_assets(
+        cls,
+        context: bpy.types.Context,
+    ) -> typing.Iterable[bpy.types.ID]:
+        if context.active_object is not None:
+            return [context.active_object]
+        return []
+
+    @classmethod
+    def filter_adjustable_assets(
+        cls,
+        possible_assets: typing.Iterable[bpy.types.ID],
+    ) -> typing.Iterable[bpy.types.ID]:
+        return filter(
+            lambda obj: isinstance(obj, bpy.types.Object)
+            and polib.rigs_shared_bpy.is_object_rigged(obj),
+            possible_assets,
+        )
+
+    def draw_header(self, context: bpy.types.Context):
+        self.layout.label(text="", icon='IMPORT')
+
+    def draw(self, context: bpy.types.Context):
+        layout = self.layout.column()
+        if self.conditionally_draw_warning_no_adjustable_active_object(
+            context, layout, warning_text="Active asset is not rigged or is not editable"
+        ):
+            return
+
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+        layout.prop(context.scene, "tq_ground_object", text="Ground", icon='IMPORT')
+        layout.operator(SetGroundSensors.bl_idname, text="Set Ground Object For All")
+        layout.separator()
+
+        sensors_manipulator = GroundSensorsManipulator(context.active_object.pose)
+        for name, constraint in sensors_manipulator.ground_sensors_constraints.items():
+            if constraint is None:
+                continue
+
+            layout.label(text=self.get_ground_sensor_display_name(name), icon='IMPORT')
+            layout.prop(constraint, "target", text="Ground")
+            layout.prop(constraint, "shrinkwrap_type")
+            layout.prop(constraint, "project_limit")
+            layout.prop(constraint, "influence")
+            layout.separator()
+
+    def get_ground_sensor_display_name(self, name: str):
+        if "Axle" in name:
+            _, _, position = name.split("_", 2)
+            return f"{get_position_display_name(position)} Axle [{name}]"
+        else:
+            _, position = name.split("_", 1)
+            return f"{get_position_display_name(position)} [{name}]"
+
+
+MODULE_CLASSES.append(RigsGroundSensorsPanel)
+
+
+@polib.log_helpers_bpy.logged_panel
+class RigsRigPropertiesPanel(feature_utils.EngonAssetFeatureControlPanelMixin, bpy.types.Panel):
+    bl_idname = "VIEW_3D_PT_engon_traffiq_rigs_rig_properties"
+    bl_parent_id = TraffiqRigsPanel.bl_idname
+    bl_label = "Rig Properties"
+
+    feature_name = "traffiq_rigs"
+
+    @classmethod
+    def get_possible_assets(
+        cls,
+        context: bpy.types.Context,
+    ) -> typing.Iterable[bpy.types.ID]:
+        if context.active_object is not None:
+            return [context.active_object]
+        return []
+
+    @classmethod
+    def filter_adjustable_assets(
+        cls,
+        possible_assets: typing.Iterable[bpy.types.ID],
+    ) -> typing.Iterable[bpy.types.ID]:
+        return filter(
+            lambda obj: isinstance(obj, bpy.types.Object)
+            and polib.rigs_shared_bpy.is_object_rigged(obj)
+            and check_rig_drivers(obj),
+            possible_assets,
+        )
+
+    def draw_header(self, context: bpy.types.Context):
+        self.layout.label(text="", icon='OPTIONS')
+
+    def draw(self, context: bpy.types.Context):
+        layout = self.layout
+
+        if self.conditionally_draw_warning_no_adjustable_active_object(
+            context, layout, warning_text="Active asset is not rigged or is not editable"
+        ):
+            return
+
+        possible_asset_list = list(self.filter_adjustable_assets(self.get_possible_assets(context)))
+        assert len(possible_asset_list) == 1
+
+        active_object = possible_asset_list[0]
+        assert isinstance(active_object, bpy.types.Object)
+
+        layout.label(text="Wheels")
+        for prop in active_object.keys():
+            if prop.startswith(polib.custom_props_bpy.CustomPropertyNames.TQ_WHEEL_ROTATION):
+                self.display_custom_property(active_object, layout, prop)
+
+        layout.label(text="Suspension")
+        self.display_custom_property(
+            active_object, layout, polib.custom_props_bpy.CustomPropertyNames.TQ_SUSPENSION_FACTOR
+        )
+        self.display_custom_property(
+            active_object,
+            layout,
+            polib.custom_props_bpy.CustomPropertyNames.TQ_SUSPENSION_ROLLING_FACTOR,
+        )
+
+        layout.label(text="Steering")
+        self.display_custom_property(
+            active_object, layout, polib.custom_props_bpy.CustomPropertyNames.TQ_STEERING
+        )
+
+    def display_custom_property(
+        self, obj: bpy.types.Object, layout: bpy.types.UILayout, prop_name: str
+    ) -> None:
+        if prop_name.startswith("tq_"):
+            prop_display_name = prop_name[len("tq_") :]
+        else:
+            prop_display_name = prop_name
+
+        if prop_name.startswith(polib.custom_props_bpy.CustomPropertyNames.TQ_WHEEL_ROTATION):
+            _, position = prop_display_name.split("_", 1)
+            prop_display_name = f"{get_position_display_name(position)}"
+
+        if prop_name in obj.keys():
+            layout.prop(obj, f'["{prop_name}"]', text=prop_display_name)
+        else:
+            layout.label(text=f"Property {prop_name} N/A")
+
+
+MODULE_CLASSES.append(RigsRigPropertiesPanel)
+
+
 def register():
     for cls in MODULE_CLASSES:
         bpy.utils.register_class(cls)
-
     bpy.types.Scene.tq_target_path_object = bpy.props.PointerProperty(
         name="Follow Path Target",
         description="Path which rigged car should follow",
@@ -928,8 +1188,7 @@ def register():
 
 
 def unregister():
-    for cls in reversed(MODULE_CLASSES):
-        bpy.utils.unregister_class(cls)
-
     del bpy.types.Scene.tq_ground_object
     del bpy.types.Scene.tq_target_path_object
+    for cls in reversed(MODULE_CLASSES):
+        bpy.utils.unregister_class(cls)

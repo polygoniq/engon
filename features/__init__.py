@@ -18,15 +18,87 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
+from . import feature_utils
+from . import asset_pack_panels
+
 from . import colorize
+
 from . import light_adjustments
+
+from . import puddles
+from . import aquatiq_paint_mask
+from . import aquatiq_material_limitation_warning
+
+from . import botaniq_adjustments
+from . import botaniq_animations
+from . import vegetation_generator
+
+from . import traffiq_paint_adjustments
+from . import traffiq_wear
+from . import traffiq_lights_settings
+from . import traffiq_rigs
+from . import emergency_lights
+from . import license_plates_generator
+
+from . import road_generator
+from . import vine_generator
+from . import river_generator
+from . import rain_generator
 
 
 def register():
+    feature_utils.register()
+    asset_pack_panels.register()
+
     colorize.register()
     light_adjustments.register()
 
+    puddles.register()
+    aquatiq_paint_mask.register()
+    aquatiq_material_limitation_warning.register()
+
+    botaniq_adjustments.register()
+    botaniq_animations.register()
+    vegetation_generator.register()
+
+    traffiq_paint_adjustments.register()
+    traffiq_wear.register()
+    traffiq_lights_settings.register()
+    traffiq_rigs.register()
+    license_plates_generator.register()
+
+    emergency_lights.register()
+
+    road_generator.register()
+    vine_generator.register()
+    river_generator.register()
+    rain_generator.register()
+
 
 def unregister():
+    rain_generator.unregister()
+    river_generator.unregister()
+    vine_generator.unregister()
+    road_generator.unregister()
+
+    emergency_lights.unregister()
+
+    license_plates_generator.unregister()
+    traffiq_rigs.unregister()
+    traffiq_lights_settings.unregister()
+    traffiq_wear.unregister()
+    traffiq_paint_adjustments.unregister()
+
+    vegetation_generator.unregister()
+    botaniq_animations.unregister()
+    botaniq_adjustments.unregister()
+
     light_adjustments.unregister()
     colorize.unregister()
+
+    aquatiq_material_limitation_warning.unregister()
+    aquatiq_paint_mask.unregister()
+    puddles.unregister()
+
+    asset_pack_panels.unregister()
+    feature_utils.unregister()

@@ -42,10 +42,3 @@ def get_icon_of_asset_data_type(type_: mapr.asset_data.AssetDataType) -> str:
         mapr.asset_data.AssetDataType.blender_world: 'WORLD',
         mapr.asset_data.AssetDataType.blender_geometry_nodes: 'GEOMETRY_NODES',
     }.get(type_, 'QUESTION')
-
-
-def tag_prefs_redraw(context: bpy.types.Context) -> None:
-    for window in context.window_manager.windows:
-        for area in window.screen.areas:
-            if area.type == 'PREFERENCES':
-                area.tag_redraw()

@@ -21,11 +21,7 @@
 from .. import addon_updater
 from .. import addon_updater_ops
 import bpy
-import bpy_extras
 import typing
-import os
-import glob
-import json
 import functools
 
 # we don't use this module in this file but we use it elsewhere in engon, we import
@@ -34,13 +30,9 @@ from . import prefs_utils
 from . import general_preferences
 from . import browser_preferences
 from . import what_is_new_preferences
-from . import aquatiq_preferences
-from . import botaniq_preferences
-from . import traffiq_preferences
-from . import colorize_preferences
-from . import light_adjustments_preferences
 from .. import keymaps
 from .. import ui_utils
+from .. import features
 from .. import polib
 from .. import __package__ as base_package
 
@@ -129,34 +121,58 @@ class Preferences(bpy.types.AddonPreferences):
         type=what_is_new_preferences.WhatIsNewPreferences,
     )
 
+    botaniq_adjustment_preferences: bpy.props.PointerProperty(
+        name="Botaniq Adjustment Preferences",
+        description="Preferences related to the botaniq adjustment feature",
+        type=features.botaniq_adjustments.BotaniqAdjustmentPreferences,
+    )
+
     colorize_preferences: bpy.props.PointerProperty(
         name="Colorize Preferences",
         description="Preferences related to the colorize engon feature",
-        type=colorize_preferences.ColorizePreferences,
+        type=features.colorize.ColorizePreferences,
     )
 
     light_adjustments_preferences: bpy.props.PointerProperty(
-        name="Colorize Preferences",
-        description="Preferences related to the colorize engon feature",
-        type=light_adjustments_preferences.LightAdjustmentsPreferences,
+        name="Light Adjustments Preferences",
+        description="Preferences related to the light adjustments engon feature",
+        type=features.light_adjustments.LightAdjustmentsPreferences,
     )
 
-    aquatiq_preferences: bpy.props.PointerProperty(
-        name="Aquatiq Preferences",
-        description="Preferences related to the aquatiq asset pack",
-        type=aquatiq_preferences.AquatiqPreferences,
+    aquatiq_paint_mask_preferences: bpy.props.PointerProperty(
+        name="Aquatiq Paint Mask Preferences",
+        description="Preferences related to the aquatiq paint mask engon feature",
+        type=features.aquatiq_paint_mask.PaintMaskPreferences,
     )
 
-    botaniq_preferences: bpy.props.PointerProperty(
-        name="Botaniq Preferences",
-        description="Preferences related to the botaniq asset pack",
-        type=botaniq_preferences.BotaniqPreferences,
+    botaniq_animations_preferences: bpy.props.PointerProperty(
+        name="Botaniq Animations Preferences",
+        description="Preferences related to the botaniq animations engon feature",
+        type=features.botaniq_animations.botaniq_animations.BotaniqAnimationsPreferences,
     )
 
-    traffiq_preferences: bpy.props.PointerProperty(
-        name="Traffiq Preferences",
-        description="Preferences related to the traffiq asset pack",
-        type=traffiq_preferences.TraffiqPreferences,
+    traffiq_lights_settings_preferences: bpy.props.PointerProperty(
+        name="Traffiq Light Settings Preferences",
+        description="Preferences related to the traffiq lights settings engon feature",
+        type=features.traffiq_lights_settings.TraffiqLightsSettingsPreferences,
+    )
+
+    traffiq_paint_adjustments_preferences: bpy.props.PointerProperty(
+        name="Traffiq Paint Adjustments Preferences",
+        description="Preferences related to the traffiq paint adjustments engon feature",
+        type=features.traffiq_paint_adjustments.TraffiqPaintAdjustmentPreferences,
+    )
+
+    traffiq_wear_preferences: bpy.props.PointerProperty(
+        name="Traffiq Wear Preferences",
+        description="Preferences related to the traffiq wear preferences engon feature",
+        type=features.traffiq_wear.TraffiqWearPreferences,
+    )
+
+    traffiq_rigs_preferences: bpy.props.PointerProperty(
+        name="Traffiq Rigs Preferences",
+        description="Preferences related to the traffiq rigs engon feature",
+        type=features.traffiq_rigs.TraffiqRigsPreferences,
     )
 
     first_time_register: bpy.props.BoolProperty(
@@ -299,11 +315,6 @@ def register():
     general_preferences.register()
     browser_preferences.register()
     what_is_new_preferences.register()
-    aquatiq_preferences.register()
-    botaniq_preferences.register()
-    traffiq_preferences.register()
-    colorize_preferences.register()
-    light_adjustments_preferences.register()
     for cls in MODULE_CLASSES:
         bpy.utils.register_class(cls)
 
@@ -311,11 +322,6 @@ def register():
 def unregister():
     for cls in reversed(MODULE_CLASSES):
         bpy.utils.unregister_class(cls)
-    light_adjustments_preferences.unregister()
-    colorize_preferences.unregister()
-    traffiq_preferences.unregister()
-    botaniq_preferences.unregister()
-    aquatiq_preferences.unregister()
     what_is_new_preferences.unregister()
     browser_preferences.unregister()
     general_preferences.unregister()

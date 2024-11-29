@@ -115,7 +115,9 @@ class GeoNodesModifierInputsPanelMixin:
         draw_modifier_header: bool = False,
         max_occurrences: int = 1,
     ) -> None:
-        mods = get_geometry_nodes_modifiers_by_node_group(obj, inputs.name)
+        mods = get_geometry_nodes_modifiers_by_node_group(
+            obj, inputs.name_prefix, inputs.exact_match
+        )
         if len(mods) == 0:
             return
         root_layout = layout
@@ -168,11 +170,13 @@ class GeoNodesModifierInputsPanelMixin:
 
 
 def get_geometry_nodes_modifiers_by_node_group(
-    obj: bpy.types.Object, node_group_name: str
+    obj: bpy.types.Object, node_group_name_prefix: str, exact_match: bool = True
 ) -> typing.List[bpy.types.NodesModifier]:
     output: typing.List[bpy.types.NodesModifier] = []
     for mod in obj.modifiers:
         if mod.type == 'NODES' and mod.node_group is not None:
-            if mod.node_group.name == node_group_name:
+            if (exact_match and mod.node_group.name == node_group_name_prefix) or (
+                not exact_match and mod.node_group.name.startswith(node_group_name_prefix)
+            ):
                 output.append(mod)
     return output

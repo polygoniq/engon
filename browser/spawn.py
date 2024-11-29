@@ -41,6 +41,7 @@ MODULE_CLASSES: typing.List[typing.Any] = []
 
 class MAPR_SpawnAssetBase(bpy.types.Operator):
     asset_id: bpy.props.StringProperty(name="Asset ID", description="ID of asset to spawn")
+    bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
     def description(cls, context: bpy.types.Context, props: bpy.types.OperatorProperties) -> str:
@@ -115,7 +116,7 @@ class MAPR_SpawnAssetBase(bpy.types.Operator):
 @polib.log_helpers_bpy.logged_operator
 class MAPR_BrowserSpawnAsset(MAPR_SpawnAssetBase):
     bl_idname = "engon.browser_spawn_asset"
-    bl_label = "Spawn"
+    bl_label = "Spawn Asset"
 
     @polib.utils_bpy.blender_cursor('WAIT')
     def execute(self, context: bpy.types.Context):
@@ -202,7 +203,7 @@ class MAPR_BrowserDrawGeometryNodesAsset(MAPR_SpawnAssetBase):
     bl_label = "Draw Geometry Nodes"
 
     @classmethod
-    def description(cls, context: bpy.types.Context, props: bpy.types.OperatorProperties) -> None:
+    def description(cls, context: bpy.types.Context, props: bpy.types.OperatorProperties) -> str:
         asset = asset_registry.instance.master_asset_provider.get_asset(props.asset_id)
         if asset is None:
             return f"Asset with id {props.asset_id} cannot be spawned"
@@ -329,6 +330,82 @@ class MAPR_BrowserSpawnModelIntoParticleSystem(MAPR_SpawnAssetBase):
 
 
 MODULE_CLASSES.append(MAPR_BrowserSpawnModelIntoParticleSystem)
+
+
+@polib.log_helpers_bpy.logged_operator
+class MAPR_BrowserReplaceSelected(MAPR_SpawnAssetBase):
+    bl_idname = "engon.browser_replace_selected"
+    bl_label = "Replace Selected"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def description(cls, context: bpy.types.Context, props: bpy.types.OperatorProperties) -> str:
+        asset = asset_registry.instance.master_asset_provider.get_asset(props.asset_id)
+        if asset is None:
+            return f"Asset with id '{props.asset_id}' cannot be spawned"
+
+        return f"Replace selected objects with '{asset.title}'. Empty objects are not considered for replacing"
+
+    @classmethod
+    def get_objects_to_replace(cls, context: bpy.types.Context) -> typing.Set[bpy.types.Object]:
+        return {
+            obj
+            for obj in context.selected_objects
+            if not (obj.type == 'EMPTY' and obj.instance_collection is None)
+        }
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        return len(cls.get_objects_to_replace(context)) > 0
+
+    @polib.utils_bpy.blender_cursor('WAIT')
+    def execute(self, context: bpy.types.Context):
+        prefs = preferences.prefs_utils.get_preferences(context).browser_preferences
+        asset = self._get_asset()
+        if asset is None:
+            self.report({'ERROR'}, f"Asset with id {self.asset_id} not found")
+            return {'CANCELLED'}
+
+        objects_to_replace = MAPR_BrowserReplaceSelected.get_objects_to_replace(context)
+        spawn_options: hatchery.spawn.ModelSpawnOptions = prefs.spawn_options.get_spawn_options(
+            asset, context
+        )
+        spawn_options.parent_collection = None
+        spawn_options.select_spawned = False
+        spawned_data = self._spawn(context, asset, spawn_options)
+
+        if spawned_data is None:
+            logger.error(f"Failed to spawn asset to replace selected objects '{self.asset_id}'!")
+            return {'CANCELLED'}
+
+        if isinstance(spawned_data, hatchery.spawn.ModelSpawnedData):
+            new_object = spawned_data.instancer
+        elif isinstance(spawned_data, hatchery.spawn.GeometryNodesSpawnedData):
+            new_object = spawned_data.container_obj
+        else:
+            raise ValueError(
+                f"Unsupported spawned data type: '{type(spawned_data)}'. This should be handled by the caller."
+            )
+
+        # We go through all selected objects and replace them with the new object. We keep
+        # the old objects in the `bpy.data.` - they will be removed when the .blend file is saved
+        # if there are no more users of the object.
+        for i, obj in enumerate(objects_to_replace):
+            # Use the spawned object for the first iteration, otherwise create a copy
+            obj_copy = new_object.copy() if i > 0 else new_object
+            for old_collection in obj.users_collection:
+                old_collection.objects.unlink(obj)
+                old_collection.objects.link(obj_copy)
+            obj_copy.matrix_world = obj.matrix_world
+            obj_copy.select_set(True)
+
+        if prefs.spawn_options.remove_duplicates:
+            self._remove_duplicates()
+
+        return {'FINISHED'}
+
+
+MODULE_CLASSES.append(MAPR_BrowserReplaceSelected)
 
 
 @polib.log_helpers_bpy.logged_panel

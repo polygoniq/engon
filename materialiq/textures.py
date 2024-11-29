@@ -92,7 +92,7 @@ MODULE_CLASSES.append(ChangeTextureSizeActiveMaterial)
 @polib.log_helpers_bpy.logged_operator
 class SyncTextureNodes(bpy.types.Operator):
     bl_idname = "engon.materialiq_sync_texture_nodes"
-    bl_label = "Sync Texture Nodes (Beta)"
+    bl_label = "Sync Texture Nodes"
     bl_description = (
         "Synchronizes values of all texture nodes inside active material (for the "
         "same image) with values from texture node displayed in Textures Panel. Currently "

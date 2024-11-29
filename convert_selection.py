@@ -31,7 +31,7 @@ def make_selection_linked(
 
     spawner = mapr.blender_asset_spawner.AssetSpawner(asset_provider, file_provider)
 
-    for obj in polib.asset_pack_bpy.find_polygoniq_root_objects(context.selected_objects):
+    for obj in polib.asset_pack_bpy.find_root_objects(context.selected_objects):
         if obj.instance_type == 'COLLECTION':
             continue
 

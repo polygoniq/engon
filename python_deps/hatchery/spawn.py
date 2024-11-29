@@ -144,9 +144,11 @@ def spawn_material(
     material = load.load_material(path)
 
     # If no object is selected we will spawn a sphere and assign material on it
-    if len(options.target_objects) == 0 and context.active_object is not None:
+    if len(options.target_objects) == 0:
         bpy.ops.mesh.primitive_uv_sphere_add()
         bpy.ops.object.shade_smooth()
+        # The spawned sphere is the active object
+        assert context.active_object is not None
         context.active_object.name = material.name
         options.target_objects.add(context.active_object)
 
@@ -308,6 +310,7 @@ def spawn_geometry_nodes(
     obj = load.load_master_object(path)
     if options.parent_collection is not None:
         options.parent_collection.objects.link(obj)
+    obj.location = context.scene.cursor.location
 
     # Due to a bug in Blender while converting boolean inputs we reassign the modifier node
     # group when spawning. The bug happens when object with modifiers is appended from a blend

@@ -9,6 +9,10 @@ from . import file_provider
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
+# Search weight of the category, used as 'foreign_search_matter' in `asset.py:Asset`.
+TITLE_SEARCH_WEIGHT = 2.0
+
+
 CategoryID = str
 
 

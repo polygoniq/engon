@@ -214,7 +214,15 @@ class PackInfoSearchPath(bpy.types.PropertyGroup):
                 # Try to load an Asset Pack from the file
                 loaded_pack = asset_registry.AssetPack.load_from_json(pack_info_file)
             except (NotImplementedError, ValueError):
-                # An Asset Pack couldn't be loaded from the file
+                logger.exception(f"Could not load Asset Pack from file '{pack_info_file}'!")
+                continue
+            except PermissionError:
+                logger.error(f"Permission denied for file '{pack_info_file}'!")
+                continue
+            except:
+                logger.exception(
+                    f"Unknown error while loading Asset Pack from file '{pack_info_file}'!"
+                )
                 continue
             discovered_packs.append(loaded_pack)
         return discovered_packs

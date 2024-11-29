@@ -31,6 +31,7 @@ import math
 import mathutils
 import threading
 import functools
+import random
 from .. import polib
 from .. import mapr
 from .. import asset_registry
@@ -69,12 +70,12 @@ class DataRepository:
             # thing how we touch blender is loading previews and tagging redraw
             self.last_view = self.asset_provider.query(query)
             self.is_loading = False
-            utils.tag_prefs_redraw(bpy.context)
+            polib.ui_bpy.tag_areas_redraw(bpy.context, {'PREFERENCES'})
             if on_complete is not None:
                 on_complete(self.last_view)
 
         self.is_loading = True
-        utils.tag_prefs_redraw(bpy.context)
+        polib.ui_bpy.tag_areas_redraw(bpy.context, {'PREFERENCES'})
         if USE_THREADED_QUERY:
             thread = threading.Thread(target=_query)
             thread.start()
@@ -745,6 +746,14 @@ MODULE_CLASSES.append(BrowserAssetTypesFilter)
 class BrowserSearchFilter(bpy.types.PropertyGroup, mapr.filters.SearchFilter, BrowserFilter):
     """Filters out items based on text input from user"""
 
+    SEARCH_PLACEHOLDER_TEXT = [
+        "Search",
+        "Missing an asset?",
+        "Looking for anything?",
+        "Something to spawn?",
+        "Find assets that fit!",
+    ]
+
     enabled: bpy.props.BoolProperty(get=lambda _: True, set=lambda _, __: None)
 
     # OVERRIDES 'search' from 'mapr.filters.SearchFilter'
@@ -761,20 +770,36 @@ class BrowserSearchFilter(bpy.types.PropertyGroup, mapr.filters.SearchFilter, Br
         update=lambda self, context: self.recent_search_updated(context),
     )
 
+    search_placeholder: bpy.props.StringProperty(
+        name="Search Placeholder", description="Search bar placeholder text", options={'HIDDEN'}
+    )
+
     def init(self):
         self.enabled = True
         self.name = "builtin:search"
+
+        # randomly pick a search bar placeholder message
+        self.search_placeholder = random.choice(BrowserSearchFilter.SEARCH_PLACEHOLDER_TEXT)
 
     def draw(self, context: bpy.types.Context, layout: bpy.types.UILayout) -> None:
         layout.prop_menu_enum(self, "recent_search", text="", icon='DOWNARROW_HLT')
         sub = layout.row(align=True)
         sub.scale_x = 1.2
-        sub.prop(
-            self,
-            "search",
-            text="",
-            icon_value=polib.ui_bpy.icon_manager.get_icon_id("icon_engon_search"),
-        )
+        if bpy.app.version < (4, 1, 0):
+            sub.prop(
+                self,
+                "search",
+                text="",
+                icon_value=polib.ui_bpy.icon_manager.get_icon_id("icon_engon_search"),
+            )
+        else:
+            sub.prop(
+                self,
+                "search",
+                text="",
+                icon_value=polib.ui_bpy.icon_manager.get_icon_id("icon_engon_search"),
+                placeholder=self.search_placeholder,
+            )
 
         if self.is_applied():
             layout.operator(
@@ -894,7 +919,7 @@ class GroupedParametrizationFilters:
             row.enabled = False
             row.label(text="No applicable filters", icon='PANEL_CLOSE')
         else:
-            layout.label(text="Filters")
+            layout.label(text="Filters", icon='PROPERTIES')
             col = layout.column()
             col.enabled = not asset_repository.is_loading
             for group, filters_ in self.groups.items():
@@ -1164,7 +1189,7 @@ def _draw_tags(context: bpy.types.Context, layout: bpy.types.UILayout):
         row.label(text="No tags found", icon='PANEL_CLOSE')
         return
 
-    layout.label(text="Tags")
+    layout.label(text="Tags", icon='COLOR')
     col = layout.column()
     col.enabled = not asset_repository.is_loading
     row = col.row()

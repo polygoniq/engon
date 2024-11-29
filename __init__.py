@@ -113,12 +113,9 @@ try:
     from . import browser
     from . import blend_maintenance
 
-    from . import aquatiq
-    from . import botaniq
-    from . import interniq
     from . import materialiq
-    from . import traffiq
     from . import scatter
+    from . import clicker
     from . import features
 
     from . import keymaps
@@ -135,12 +132,12 @@ finally:
 bl_info = {
     "name": "engon",
     "author": "polygoniq xyz s.r.o.",
-    "version": (1, 3, 0),  # bump doc_url and version in register as well!
+    "version": (1, 4, 0),  # bump doc_url and version in register as well!
     "blender": (3, 6, 0),
     "location": "polygoniq tab in the sidebar of the 3D View window",
     "description": "",
     "category": "Object",
-    "doc_url": "https://docs.polygoniq.com/engon/1.3.0/",
+    "doc_url": "https://docs.polygoniq.com/engon/1.4.0/",
     "tracker_url": "https://polygoniq.com/discord/",
 }
 
@@ -161,22 +158,19 @@ def _post_register():
 def register():
     # We pass mock "bl_info" to the updater, as from Blender 4.2.0, the "bl_info" is
     # no longer available in this scope.
-    addon_updater_ops.register({"version": (1, 3, 0)})
+    addon_updater_ops.register({"version": (1, 4, 0)})
 
     ui_utils.register()
     pack_info_search_paths.register()
-    preferences.register()
     convert_selection.register()
     panel.register()
     scatter.register()
+    clicker.register()
     blend_maintenance.register()
     browser.register()
-    aquatiq.register()
-    botaniq.register()
-    interniq.register()
     materialiq.register()
-    traffiq.register()
     features.register()
+    preferences.register()
     keymaps.register()
 
     bpy.app.timers.register(
@@ -192,18 +186,15 @@ def register():
 
 def unregister():
     keymaps.unregister()
+    preferences.unregister()
     features.unregister()
-    traffiq.unregister()
     materialiq.unregister()
-    interniq.unregister()
-    botaniq.unregister()
-    aquatiq.unregister()
     browser.unregister()
     blend_maintenance.unregister()
+    clicker.unregister()
     scatter.unregister()
     panel.unregister()
     convert_selection.unregister()
-    preferences.unregister()
     pack_info_search_paths.unregister()
     ui_utils.unregister()
 

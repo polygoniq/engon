@@ -10,6 +10,7 @@ ASSET_PACK_COLLECTION_COLOR_MAP = {
     "traffiq": 'COLOR_02',  # orange
     "aquatiq": 'COLOR_05',  # blue
     "interniq": 'COLOR_03',  # yellow
+    "engon_particle_systems": 'COLOR_04',  # green
 }
 
 

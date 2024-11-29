@@ -208,6 +208,15 @@ def get_mouseovered_region(
     return None, None
 
 
+def tag_areas_redraw(
+    context: bpy.types.Context, area_types: typing.Optional[typing.Set[str]] = None
+) -> None:
+    for window in context.window_manager.windows:
+        for area in window.screen.areas:
+            if area_types is None or area.type in area_types:
+                area.tag_redraw()
+
+
 def get_all_space_types() -> typing.Dict[str, bpy.types.Space]:
     """Returns mapping of space type to its class - 'VIEW_3D -> bpy.types.SpaceView3D"""
 
@@ -341,40 +350,6 @@ def show_release_notes_popup(
         title=f"{addon_name} {version} Release Notes",
         icon='INFO',
     )
-
-
-def draw_property(
-    obj: bpy.types.ID, layout: bpy.types.UILayout, prop_name: str, text: str = ""
-) -> None:
-    if prop_name in obj:
-        layout.prop(obj, f'["{prop_name}"]', text=text)
-    else:
-        layout.label(text="-")
-
-
-def draw_property_table(
-    displayable_objects: typing.List[bpy.types.ID],
-    left_col: bpy.types.UILayout,
-    right_col: bpy.types.UILayout,
-    property_func: typing.Callable[[bpy.types.UILayout, bpy.types.ID], None],
-    label_func: typing.Callable[
-        [bpy.types.UILayout, bpy.types.ID], None
-    ] = lambda row, obj: row.label(text=obj.name),
-    max_displayed_assets: int = 10,
-) -> None:
-    displayed_assets = 0
-    for obj in displayable_objects:
-        row = left_col.row()
-        if displayed_assets >= max_displayed_assets:
-            row.label(
-                text=f"... and {len(displayable_objects) - displayed_assets} additional asset(s)"
-            )
-            break
-        label_func(row, obj)
-        row = right_col.row(align=True)
-        property_func(row, obj)
-
-        displayed_assets += 1
 
 
 def draw_conflicting_addons(

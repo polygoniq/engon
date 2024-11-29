@@ -74,6 +74,47 @@ class ScatterProperties(bpy.types.PropertyGroup):
 MODULE_CLASSES.append(ScatterProperties)
 
 
+class ClickerProperties(bpy.types.PropertyGroup):
+    random_rotation_z: bpy.props.FloatProperty(
+        name="Random Rotation Z",
+        description="Maximum additional random rotation around Z axis",
+        default=0.0,
+        min=0,
+        max=1,
+        subtype='FACTOR',
+    )
+    random_tilt: bpy.props.FloatProperty(
+        name="Random Tilt",
+        description="Maximum additional random tilt the clicked asset in XY axis",
+        default=0.0,
+        min=0,
+        max=1,
+        subtype='FACTOR',
+    )
+    random_scale: bpy.props.FloatProperty(
+        name="Random Scale",
+        description="Maximum additional random scale of the clicked asset",
+        min=0.0,
+        default=0.0,
+    )
+    align_to_surface: bpy.props.BoolProperty(
+        name="Align to Surface",
+        description="If enabled, clicked assets will be aligned to the surface normal",
+        default=False,
+    )
+    origin_to_bottom: bpy.props.BoolProperty(
+        name="Align Origin to Bottom",
+        description=(
+            "If enabled, clicked assets origins will be aligned to the bottom of the asset's"
+            "bounding box. This option makes the object data unique per instanced object"
+        ),
+        default=True,
+    )
+
+
+MODULE_CLASSES.append(ClickerProperties)
+
+
 class GeneralPreferences(bpy.types.PropertyGroup):
     pack_info_search_paths: bpy.props.CollectionProperty(
         name="Pack Info Search Paths", type=pack_info_search_paths.PackInfoSearchPath
@@ -84,6 +125,7 @@ class GeneralPreferences(bpy.types.PropertyGroup):
     )
 
     scatter_props: bpy.props.PointerProperty(type=ScatterProperties, name="Scatter Properties")
+    clicker_props: bpy.props.PointerProperty(type=ClickerProperties, name="Clicker Properties")
 
     def get_pack_info_paths(self) -> typing.Iterable[str]:
         environment_globs = os.environ.get("ENGON_ADDITIONAL_PACK_INFO_GLOBS", None)

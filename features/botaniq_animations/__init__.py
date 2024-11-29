@@ -18,34 +18,15 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
-import bpy
-import typing
-
-
-MODULE_CLASSES: typing.List[typing.Any] = []
-
-
-class AquatiqPreferences(bpy.types.PropertyGroup):
-    draw_mask_factor: bpy.props.FloatProperty(
-        name="Mask Factor",
-        description="Value of 1 means visible, value of 0 means hidden",
-        update=lambda self, context: self.update_mask_factor(context),
-        soft_max=1.0,
-        soft_min=0.0,
-    )
-
-    def update_mask_factor(self, context: bpy.types.Context):
-        context.tool_settings.vertex_paint.brush.color = [self.draw_mask_factor] * 3
-
-
-MODULE_CLASSES.append(AquatiqPreferences)
+from . import animations
+from . import botaniq_animations
 
 
 def register():
-    for cls in MODULE_CLASSES:
-        bpy.utils.register_class(cls)
+    animations.register()
+    botaniq_animations.register()
 
 
 def unregister():
-    for cls in reversed(MODULE_CLASSES):
-        bpy.utils.unregister_class(cls)
+    botaniq_animations.unregister()
+    animations.unregister()

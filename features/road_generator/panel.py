@@ -20,11 +20,12 @@
 
 import bpy
 import logging
-from ... import polib
 from . import props
 from . import build_roads_modal
 from . import asset_helpers
-from .. import panel as main_panel
+from .. import feature_utils
+from .. import asset_pack_panels
+from ... import polib
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
@@ -230,9 +231,12 @@ class AddRoadGeneratorModifier(bpy.types.Operator):
 MODULE_CLASSES.append(AddRoadGeneratorModifier)
 
 
+@feature_utils.register_feature
 class RoadGeneratorPanelMixin(
-    main_panel.TraffiqPanelInfoMixin, polib.geonodes_mod_utils_bpy.GeoNodesModifierInputsPanelMixin
+    feature_utils.EngonFeaturePanelMixin,
+    polib.geonodes_mod_utils_bpy.GeoNodesModifierInputsPanelMixin,
 ):
+    feature_name = "road_generator"
     pass
 
 
@@ -240,7 +244,7 @@ class RoadGeneratorPanelMixin(
 class RoadGeneratorPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_engon_build_roads_modal"
     bl_label = "Road Generator (Beta)"
-    bl_parent_id = main_panel.TraffiqPanel.bl_idname
+    bl_parent_id = asset_pack_panels.TraffiqPanel.bl_idname
 
     def draw_header(self, context: bpy.types.Context):
         self.layout.label(text="", icon='MOD_SIMPLEDEFORM')
@@ -342,7 +346,7 @@ class RoadGeneratorInputCurvePanel(RoadGeneratorPanelMixin, bpy.types.Panel):
             obj is not None
             and len(
                 polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
-                    obj, RoadGeneratorInputCurvePanel.template.name
+                    obj, RoadGeneratorInputCurvePanel.template.name_prefix
                 )
             )
             > 0
@@ -377,7 +381,7 @@ class RoadGeneratorProfilePanel(RoadGeneratorPanelMixin, bpy.types.Panel):
             obj is not None
             and len(
                 polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
-                    obj, RoadGeneratorProfilePanel.template.name
+                    obj, RoadGeneratorProfilePanel.template.name_prefix
                 )
             )
             > 0
@@ -413,7 +417,7 @@ class RoadGeneratorRoadMarkingPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
             obj is not None
             and len(
                 polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
-                    obj, RoadGeneratorRoadMarkingPanel.template.name
+                    obj, RoadGeneratorRoadMarkingPanel.template.name_prefix
                 )
             )
             > 0
@@ -449,7 +453,7 @@ class RoadGeneratorDistributePanel(RoadGeneratorPanelMixin, bpy.types.Panel):
             obj is not None
             and len(
                 polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
-                    obj, RoadGeneratorDistributePanel.template.name
+                    obj, RoadGeneratorDistributePanel.template.name_prefix
                 )
             )
             > 0
@@ -485,7 +489,7 @@ class RoadGeneratorCrosswalkPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
             obj is not None
             and len(
                 polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
-                    obj, RoadGeneratorCrosswalkPanel.template.name
+                    obj, RoadGeneratorCrosswalkPanel.template.name_prefix
                 )
             )
             > 0
@@ -522,7 +526,7 @@ class RoadGeneratorScatterPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
             obj is not None
             and len(
                 polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
-                    obj, RoadGeneratorScatterPanel.template.name
+                    obj, RoadGeneratorScatterPanel.template.name_prefix
                 )
             )
             > 0
@@ -558,7 +562,7 @@ class RoadGeneratorCleanupPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
             obj is not None
             and len(
                 polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
-                    obj, RoadGeneratorCleanupPanel.template.name
+                    obj, RoadGeneratorCleanupPanel.template.name_prefix
                 )
             )
             > 0

@@ -180,7 +180,6 @@ class BuildRoads(bpy.types.Operator):
         # Draw modal information
         polib.render_bpy.text_box(
             self.text_ui_origin,
-            300 * self.ui_scale,
             10 * self.ui_scale,
             10 * self.ui_scale,
             (0, 0, 0, 0.5),
@@ -229,7 +228,6 @@ class BuildRoads(bpy.types.Operator):
             dbg_style = polib.render_bpy.TextStyle()
             polib.render_bpy.text_box(
                 self.text_ui_origin + mathutils.Vector((0, 300)),
-                300,
                 10,
                 10,
                 (0, 0, 0, 0.5),
@@ -249,7 +247,6 @@ class BuildRoads(bpy.types.Operator):
 
             polib.render_bpy.text_box(
                 self.text_ui_origin + mathutils.Vector((50, 600)),
-                1200,
                 10,
                 10,
                 None,
@@ -270,8 +267,18 @@ class BuildRoads(bpy.types.Operator):
                         region_3d,
                     )
 
-    def modal_exc_safe(self, context: bpy.types.Context, event: bpy.types.Event):
-        """Same as 'modal', but in case of an exception the operator cleans up"""
+    def _cleanup(
+        self,
+        context: bpy.types.Context,
+        event: typing.Optional[bpy.types.Event] = None,
+        exception: typing.Optional[Exception] = None,
+    ) -> None:
+        BuildRoads.remove_draw_handlers()
+        context.area.tag_redraw()
+        BuildRoads.is_running = False
+
+    @polib.utils_bpy.safe_modal(on_exception=_cleanup)
+    def modal(self, context: bpy.types.Context, event: bpy.types.Event):
         event_handled = False
 
         # Pass through all events that are not directly in the 3D viewport
@@ -328,14 +335,6 @@ class BuildRoads(bpy.types.Operator):
         context.area.tag_redraw()
         return {'RUNNING_MODAL'} if event_handled else {'PASS_THROUGH'}
 
-    def modal(self, context: bpy.types.Context, event: bpy.types.Event):
-        try:
-            return self.modal_exc_safe(context, event)
-        except Exception as e:
-            traceback.print_exception(e)
-            self._cleanup(context)
-            return {'CANCELLED'}
-
     def cancel(self, context: bpy.types.Context) -> None:
         self._cleanup(context)
 
@@ -373,9 +372,7 @@ class BuildRoads(bpy.types.Operator):
 
         context.window_manager.modal_handler_add(self)
         bpy.ops.view3d.view_axis(type='TOP')
-        for area in context.window.screen.areas:
-            if area.type == 'VIEW_3D':
-                area.tag_redraw()
+        polib.ui_bpy.tag_areas_redraw(context, {'VIEW_3D'})
 
         # Change the is_running state right before returning in case of any error happening
         # before which would lock the UI.
@@ -447,11 +444,6 @@ class BuildRoads(bpy.types.Operator):
         new_pos = pos.copy()
         new_pos[2] = OVERLAY_Z
         return new_pos
-
-    def _cleanup(self, context: bpy.types.Context) -> None:
-        BuildRoads.remove_draw_handlers()
-        context.area.tag_redraw()
-        BuildRoads.is_running = False
 
 
 MODULE_CLASSES.append(BuildRoads)

@@ -53,6 +53,8 @@ class Asset:
     numeric_parameters: NumericParameters = dataclasses.field(default_factory=dict)
     vector_parameters: VectorParameters = dataclasses.field(default_factory=dict)
     text_parameters: TextParameters = dataclasses.field(default_factory=dict)
+    # Search matter that's not coming from this asset e.g. category search matter
+    foreign_search_matter: typing.Dict[str, float] = dataclasses.field(default_factory=dict)
 
     @functools.cached_property
     def parameters(self) -> typing.Dict[str, typing.Any]:
@@ -63,10 +65,14 @@ class Asset:
     def search_matter(self) -> typing.DefaultDict[str, float]:
         """Return a dictionary of lowercase text searchable tokens, each mapped to its search weight
 
-        Search weight 0 means excluded from search. Weight 1 is the default. Since tokens with
-        weight 0 never contribute to the search we exclude them. We guarantee all tokens to map to
-        weight > 0.
+        Search weight 0 means excluded from search. Since tokens with weight 0 never contribute to
+        the search we exclude them. We guarantee all tokens to map to weight > 0.
         """
+        TITLE_DEFAULT_WEIGHT = 2.0
+        TAG_DEFAULT_WEIGHT = 1.0
+        TEXT_PARAMETERS_DEFAULT_WEIGHT = 0.5
+        NUMERIC_PARAMETERS_DEFAULT_WEIGHT = 0.5
+        VECTOR_PARAMETERS_DEFAULT_WEIGHT = 0.5
 
         ret: typing.DefaultDict[str, float] = self.type_.search_matter
         ret[self.title.lower()] = max(1.0, ret[self.title.lower()])
@@ -74,10 +80,15 @@ class Asset:
         # The title tokens are weighted individually
         title_tokens = self.title.lower().split(" ")
         for kw in title_tokens:
-            ret[kw] = max(1.0, ret[kw])
+            ret[kw] = max(TITLE_DEFAULT_WEIGHT, ret[kw])
+
+        for foreign_search_matter, weight in self.foreign_search_matter.items():
+            ret[foreign_search_matter.lower()] = max(weight, ret[foreign_search_matter.lower()])
 
         for tag in self.tags:
-            search_weight = float(known_metadata.TAGS.get(tag, {}).get("search_weight", 1.0))
+            search_weight = float(
+                known_metadata.TAGS.get(tag, {}).get("search_weight", TAG_DEFAULT_WEIGHT)
+            )
             if search_weight <= 0.0:
                 continue
             token = tag.lower()
@@ -85,7 +96,9 @@ class Asset:
 
         for name, value in self.text_parameters.items():
             search_weight = float(
-                known_metadata.TEXT_PARAMETERS.get(name, {}).get("search_weight", 1.0)
+                known_metadata.TEXT_PARAMETERS.get(name, {}).get(
+                    "search_weight", TEXT_PARAMETERS_DEFAULT_WEIGHT
+                )
             )
             if search_weight <= 0.0:
                 continue
@@ -94,7 +107,9 @@ class Asset:
 
         for name, value in self.numeric_parameters.items():
             search_weight = float(
-                known_metadata.NUMERIC_PARAMETERS.get(name, {}).get("search_weight", 1.0)
+                known_metadata.NUMERIC_PARAMETERS.get(name, {}).get(
+                    "search_weight", NUMERIC_PARAMETERS_DEFAULT_WEIGHT
+                )
             )
             if search_weight <= 0.0:
                 continue
@@ -103,7 +118,9 @@ class Asset:
 
         for name, value in self.vector_parameters.items():
             search_weight = float(
-                known_metadata.VECTOR_PARAMETERS.get(name, {}).get("search_weight", 1.0)
+                known_metadata.VECTOR_PARAMETERS.get(name, {}).get(
+                    "search_weight", VECTOR_PARAMETERS_DEFAULT_WEIGHT
+                )
             )
             if search_weight <= 0.0:
                 continue

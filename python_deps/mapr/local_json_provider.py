@@ -48,6 +48,12 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
         self.child_assets: typing.DefaultDict[category.CategoryID, typing.List[asset.AssetID]] = (
             collections.defaultdict(list)
         )
+
+        # maps asset ID to IDs of categories it is in (including parents recursively)
+        self.asset_categories: typing.DefaultDict[
+            asset.AssetID, typing.Set[category.CategoryID]
+        ] = collections.defaultdict(set)
+
         # maps category ID to its metadata
         self.categories: typing.Dict[category.CategoryID, category.Category] = {}
         # maps asset ID to its metadata
@@ -102,19 +108,35 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
         self.child_assets = index_json.get("child_assets", {})
         self.child_asset_data = index_json.get("child_asset_data", {})
 
-        for category_id, category_metadata_json in index_json.get("category_metadata", {}).items():
-            self.categories[category_id] = category.Category(
-                id_=category_id,
+        for category_part, category_metadata_json in index_json.get(
+            "category_metadata", {}
+        ).items():
+            self.categories[category_part] = category.Category(
+                id_=category_part,
                 title=category_metadata_json.get("title", "unknown"),
                 preview_file=category_metadata_json.get("preview_file", None),
             )
 
+        asset_to_category_id: typing.Dict[str, str] = {}
+        for child_category_id, asset_ids in self.child_assets.items():
+            for asset_id in asset_ids:
+                asset_to_category_id[asset_id] = child_category_id
+
+        self.asset_categories = self.map_assets_to_categories()
         for asset_id, asset_metadata_json in index_json.get("asset_metadata", {}).items():
             # Update vector parameters with color parameters for older asset packs
             # compatibility (prior to engon 1.2.0). Color parameters were defined solely prior to
             # the introduction of vector parameters.
             vector_parameters = asset_metadata_json.get("vector_parameters", {})
             vector_parameters.update(asset_metadata_json.get("color_parameters", {}))
+
+            foreign_search_matter: typing.Dict[str, float] = {}
+            foreign_search_matter.update(
+                {
+                    self.categories[category_id].title: category.TITLE_SEARCH_WEIGHT
+                    for category_id in self.asset_categories.get(asset_id, set())
+                }
+            )
 
             asset_metadata = asset.Asset(
                 id_=asset_id,
@@ -125,6 +147,7 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
                 numeric_parameters=asset_metadata_json.get("numeric_parameters", {}),
                 vector_parameters=vector_parameters,
                 text_parameters=asset_metadata_json.get("text_parameters", {}),
+                foreign_search_matter=foreign_search_matter,
             )
             # clear search matter cache since we updated search matter
             # we instantiated the class right here so this will do nothing but we include it for
@@ -189,6 +212,36 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
         self, asset_data_id: asset_data.AssetDataID
     ) -> typing.Optional[asset_data.AssetData]:
         return self.asset_data.get(asset_data_id, None)
+
+    def map_assets_to_categories(
+        self,
+    ) -> typing.DefaultDict[asset.AssetID, typing.Set[category.CategoryID]]:
+        """Returns a mapping of asset ID to category IDs it is in, including parent categories.
+
+        Constructed based on 'child_asset_data' and 'child_categories' mappings. These
+        should be populated prior to calling this method.
+        """
+        # Reverse mapping of child to parent categories
+        category_parent_mapping: typing.Dict[category.CategoryID, category.CategoryID] = {}
+        for parent, children in self.child_categories.items():
+            category_parent_mapping.update({child: parent for child in children})
+
+        # Find all parent categories recursively
+        def find_parents(category_id, all_parents):
+            if category_id in category_parent_mapping:
+                parent = category_parent_mapping[category_id]
+                all_parents.add(parent)
+                find_parents(parent, all_parents)
+
+        asset_to_categories: typing.DefaultDict[asset.AssetID, typing.Set[category.CategoryID]] = (
+            collections.defaultdict(set)
+        )
+        for category_id, asset_ids in self.child_assets.items():
+            for asset_id in asset_ids:
+                asset_to_categories[asset_id].add(category_id)
+                find_parents(category_id, asset_to_categories[asset_id])
+
+        return asset_to_categories
 
     def record_file_id(self, file_id: file_provider.FileID) -> None:
         relative_path = file_id[len(self.file_id_prefix) + 1 :]

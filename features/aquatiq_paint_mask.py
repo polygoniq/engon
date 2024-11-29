@@ -22,6 +22,8 @@
 import bpy
 import typing
 import logging
+from . import feature_utils
+from . import asset_pack_panels
 from .. import polib
 from .. import preferences
 from .. import asset_helpers
@@ -29,7 +31,24 @@ from .. import asset_helpers
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
+AQ_PAINT_VERTICES_WARNING_THRESHOLD = 16
 MODULE_CLASSES: typing.List[typing.Type] = []
+
+
+class PaintMaskPreferences(bpy.types.PropertyGroup):
+    draw_mask_factor: bpy.props.FloatProperty(
+        name="Mask Factor",
+        description="Value of 1 means visible, value of 0 means hidden",
+        update=lambda self, context: self.update_mask_factor(context),
+        soft_max=1.0,
+        soft_min=0.0,
+    )
+
+    def update_mask_factor(self, context: bpy.types.Context):
+        context.tool_settings.vertex_paint.brush.color = [self.draw_mask_factor] * 3
+
+
+MODULE_CLASSES.append(PaintMaskPreferences)
 
 
 @polib.log_helpers_bpy.logged_operator
@@ -99,7 +118,7 @@ class EnterVertexPaintMode(bpy.types.Operator):
         active_object.data.use_paint_mask_vertex = False
         active_object.data.use_paint_mask = False
         bpy.ops.object.mode_set(mode='VERTEX_PAINT')
-        prefs = preferences.prefs_utils.get_preferences(context).aquatiq_preferences
+        prefs = preferences.prefs_utils.get_preferences(context).aquatiq_paint_mask_preferences
         context.tool_settings.vertex_paint.brush.color = [prefs.draw_mask_factor] * 3
 
         return {'FINISHED'}
@@ -198,6 +217,75 @@ class ReturnToObjectMode(bpy.types.Operator):
 
 
 MODULE_CLASSES.append(ReturnToObjectMode)
+
+
+@feature_utils.register_feature
+@polib.log_helpers_bpy.logged_panel
+class AquatiqPaintMaskPanel(feature_utils.EngonFeaturePanelMixin, bpy.types.Panel):
+    bl_idname = "VIEW_3D_PT_engon_aquatiq_paint_mask"
+    bl_parent_id = asset_pack_panels.AquatiqPanel.bl_idname
+    bl_label = "Paint Mask"
+
+    feature_name = "aquatiq_paint_mask"
+
+    def draw_header(self, context: bpy.types.Context) -> None:
+        self.layout.label(text="", icon='MOD_OCEAN')
+
+    def draw_vertex_paint_ui(self, context: bpy.types.Context):
+        layout = self.layout
+        prefs = preferences.prefs_utils.get_preferences(context).aquatiq_paint_mask_preferences
+        brush = context.tool_settings.vertex_paint.brush
+        unified_settings = context.tool_settings.unified_paint_settings
+
+        if context.vertex_paint_object is None or context.vertex_paint_object.data is None:
+            return
+
+        mesh_data = context.vertex_paint_object.data
+
+        if len(mesh_data.vertices) <= AQ_PAINT_VERTICES_WARNING_THRESHOLD:
+            layout.label(text="Subdivide the mesh for more control!", icon='ERROR')
+
+        col = layout.column(align=True)
+        polib.ui_bpy.row_with_label(col, text="Mask")
+        row = col.row(align=True)
+        row.prop(prefs, "draw_mask_factor", slider=True)
+        # Wrap color in another row to scale it so it is more rectangular
+        color_wrapper = row.row(align=True)
+        color_wrapper.scale_x = 0.3
+        color_wrapper.prop(brush, "color", text="")
+
+        col = layout.column(align=True)
+        row = col.row(align=True)
+        row.operator(ApplyMask.bl_idname, text="Boundaries", icon='MATPLANE').only_boundaries = True
+        row.operator(ApplyMask.bl_idname, text="Fill", icon='SNAP_FACE').only_boundaries = False
+
+        col = layout.column(align=True)
+        polib.ui_bpy.row_with_label(col, text="Brush")
+        col.prop(brush, "strength")
+        col.prop(unified_settings, "size", slider=True)
+
+        col = layout.column(align=True)
+        polib.ui_bpy.row_with_label(col, text="Paint Only to Selected")
+        row = col.row(align=True)
+        row.prop(mesh_data, "use_paint_mask_vertex", text="Vertex")
+        row.prop(mesh_data, "use_paint_mask", text="Face")
+
+        layout.operator(ReturnToObjectMode.bl_idname, text="Return", icon='LOOP_BACK')
+
+    def draw(self, context: bpy.types.Context):
+        if context.mode == 'PAINT_VERTEX':
+            self.draw_vertex_paint_ui(context)
+            return
+
+        layout: bpy.types.UILayout = self.layout
+
+        asset_col = layout.column(align=True)
+        polib.ui_bpy.scaled_row(asset_col, 1.2).operator(
+            EnterVertexPaintMode.bl_idname, text="Paint Alpha Mask", icon='MOD_MASK'
+        )
+
+
+MODULE_CLASSES.append(AquatiqPaintMaskPanel)
 
 
 def register():

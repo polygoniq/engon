@@ -256,50 +256,117 @@ class SearchFilter(Filter):
         self.needle_keywords = SearchFilter.keywords_from_search(search)
 
     def filter_(self, asset_: asset.Asset) -> bool:
+        EXACT_MATCH_COEFFICIENT = 5.0
+        PREFIX_MATCH_COEFFICIENT = 3.0
+        INFIX_MATCH_COEFFICIENT = 2.0
+        SUFFIX_MATCH_COEFFICIENT = 2.0
+
+        SUBSEQUENT_MATCH_COEFFICIENT = 5.0
+        MULTIPLE_MATCH_COEFFICIENT = 1.0
+
+        def get_affix_score(
+            needle_keyword: str,
+            haystack_keyword: str,
+            haystack_keyword_weight: float,
+            require_exact_match: bool,
+        ) -> float:
+            affix_score = 0.0
+            if require_exact_match:
+                if haystack_keyword == needle_keyword[1:-1]:
+                    affix_score = haystack_keyword_weight * EXACT_MATCH_COEFFICIENT
+                return affix_score
+
+            index = haystack_keyword.find(needle_keyword)
+            if index == -1:
+                # no match
+                return affix_score
+            if index == 0 and len(haystack_keyword) == len(needle_keyword):
+                # bump exact matches even if exact match not requested
+                affix_score = EXACT_MATCH_COEFFICIENT * haystack_keyword_weight
+            elif index == 0:
+                # prefix match
+                affix_score = PREFIX_MATCH_COEFFICIENT * haystack_keyword_weight
+            elif index < len(haystack_keyword) - len(needle_keyword):
+                # infix match
+                affix_score = INFIX_MATCH_COEFFICIENT * haystack_keyword_weight
+            else:
+                # suffix match
+                affix_score = SUFFIX_MATCH_COEFFICIENT * haystack_keyword_weight
+            return affix_score
+
+        def get_multiplicity_score(
+            subsequent_match_count: float, multiple_match_count: float
+        ) -> float:
+            multiplicity_score = 1.0
+            if subsequent_match_count <= 1 and multiple_match_count <= 1:
+                return multiplicity_score
+            if max_subsequent_matches >= multiple_match_count:
+                multiplicity_score = SUBSEQUENT_MATCH_COEFFICIENT * max_subsequent_matches
+            else:
+                multiplicity_score = MULTIPLE_MATCH_COEFFICIENT * multiple_match_count
+            return multiplicity_score
+
         # we make sure all needle keywords are present in given haystack for the haystack not to be
         # filtered
 
         if len(self.needle_keywords) == 0:
             return True
 
-        relevancy_score = 0.0
-        for needle_keyword in self.needle_keywords:
-            should_exact_match = needle_keyword.startswith('"') and needle_keyword.endswith('"')
-            for haystack_keyword, haystack_keyword_weight in asset_.search_matter.items():
+        max_relevancy_score = 0.0
+        multiple_match_count = 0
+        subsequent_match_count = 0
+        max_subsequent_matches = 0
 
+        for needle_keyword in self.needle_keywords:
+            match_flag = False
+            require_exact_match = needle_keyword.startswith('"') and needle_keyword.endswith('"')
+            for haystack_keyword, haystack_keyword_weight in asset_.search_matter.items():
+                relevancy_score = 0.0
                 # this is guaranteed by the API
                 assert haystack_keyword_weight > 0.0
-                if should_exact_match:
-                    relevancy_score += (
-                        haystack_keyword_weight if haystack_keyword == needle_keyword[1:-1] else 0.0
-                    )
-                else:
-                    if needle_keyword == haystack_keyword:
-                        # bump exact matches even if exact match not requested
-                        relevancy_score += 3.0 * haystack_keyword_weight
-                    elif haystack_keyword.find(needle_keyword) >= 0:
-                        relevancy_score += haystack_keyword_weight
+                relevancy_score = get_affix_score(
+                    needle_keyword, haystack_keyword, haystack_keyword_weight, require_exact_match
+                )
+                match_flag = relevancy_score > 0.0 or match_flag
+                max_relevancy_score = max(max_relevancy_score, relevancy_score)
 
-        SEARCH_ASSET_SCORE[asset_.id_] = relevancy_score
-        return relevancy_score > 0.0
+            if require_exact_match and not match_flag:
+                # exclude results which do not contain keywords in quotation marks (even if other keywords would match)
+                SEARCH_ASSET_SCORE[asset_.id_] = 0.0
+                return False
+
+            if match_flag:
+                subsequent_match_count += 1
+                multiple_match_count += 1
+                max_subsequent_matches = max(max_subsequent_matches, subsequent_match_count)
+            else:
+                subsequent_match_count = 0
+
+        max_relevancy_score *= get_multiplicity_score(max_subsequent_matches, multiple_match_count)
+
+        SEARCH_ASSET_SCORE[asset_.id_] = max_relevancy_score
+        return max_relevancy_score > 0.0
 
     @staticmethod
     @functools.lru_cache(maxsize=128)
-    def keywords_from_search(search: str) -> typing.Set[str]:
-        """Returns a set of lowercase keywords to search for in the assets"""
+    def keywords_from_search(search: str) -> typing.List[str]:
+        """Returns a list of lowercase keywords to search for in the assets"""
 
-        def translate_keywords(keywords: typing.Set[str]) -> typing.Set[str]:
+        def translate_keywords(keywords: typing.List[str]) -> typing.List[str]:
             # Be careful when adding new keywords as it will make impossible to find anything using the original keyword.
             # E.g. if we'd have tag `hdr` it would not be possible to find it now. Or anything named `hdr_something` cannot be find by `hdr`
+
             translator = {"hdri": "world", "hdr": "world"}
 
-            ret: typing.Set[str] = set()
+            ret: typing.List[str] = []
             for kw in keywords:
-                ret.add(translator.get(kw, kw))
+                ret.append(translator.get(kw, kw))
 
             return ret
 
-        return translate_keywords({kw.lower() for kw in re.split(r"[ ,_\-]+", search) if kw != ""})
+        # put search keywords to a dictionary first to prevent duplicate keywords while keeping the order in which they were searched
+        keywords = {kw.lower(): None for kw in re.split(r"[ ,_\-]+", search) if kw != ""}
+        return translate_keywords(list(keywords.keys()))
 
     def as_dict(self) -> typing.Dict:
         return {self.name: self.search}

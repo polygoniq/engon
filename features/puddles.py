@@ -23,6 +23,8 @@ import bpy
 import typing
 import logging
 import mathutils
+from . import feature_utils
+from . import asset_pack_panels
 from .. import polib
 from .. import asset_helpers
 
@@ -256,6 +258,47 @@ class RemovePuddles(bpy.types.Operator):
 
 
 MODULE_CLASSES.append(RemovePuddles)
+
+
+@feature_utils.register_feature
+@polib.log_helpers_bpy.logged_panel
+class PuddlesPanel(feature_utils.EngonFeaturePanelMixin, bpy.types.Panel):
+    bl_idname = "VIEW_3D_PT_engon_puddles"
+    bl_parent_id = asset_pack_panels.AquatiqPanel.bl_idname
+    bl_label = "Puddles"
+
+    feature_name = "puddles"
+
+    template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
+        asset_helpers.AQ_PUDDLES_NODEGROUP_NAME,
+        filter_=lambda x: not polib.node_utils_bpy.filter_node_socket_name(
+            x,
+            "Water Color",
+            "Noise Scale",
+        ),
+    )
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        return super().poll(context) and context.mode != 'PAINT_VERTEX'
+
+    def draw_header(self, context: bpy.types.Context):
+        self.layout.label(text="", icon='MATFLUID')
+
+    def draw(self, context: bpy.types.Context):
+        layout: bpy.types.UILayout = self.layout
+
+        layout.operator(AddPuddles.bl_idname, icon='ADD')
+        layout.operator(RemovePuddles.bl_idname, icon='PANEL_CLOSE')
+
+        if context.active_object is not None and check_puddles_nodegroup_count(
+            [context.active_object], lambda x: x != 0
+        ):
+            col = layout.column(align=True)
+            PuddlesPanel.template.draw_from_material(context.active_object.active_material, col)
+
+
+MODULE_CLASSES.append(PuddlesPanel)
 
 
 def register():
