@@ -266,6 +266,7 @@ class PuddlesPanel(feature_utils.EngonFeaturePanelMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_engon_puddles"
     bl_parent_id = asset_pack_panels.AquatiqPanel.bl_idname
     bl_label = "Puddles"
+    bl_options = {'DEFAULT_CLOSED'}
 
     feature_name = "puddles"
 

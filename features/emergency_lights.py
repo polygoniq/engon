@@ -70,6 +70,7 @@ class EmergencyLightsPanel(
     bl_parent_id = asset_pack_panels.TraffiqPanel.bl_idname
     bl_label = "Emergency Lights"
     feature_name = "emergency_lights"
+    bl_options = {'DEFAULT_CLOSED'}
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
         asset_helpers.TQ_EMERGENCY_LIGHTS_NODE_GROUP_NAME, filter_=lambda _: True

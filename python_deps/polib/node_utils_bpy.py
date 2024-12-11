@@ -7,7 +7,6 @@ import collections
 import dataclasses
 
 from . import utils_bpy
-from . import custom_props_bpy
 
 
 # Type that's compatible with both old and new node tree interfaces

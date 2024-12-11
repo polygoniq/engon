@@ -110,6 +110,7 @@ class BotaniqAdjustmentsPanel(feature_utils.PropertyAssetFeatureControlPanelMixi
         polib.custom_props_bpy.CustomPropertyNames.BQ_RANDOM_PER_LEAF,
         polib.custom_props_bpy.CustomPropertyNames.BQ_SEASON_OFFSET,
     }
+    bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def filter_adjustable_assets(
@@ -182,11 +183,11 @@ class BotaniqAdjustmentsPanel(feature_utils.PropertyAssetFeatureControlPanelMixi
         )
 
         row = layout.row(align=True)
-        row.label(text="", icon='BRUSH_MIX')
+        row.label(text="", icon='FREEZE')
         row.prop(
             prefs,
             "season_offset",
-            icon='BRUSH_MIX',
+            icon='FREEZE',
             text=f"Season: {self.get_season_from_value(prefs.season_offset)}",
             slider=True,
         )

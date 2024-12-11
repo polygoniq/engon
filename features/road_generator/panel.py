@@ -245,6 +245,7 @@ class RoadGeneratorPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_engon_build_roads_modal"
     bl_label = "Road Generator (Beta)"
     bl_parent_id = asset_pack_panels.TraffiqPanel.bl_idname
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw_header(self, context: bpy.types.Context):
         self.layout.label(text="", icon='MOD_SIMPLEDEFORM')

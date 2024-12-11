@@ -18,40 +18,15 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
-import bpy
-import typing
-from . import polib
-
-
-MODULE_CLASSES: typing.List[typing.Any] = []
-
-
-@polib.log_helpers_bpy.logged_operator
-class ShowPopup(bpy.types.Operator):
-    bl_idname = "engon.show_popup"
-    bl_label = "Show Popup"
-    bl_description = "Shows further info in a popup window"
-    bl_options = {'REGISTER'}
-
-    message: bpy.props.StringProperty(default="No message", options={'HIDDEN'})
-
-    title: bpy.props.StringProperty(default="No title", options={'HIDDEN'})
-
-    icon: bpy.props.StringProperty(default='WARNING', options={'HIDDEN'})
-
-    def execute(self, context):
-        polib.ui_bpy.show_message_box(self.message, self.title, self.icon)
-        return {'FINISHED'}
-
-
-MODULE_CLASSES.append(ShowPopup)
+from . import copy_nodes_mod_values
+from . import show_popup
 
 
 def register():
-    for cls in MODULE_CLASSES:
-        bpy.utils.register_class(cls)
+    copy_nodes_mod_values.register()
+    show_popup.register()
 
 
 def unregister():
-    for cls in reversed(MODULE_CLASSES):
-        bpy.utils.unregister_class(cls)
+    show_popup.unregister()
+    copy_nodes_mod_values.unregister()

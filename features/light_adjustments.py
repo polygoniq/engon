@@ -133,6 +133,7 @@ class LightAdjustmentsPanel(feature_utils.PropertyAssetFeatureControlPanelMixin,
         polib.custom_props_bpy.CustomPropertyNames.PQ_LIGHT_RGB,
         polib.custom_props_bpy.CustomPropertyNames.PQ_LIGHT_STRENGTH,
     }
+    bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def filter_adjustable_assets(

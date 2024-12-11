@@ -25,11 +25,9 @@ import mathutils
 import typing
 import logging
 import random
-from . import mapr
 from . import polib
 from . import hatchery
 from . import browser
-from . import asset_registry
 from . import preferences
 from . import blend_maintenance
 from . import convert_selection
@@ -48,7 +46,7 @@ MODULE_CLASSES: typing.List[typing.Any] = []
 
 @polib.log_helpers_bpy.logged_operator
 class SnapToGround(bpy.types.Operator):
-    bl_idname = "engon.snap_to_ground_bpy"
+    bl_idname = "engon.snap_to_ground"
     bl_label = "Snap to Ground"
     bl_description = "Put selected assets as close to the ground as possible"
 
@@ -107,20 +105,18 @@ class SnapToGround(bpy.types.Operator):
                 ):
                     continue
 
-                root_object, body, lights, wheels, brakes = (
-                    polib.asset_pack_bpy.decompose_traffiq_vehicle(obj)
-                )
-                if root_object is not None:  # traffiq behavior
+                decomposed_car = polib.asset_pack_bpy.decompose_traffiq_vehicle(obj)
+                if decomposed_car is not None:  # traffiq behavior
                     logger.debug(
                         f"Was able to decompose {obj.name} as if it was a traffiq vehicle. "
                         f"Snapping to ground using the traffiq behavior."
                     )
-                    if len(wheels) > 0:
+                    if len(decomposed_car.wheels) > 0:
                         logger.info(
-                            f"Using {len(wheels)} separate wheels to determine final rotation..."
+                            f"Using {len(decomposed_car.wheels)} separate wheels to determine final rotation..."
                         )
                         is_snapped = polib.snap_to_ground_bpy.snap_to_ground_separate_wheels(
-                            obj, root_object, wheels, ground_objects
+                            obj, decomposed_car.root_object, decomposed_car.wheels, ground_objects
                         )
                     else:
                         logger.info(
@@ -128,7 +124,7 @@ class SnapToGround(bpy.types.Operator):
                             f"final rotation..."
                         )
                         is_snapped = polib.snap_to_ground_bpy.snap_to_ground_adjust_rotation(
-                            obj, root_object, ground_objects
+                            obj, decomposed_car.root_object, ground_objects
                         )
 
             elif polib.asset_pack_bpy.is_polygoniq_object(obj, lambda x: x == "botaniq"):

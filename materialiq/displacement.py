@@ -23,7 +23,6 @@ import typing
 import logging
 from .. import polib
 from .. import hatchery
-from .. import asset_helpers
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 

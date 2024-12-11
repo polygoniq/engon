@@ -225,6 +225,7 @@ class AquatiqPaintMaskPanel(feature_utils.EngonFeaturePanelMixin, bpy.types.Pane
     bl_idname = "VIEW_3D_PT_engon_aquatiq_paint_mask"
     bl_parent_id = asset_pack_panels.AquatiqPanel.bl_idname
     bl_label = "Paint Mask"
+    bl_options = {'DEFAULT_CLOSED'}
 
     feature_name = "aquatiq_paint_mask"
 

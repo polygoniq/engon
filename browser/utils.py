@@ -18,11 +18,8 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
-import bpy
 import logging
-import typing
 from .. import mapr
-from .. import asset_registry
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 

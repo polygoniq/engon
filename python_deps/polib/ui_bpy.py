@@ -327,7 +327,7 @@ def show_release_notes_popup(
     addon_name = mod_info["name"].split("_", 1)[0]
 
     release_info = utils_bpy.get_addon_release_info(addon_name, release_tag)
-    error_msg = f"Cannot retrieve release info for {addon_name}!"
+    error_msg = f"Release info cannot be retrieved for {addon_name} {release_tag}"
     if release_info is None:
         logger.error(error_msg)
         show_message_box(error_msg, "Error", icon='ERROR')

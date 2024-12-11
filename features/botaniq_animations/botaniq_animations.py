@@ -185,6 +185,7 @@ class AnimationsPanel(feature_utils.EngonAssetFeatureControlPanelMixin, bpy.type
     bl_idname = "VIEW_3D_PT_engon_botaniq_animations"
     bl_parent_id = asset_pack_panels.BotaniqPanel.bl_idname
     bl_label = "Animations"
+    bl_options = {'DEFAULT_CLOSED'}
 
     feature_name = "botaniq_animations"
 

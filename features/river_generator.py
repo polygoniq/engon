@@ -40,6 +40,7 @@ class RiverGeneratorPanel(RiverGeneratorPanelMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_aquatiq_river_generator"
     bl_parent_id = asset_pack_panels.AquatiqPanel.bl_idname
     bl_label = "River Generator"
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon='FORCE_FORCE')

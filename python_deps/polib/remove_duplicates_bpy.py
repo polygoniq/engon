@@ -3,7 +3,6 @@
 
 
 import bpy
-import re
 import os
 import typing
 from . import utils_bpy

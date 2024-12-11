@@ -113,6 +113,7 @@ class ColorizePanel(feature_utils.PropertyAssetFeatureControlPanelMixin, bpy.typ
         polib.custom_props_bpy.CustomPropertyNames.PQ_PRIMARY_COLOR_FACTOR,
         polib.custom_props_bpy.CustomPropertyNames.PQ_SECONDARY_COLOR_FACTOR,
     }
+    bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def filter_adjustable_assets(

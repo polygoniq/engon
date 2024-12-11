@@ -162,6 +162,7 @@ class TraffiqPaintAdjustmentsPanel(
         polib.custom_props_bpy.CustomPropertyNames.TQ_FLAKES_AMOUNT,
         polib.custom_props_bpy.CustomPropertyNames.TQ_CLEARCOAT,
     }
+    bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def filter_adjustable_assets(

@@ -23,7 +23,6 @@
 
 import bpy
 import os
-import traceback
 import typing
 import mathutils
 import bpy_extras.view3d_utils

@@ -96,6 +96,7 @@ class TraffiqLightsSettingsPanel(
     bl_label = "Lights Settings"
     feature_name = "traffiq_lights_settings"
     related_custom_properties = {polib.custom_props_bpy.CustomPropertyNames.TQ_LIGHTS}
+    bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def find_unique_lights_containers_with_roots(

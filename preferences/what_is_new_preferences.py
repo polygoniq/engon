@@ -2,8 +2,6 @@
 
 import bpy
 import typing
-from .. import ui_utils
-from . import prefs_utils
 
 
 MODULE_CLASSES: typing.List[typing.Any] = []

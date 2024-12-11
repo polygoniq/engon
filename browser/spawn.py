@@ -396,8 +396,14 @@ class MAPR_BrowserReplaceSelected(MAPR_SpawnAssetBase):
             for old_collection in obj.users_collection:
                 old_collection.objects.unlink(obj)
                 old_collection.objects.link(obj_copy)
+            obj_copy.parent = obj.parent
             obj_copy.matrix_world = obj.matrix_world
             obj_copy.select_set(True)
+
+        if prefs.spawn_options.make_editable:
+            polib.asset_pack_bpy.make_selection_editable(
+                context, True, keep_selection=True, keep_active=True
+            )
 
         if prefs.spawn_options.remove_duplicates:
             self._remove_duplicates()

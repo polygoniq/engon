@@ -132,6 +132,7 @@ class TraffiqWearAdjustmentsPanel(
         polib.custom_props_bpy.CustomPropertyNames.TQ_SCRATCHES,
         polib.custom_props_bpy.CustomPropertyNames.TQ_BUMPS,
     }
+    bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def filter_adjustable_assets(

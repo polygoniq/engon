@@ -947,6 +947,7 @@ class TraffiqRigsPanel(bpy.types.Panel, feature_utils.PropertyAssetFeatureContro
         polib.custom_props_bpy.CustomPropertyNames.TQ_WHEELS_Y_ROLLING,
         polib.custom_props_bpy.CustomPropertyNames.TQ_CAR_RIG,
     }
+    bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def filter_adjustable_assets(

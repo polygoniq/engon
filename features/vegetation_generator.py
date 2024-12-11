@@ -47,6 +47,7 @@ class VegetationGeneratorPanel(
     bl_idname = "VIEW_3D_PT_engon_vegetation_generator"
     bl_parent_id = asset_pack_panels.BotaniqPanel.bl_idname
     bl_label = "Vegetation Generator"
+    bl_options = {'DEFAULT_CLOSED'}
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
         asset_helpers.BQ_CURVES_GENERATOR_NODE_GROUP_NAME,

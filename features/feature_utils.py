@@ -22,7 +22,6 @@ import typing
 import bpy
 import itertools
 import random
-import sys
 from .. import polib
 from .. import asset_registry
 from .. import asset_helpers

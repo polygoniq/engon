@@ -184,6 +184,7 @@ class ToolsPanel(MaterialiqPanelMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_engon_materialiq_tools"
     bl_parent_id = MaterialiqPanel.bl_idname
     bl_label = "Tools"
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon='TOOL_SETTINGS')

@@ -5,6 +5,7 @@ import bpy
 import bpy.utils.previews
 import typing
 import collections
+import dataclasses
 import enum
 import logging
 
@@ -134,6 +135,7 @@ class TraffiqAssetPart(enum.Enum):
     Lights = 'Lights'
     Wheel = 'Wheel'
     Brake = 'Brake'
+    LicensePlate = 'License-Plate'
 
 
 def is_traffiq_asset_part(obj: bpy.types.Object, part: TraffiqAssetPart) -> bool:
@@ -143,21 +145,21 @@ def is_traffiq_asset_part(obj: bpy.types.Object, part: TraffiqAssetPart) -> bool
 
     obj_name = utils_bpy.remove_object_duplicate_suffix(obj.name)
     if part in {TraffiqAssetPart.Body, TraffiqAssetPart.Lights}:
-        splitted_name = obj_name.rsplit("_", 1)
-        if len(splitted_name) != 2:
+        split_name = obj_name.rsplit("_", 1)
+        if len(split_name) != 2:
             return False
 
-        _, obj_part_name = splitted_name
+        _, obj_part_name = split_name
         if obj_part_name != part.name:
             return False
         return True
 
     elif part in {TraffiqAssetPart.Wheel, TraffiqAssetPart.Brake}:
-        splitted_name = obj_name.rsplit("_", 3)
-        if len(splitted_name) != 4:
+        split_name = obj_name.rsplit("_", 3)
+        if len(split_name) != 4:
             return False
 
-        _, obj_part_name, position, wheel_number = splitted_name
+        _, obj_part_name, position, wheel_number = split_name
         if obj_part_name != part.name:
             return False
         if position not in {"FL", "FR", "BL", "BR", "F", "B"}:
@@ -165,17 +167,30 @@ def is_traffiq_asset_part(obj: bpy.types.Object, part: TraffiqAssetPart) -> bool
         if not wheel_number.isdigit():
             return False
         return True
+    elif part == TraffiqAssetPart.LicensePlate:
+        split_name = obj_name.rsplit("_", 2)
+        if len(split_name) != 3:
+            return False
+
+        _, obj_part_name, position = split_name
+        if obj_part_name != part.value:
+            return False
+        if position not in {"F", "B"}:
+            return False
+        return True
 
     return False
 
 
-DecomposedCarType = typing.Tuple[
-    bpy.types.Object,
-    bpy.types.Object,
-    bpy.types.Object,
-    typing.List[bpy.types.Object],
-    typing.List[bpy.types.Object],
-]
+@dataclasses.dataclass
+class DecomposedCar:
+    root_object: bpy.types.Object
+    body: bpy.types.Object
+    lights: typing.Optional[bpy.types.Object]
+    wheels: typing.List[bpy.types.Object]
+    brakes: typing.List[bpy.types.Object]
+    front_plate: typing.Optional[bpy.types.Object] = None
+    back_plate: typing.Optional[bpy.types.Object] = None
 
 
 def get_root_object_of_asset(asset: bpy.types.Object) -> typing.Optional[bpy.types.Object]:
@@ -232,15 +247,14 @@ def get_entire_object_hierarchy(obj: bpy.types.Object) -> typing.Iterable[bpy.ty
         yield obj
 
 
-def decompose_traffiq_vehicle(obj: bpy.types.Object) -> DecomposedCarType:
-    if obj is None:
-        return None, None, None, [], []
-
+def decompose_traffiq_vehicle(obj: bpy.types.Object) -> typing.Optional[DecomposedCar]:
     root_object = get_root_object_of_asset(obj)
     body = None
     lights = None
     wheels = []
     brakes = []
+    front_license_plate = None
+    back_license_plate = None
 
     hierarchy_objects = get_entire_object_hierarchy(obj)
     for hierarchy_obj in hierarchy_objects:
@@ -256,8 +270,20 @@ def decompose_traffiq_vehicle(obj: bpy.types.Object) -> DecomposedCarType:
             wheels.append(hierarchy_obj)
         elif is_traffiq_asset_part(hierarchy_obj, TraffiqAssetPart.Brake):
             brakes.append(hierarchy_obj)
+        elif is_traffiq_asset_part(hierarchy_obj, TraffiqAssetPart.LicensePlate):
+            _, suffix = utils_bpy.remove_object_duplicate_suffix(hierarchy_obj.name).rsplit("_", 1)
+            if suffix == "F":
+                front_license_plate = hierarchy_obj.children[0]
+            elif suffix == "B":
+                back_license_plate = hierarchy_obj.children[0]
 
-    return root_object, body, lights, wheels, brakes
+    # If no root object or body is found, this is not a valid traffiq vehicle
+    if root_object is None or body is None:
+        return None
+
+    return DecomposedCar(
+        root_object, body, lights, wheels, brakes, front_license_plate, back_license_plate
+    )
 
 
 def find_traffiq_asset_parts(

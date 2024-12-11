@@ -24,8 +24,9 @@ import typing
 import logging
 from . import feature_utils
 from . import asset_pack_panels
-from .. import polib
 from .. import asset_helpers
+from .. import polib
+from .. import utils
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
@@ -35,6 +36,20 @@ MODULE_CLASSES: typing.List[typing.Type] = []
 
 FRONT_PLATE_PARENT_NAME_SUFFIX = "_License-Plate_F"
 BACK_PLATE_PARENT_NAME_SUFFIX = "_License-Plate_B"
+
+
+def get_license_plate_modifier(obj: bpy.types.Object) -> typing.Optional[bpy.types.NodesModifier]:
+    mods = polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
+        obj,
+        asset_helpers.TQ_LICENSE_PLATE_NODE_GROUP_NAME_PREFIX,
+    )
+    if len(mods) == 0:
+        return None
+    elif len(mods) == 1:
+        return mods[0]
+    else:
+        logger.warning(f"Multiple license plate modifiers found on object '{obj.name}'!")
+        return mods[0]
 
 
 @feature_utils.register_feature
@@ -52,6 +67,7 @@ class LicensePlatesGeneratorPanel(
     bl_idname = "VIEW_3D_PT_engon_license_plates_generator"
     bl_parent_id = asset_pack_panels.TraffiqPanel.bl_idname
     bl_label = "License Plates"
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon='EVENT_L')
@@ -125,6 +141,33 @@ class FrontPlatePanel(
         obj.parent.name
     ).endswith(FRONT_PLATE_PARENT_NAME_SUFFIX)
 
+    def draw(self, context: bpy.types.Context) -> None:
+        if context.active_object is None:
+            return
+
+        decomposed_car = polib.asset_pack_bpy.decompose_traffiq_vehicle(context.active_object)
+        if decomposed_car is None:
+            return
+
+        front_plate = decomposed_car.front_plate
+        back_plate = decomposed_car.back_plate
+        assert front_plate is not None
+        if back_plate is not None:
+            op = self.layout.operator(
+                utils.copy_nodes_mod_values.CopyGeonodesModifierValues.bl_idname,
+                text="Copy To Back",
+                icon='PASTEDOWN',
+            )
+            op.src_name = front_plate.name
+            op.dst_name = back_plate.name
+            # The license plates modifiers are always at index 0. This operator won't be drawn
+            # in the UI if there is not back plate and front plate.
+            op.src_mod_idx = 0
+            op.dst_mod_idx = 0
+
+        self.layout.separator()
+        super().draw(context)
+
 
 MODULE_CLASSES.append(FrontPlatePanel)
 
@@ -139,6 +182,33 @@ class BackPlatePanel(
     filter_ = lambda obj: obj.parent is not None and polib.utils_bpy.remove_object_duplicate_suffix(
         obj.parent.name
     ).endswith(BACK_PLATE_PARENT_NAME_SUFFIX)
+
+    def draw(self, context: bpy.types.Context) -> None:
+        if context.active_object is None:
+            return
+
+        decomposed_car = polib.asset_pack_bpy.decompose_traffiq_vehicle(context.active_object)
+        if decomposed_car is None:
+            return
+
+        front_plate = decomposed_car.front_plate
+        back_plate = decomposed_car.back_plate
+        assert back_plate is not None
+        if front_plate is not None:
+            op = self.layout.operator(
+                utils.copy_nodes_mod_values.CopyGeonodesModifierValues.bl_idname,
+                text="Copy To Front",
+                icon='PASTEDOWN',
+            )
+            op.src_name = back_plate.name
+            op.dst_name = front_plate.name
+            # The license plates modifiers are always at index 0. This operator won't be drawn
+            # in the UI if there is not back plate and front plate.
+            op.src_mod_idx = 0
+            op.dst_mod_idx = 0
+
+        self.layout.separator()
+        super().draw(context)
 
 
 MODULE_CLASSES.append(BackPlatePanel)

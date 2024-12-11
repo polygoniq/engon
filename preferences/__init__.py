@@ -31,7 +31,7 @@ from . import general_preferences
 from . import browser_preferences
 from . import what_is_new_preferences
 from .. import keymaps
-from .. import ui_utils
+from .. import utils
 from .. import features
 from .. import polib
 from .. import __package__ as base_package
@@ -47,7 +47,7 @@ CONFLICTING_ADDONS = polib.utils_bpy.get_conflicting_addons(base_package)
 class ShowReleaseNotes(bpy.types.Operator):
     bl_idname = "engon.show_release_notes"
     bl_label = "Show Release Notes"
-    bl_description = "Show the release notes for the latest version of blend1"
+    bl_description = "Show the release notes for the latest version of engon"
     bl_options = {'REGISTER'}
 
     release_tag: bpy.props.StringProperty(
@@ -280,7 +280,7 @@ class Preferences(bpy.types.AddonPreferences):
         row.prop(self, "save_prefs")
         row = row.row()
         row.alignment = 'RIGHT'
-        op = row.operator(ui_utils.ShowPopup.bl_idname, text="", icon='INFO')
+        op = row.operator(utils.show_popup.ShowPopup.bl_idname, text="", icon='INFO')
         op.message = (
             "Automatically saves preferences after running operators "
             "(e.g. Install Asset Pack) that change engon preferences. \n"

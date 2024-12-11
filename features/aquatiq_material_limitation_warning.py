@@ -24,7 +24,7 @@ import typing
 import logging
 from . import feature_utils
 from . import asset_pack_panels
-from .. import ui_utils
+from .. import utils
 from .. import polib
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
@@ -108,7 +108,7 @@ class AquatiqMaterialLimitationsPanel(feature_utils.EngonFeaturePanelMixin, bpy.
 
         layout.alert = True
         op = layout.operator(
-            ui_utils.ShowPopup.bl_idname,
+            utils.show_popup.ShowPopup.bl_idname,
             text=f"See {len(warnings)} warning{'s' if len(warnings) > 1 else ''}",
             icon='ERROR',
         )

@@ -42,6 +42,7 @@ class VineGeneratorPanel(
     bl_idname = "VIEW_3D_PT_botaniq_vine_generator"
     bl_parent_id = asset_pack_panels.BotaniqPanel.bl_idname
     bl_label = "Vine Generator"
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon="GRAPH")
