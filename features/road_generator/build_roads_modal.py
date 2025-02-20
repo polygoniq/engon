@@ -69,7 +69,8 @@ class BuildRoads(bpy.types.Operator):
 
     is_running = False
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.mouse_point: typing.Optional[road_builder.BuildPoint] = None
         self.first_point: typing.Optional[road_builder.BuildPoint] = None
         self.first_point_position: typing.Optional[mathutils.Vector] = None

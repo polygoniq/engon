@@ -184,6 +184,24 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
             self.record_file_id(asset_data_instance.primary_blend_file)
             for dependency_file in asset_data_instance.dependency_files:
                 self.record_file_id(dependency_file)
+                # TODO: attempt to find the textures with other resolutions is temporary fix
+                # for https://git.polygoniq.com/c/polygoniq/-/issues/5094
+                # and https://git.polygoniq.com/c/polygoniq/-/issues/5163
+                # The code should be reverted to the original state after the issue is fixed
+                if (
+                    self.file_id_prefix == "/materialiq"
+                    and asset_data_type == "blender_material"
+                    and dependency_file.endswith(("_2048.jpg", "_2048.png"))
+                ):
+                    # Try to find other resolutions of the texture
+                    for resolution in ["1024", "4096", "8192"]:
+                        mod_dependency_file = dependency_file.replace("_2048.", f"_{resolution}.")
+                        relative_path = mod_dependency_file[len(self.file_id_prefix) + 1 :]
+                        full_path = os.path.abspath(
+                            os.path.join(self.file_id_folder_path, relative_path)
+                        )
+                        if os.path.isfile(full_path):
+                            self.record_file_id(mod_dependency_file)
 
             self.asset_data[asset_data_id] = asset_data_instance
 

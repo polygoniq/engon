@@ -331,6 +331,7 @@ class MAPR_ShowAssetMenu(bpy.types.Operator):
         assert asset is not None, "Asset has to be set before drawing the menu"
 
         col = layout.column(align=True)
+        col.operator_context = 'INVOKE_DEFAULT'
         if asset.type_ in {
             mapr.asset_data.AssetDataType.blender_model,
             mapr.asset_data.AssetDataType.blender_geometry_nodes,

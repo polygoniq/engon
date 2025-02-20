@@ -126,30 +126,21 @@ class MAPR_BrowserSpawnAsset(MAPR_SpawnAssetBase):
             self.report({'ERROR'}, f"Asset with id {self.asset_id} not found")
             return {'CANCELLED'}
 
-        self._spawn(context, asset, prefs.spawn_options.get_spawn_options(asset, context))
+        # This is checked also in 'invoke', but we check in execute too, so the operator reports
+        # errors and fails when used in scripts.
+        can_spawn, why_fail = prefs.spawn_options.can_spawn(asset, context)
+        if not can_spawn:
+            logger.error(f"Cannot spawn asset {self.asset_id}: {why_fail}")
+            return {'CANCELLED'}
+
+        spawn_options = prefs.spawn_options.get_spawn_options(asset, context)
+
+        self._spawn(context, asset, spawn_options)
+
         # Make editable and remove duplicates is currently out of hatchery and works based on
         # assumption of correct context, which is suboptimal, but at current time the functions
         # either don't support passing the right context, or we don't have it.
-        if (
-            asset.type_ == mapr.asset_data.AssetDataType.blender_model
-            and prefs.spawn_options.use_collection == 'PARTICLE_SYSTEM'
-        ):
-            # When spawning blender model to PARTICLE_SYSTEM collection we always convert to
-            # editable as particle systems wouldn't be able to instance collection.
-            polib.asset_pack_bpy.make_selection_editable(
-                context, True, keep_selection=True, keep_active=True
-            )
-
-            if (
-                context.active_object is not None
-                and context.active_object.particle_systems.active is not None
-            ):
-                ps = context.active_object.particle_systems.active
-                if ps.settings.instance_collection is not None:
-                    # Update instance collection to propagate changes
-                    ps.settings.instance_collection = ps.settings.instance_collection
-
-        elif prefs.spawn_options.make_editable:
+        if prefs.spawn_options.make_editable:
             polib.asset_pack_bpy.make_selection_editable(
                 context, True, keep_selection=True, keep_active=True
             )
@@ -224,16 +215,26 @@ class MAPR_BrowserDrawGeometryNodesAsset(MAPR_SpawnAssetBase):
             self.report({'ERROR'}, f"Asset with id {self.asset_id} not found")
             return {'CANCELLED'}
 
-        spawned_data = self._spawn(
-            context, asset, prefs.spawn_options.get_spawn_options(asset, context)
-        )
+        # This is checked also in 'invoke', but we check in execute too, so the operator reports
+        # errors and fails when used in scripts.
+        can_spawn, why_fail = prefs.spawn_options.can_spawn(asset, context)
+        if not can_spawn:
+            logger.error(f"Cannot spawn asset {self.asset_id}: {why_fail}")
+            return {'CANCELLED'}
+
+        # Spawn with no target object so we spawn the container object
+        options = prefs.spawn_options.get_spawn_options(asset, context)
+        assert isinstance(options, hatchery.spawn.GeometryNodesSpawnOptions)
+        options.target_objects = set()
+        spawned_data = self._spawn(context, asset, options)
 
         assert asset.type_ == mapr.asset_data.AssetDataType.blender_geometry_nodes
         assert spawned_data is not None and isinstance(
             spawned_data, hatchery.spawn.GeometryNodesSpawnedData
         )
+        assert len(spawned_data.container_objs_to_mods_map) == 1
 
-        container_obj = spawned_data.container_obj
+        container_obj = spawned_data.container_objs_to_mods_map.popitem()[0]
         # We remove the splines of the original object, so user starts with blank space
         if isinstance(container_obj.data, bpy.types.Curve):
             container_obj.data.splines.clear()
@@ -294,15 +295,23 @@ class MAPR_BrowserSpawnModelIntoParticleSystem(MAPR_SpawnAssetBase):
             self.report({'ERROR'}, f"Asset with id {self.asset_id} not found")
             return {'CANCELLED'}
 
-        # Override the spawn options to link the model directly into the instance collection
-        # and then convert it to editable below.
-        spawn_options = prefs.spawn_options.get_spawn_options(asset, context)
-        instance_collection = (
-            context.active_object.particle_systems.active.settings.instance_collection
-        )
+        if asset.type_ != mapr.asset_data.AssetDataType.blender_model:
+            self.report({'WARNING'}, f"Only model assets can be spawned into particle systems")
+            return {'CANCELLED'}
 
-        assert instance_collection is not None
-        spawn_options.parent_collection = instance_collection
+        # This is checked also in 'invoke', but we check in execute too, so the operator reports
+        # errors and fails when used in scripts.
+        can_spawn, why_fail = prefs.spawn_options.can_spawn(asset, context)
+        if not can_spawn:
+            logger.error(f"Cannot spawn asset {self.asset_id}: {why_fail}")
+            return {'CANCELLED'}
+
+        # Override the spawn options to link the model to the scene collection.
+        # (The instance collection can be unlinked or hidden, but wee need the model in
+        # the ViewLayer to be able to select it and make it editable.)
+        spawn_options = prefs.spawn_options.get_spawn_options(asset, context)
+        spawn_options.collection_factory_method = lambda: context.scene.collection
+
         spawned_data = self._spawn(context, asset, spawn_options)
 
         assert asset.type_ == mapr.asset_data.AssetDataType.blender_model
@@ -320,6 +329,15 @@ class MAPR_BrowserSpawnModelIntoParticleSystem(MAPR_SpawnAssetBase):
 
         if prefs.spawn_options.remove_duplicates:
             self._remove_duplicates()
+
+        # Re-link the spawned object to the particle system's instance collection
+        instance_collection = (
+            context.active_object.particle_systems.active.settings.instance_collection
+        )
+        assert instance_collection is not None
+        for obj in context.selected_objects:
+            instance_collection.objects.link(obj)
+            context.scene.collection.objects.unlink(obj)
 
         # This refreshes the particle system's dupli weights collection
         context.active_object.particle_systems.active.settings.instance_collection = (
@@ -366,12 +384,33 @@ class MAPR_BrowserReplaceSelected(MAPR_SpawnAssetBase):
             self.report({'ERROR'}, f"Asset with id {self.asset_id} not found")
             return {'CANCELLED'}
 
+        # This is checked also in 'invoke', but we check in execute too, so the operator reports
+        # errors and fails when used in scripts.
+        can_spawn, why_fail = prefs.spawn_options.can_spawn(asset, context)
+        if not can_spawn:
+            logger.error(f"Cannot spawn asset {self.asset_id}: {why_fail}")
+            return {'CANCELLED'}
+
+        if (
+            asset.type_ != mapr.asset_data.AssetDataType.blender_geometry_nodes
+            and asset.type_ != mapr.asset_data.AssetDataType.blender_model
+        ):
+            self.report(
+                {'ERROR'}, f"Asset with id {self.asset_id} is not a model or geometry nodes asset"
+            )
+            return {'CANCELLED'}
+
         objects_to_replace = MAPR_BrowserReplaceSelected.get_objects_to_replace(context)
-        spawn_options: hatchery.spawn.ModelSpawnOptions = prefs.spawn_options.get_spawn_options(
-            asset, context
+        spawn_options = prefs.spawn_options.get_spawn_options(asset, context)
+        assert isinstance(spawn_options, hatchery.spawn.ModelSpawnOptions) or isinstance(
+            spawn_options, hatchery.spawn.GeometryNodesSpawnOptions
         )
-        spawn_options.parent_collection = None
-        spawn_options.select_spawned = False
+        spawn_options.collection_factory_method = None
+        if isinstance(spawn_options, hatchery.spawn.ModelSpawnOptions):
+            spawn_options.select_spawned = False
+        else:
+            # Spawn with no target object so we spawn the container object
+            spawn_options.target_objects = set()
         spawned_data = self._spawn(context, asset, spawn_options)
 
         if spawned_data is None:
@@ -381,7 +420,8 @@ class MAPR_BrowserReplaceSelected(MAPR_SpawnAssetBase):
         if isinstance(spawned_data, hatchery.spawn.ModelSpawnedData):
             new_object = spawned_data.instancer
         elif isinstance(spawned_data, hatchery.spawn.GeometryNodesSpawnedData):
-            new_object = spawned_data.container_obj
+            assert len(spawned_data.container_objs_to_mods_map) == 1
+            new_object = spawned_data.container_objs_to_mods_map.popitem()[0]
         else:
             raise ValueError(
                 f"Unsupported spawned data type: '{type(spawned_data)}'. This should be handled by the caller."
@@ -397,6 +437,8 @@ class MAPR_BrowserReplaceSelected(MAPR_SpawnAssetBase):
                 old_collection.objects.unlink(obj)
                 old_collection.objects.link(obj_copy)
             obj_copy.parent = obj.parent
+            for child in obj.children:
+                child.parent = obj_copy
             obj_copy.matrix_world = obj.matrix_world
             obj_copy.select_set(True)
 
@@ -451,6 +493,8 @@ class SpawnOptionsPopoverPanel(bpy.types.Panel):
         row.prop(spawning_options, "display_type", text="Display Type")
         col.prop(spawning_options, "display_percentage")
         col.prop(spawning_options, "link_instance_collection")
+        if spawning_options.link_instance_collection:
+            col.prop(spawning_options, "enable_instance_collection")
         col.prop(spawning_options, "include_base_material")
         col.prop(spawning_options, "preserve_density")
         if spawning_options.preserve_density:

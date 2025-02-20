@@ -305,6 +305,49 @@ MODULE_CLASSES.append(ScatterWeightPaint)
 
 
 @polib.log_helpers_bpy.logged_operator
+class DuplicateVertexGroupWeights(bpy.types.Operator):
+    bl_idname = "engon.scatter_particles_duplicate_weights"
+    bl_label = "Duplicate Vertex Group Weights"
+    bl_description = "Duplicate Vertex Group Weights"
+    bl_options = {'REGISTER'}
+
+    target_vertex_group: bpy.props.StringProperty(
+        name="Target Vertex Group",
+        description="The vertex group to duplicate the weights for",
+        default="",
+    )
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        return asset_helpers.has_active_object_with_particle_system(context)
+
+    @classmethod
+    def description(cls, context: bpy.types.Context, props: bpy.types.OperatorProperties) -> str:
+        return (
+            f"Duplicates {props.target_vertex_group} vertex group weights into a new vertex group"
+        )
+
+    def execute(self, context: bpy.types.Context):
+        active_object = context.active_object
+        particle_system = active_object.particle_systems.active
+        vertex_group_name = getattr(particle_system, self.target_vertex_group, "")
+        if vertex_group_name == "":
+            self.report({'WARNING'}, "Can't duplicate density weight - no vertex group was found")
+            return {'CANCELLED'}
+        vertex_group = active_object.vertex_groups[vertex_group_name]
+
+        active_vertex_group = active_object.vertex_groups.active
+        active_object.vertex_groups.active = vertex_group
+        bpy.ops.object.vertex_group_copy()
+        active_object.vertex_groups.active = active_vertex_group
+
+        return {'FINISHED'}
+
+
+MODULE_CLASSES.append(DuplicateVertexGroupWeights)
+
+
+@polib.log_helpers_bpy.logged_operator
 class RenameParticleSystem(bpy.types.Operator):
     bl_idname = "engon.scatter_particles_rename"
     bl_label = "Rename Particle System"
@@ -1023,6 +1066,12 @@ class ScatterWeightPaintPanel(panel.EngonPanelMixin, bpy.types.Panel):
             text="",
         )
         row.operator(ScatterWeightPaint.bl_idname, text="", icon='BRUSH_DATA').target = target_group
+        row.prop(
+            particle_system, f"invert_vertex_group_{target_group}", text="", icon='ARROW_LEFTRIGHT'
+        )
+        row.operator(
+            DuplicateVertexGroupWeights.bl_idname, text="", icon='DUPLICATE'
+        ).target_vertex_group = f"vertex_group_{target_group}"
 
     def draw_object_mode_ui(self, context: bpy.types.Context) -> None:
         layout = self.layout

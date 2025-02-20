@@ -81,44 +81,87 @@ class RemoveDuplicates(bpy.types.Operator):
 MODULE_CLASSES.append(RemoveDuplicates)
 
 
+def find_missing_files() -> int:
+    missing_datablocks = {
+        datablock
+        for datablock in itertools.chain(bpy.data.libraries, bpy.data.images, bpy.data.fonts)
+        # There are scenarios where the file does not exist but Blender does not know it yet and vice versa
+        if datablock.is_missing
+        or not polib.utils_bpy.isfile_case_sensitive(
+            bpy.path.abspath(datablock.filepath, library=datablock.library)
+        )
+    }
+    if len(missing_datablocks) == 0:
+        return 0
+
+    # Tuple of (original name, datablock) to reload, we store the original name to report the error
+    # if something wasn't possible to reload due to lost reference - e. g. the library not being
+    # loaded in blender data anymore.
+    datablocks_to_reload: typing.List[
+        typing.Tuple[str, typing.Union[bpy.types.Library, bpy.types.Image]]
+    ] = []
+    empty_libraries: typing.Set[bpy.types.Library] = set()
+
+    total_found_datablocks = 0
+    for pack in asset_registry.instance.get_registered_packs():
+        if len(missing_datablocks) == 0:
+            break
+        found_datablocks = []
+        for datablock in missing_datablocks:
+            # Don't consider libraries that are empty, these cause reference errors, as they are
+            # reloaded and removed by Blender when other library is reloaded.
+            if isinstance(datablock, bpy.types.Library) and len(datablock.users_id) == 0:
+                empty_libraries.add(datablock)
+                continue
+
+            new_path = pack.get_filepath_from_basename(bpy.path.basename(datablock.filepath))
+            if new_path is not None:
+                datablock.filepath = new_path
+                found_datablocks.append(datablock)
+                total_found_datablocks += 1
+
+        missing_datablocks.difference_update(found_datablocks)
+        # VectorFonts can't be reloaded and indirect libraries will be reloaded when the main
+        # library is reloaded.
+        datablocks_to_reload.extend(
+            {
+                (datablock.name, datablock)
+                for datablock in found_datablocks
+                if not isinstance(datablock, bpy.types.VectorFont)
+                and not datablock.is_library_indirect
+            }
+        )
+
+    if len(empty_libraries) > 0:
+        for library in empty_libraries:
+            logger.info(f"Removing empty library '{library.name}'")
+            bpy.data.libraries.remove(library)
+
+    for original_name, datablock in datablocks_to_reload:
+        try:
+            datablock.reload()
+            logger.info(f"Reloaded datablock: '{datablock.name}'")
+        except ReferenceError:
+            logger.error(f"Failed to reload datablock: '{original_name}'")
+
+    return total_found_datablocks
+
+
 @polib.log_helpers_bpy.logged_operator
 class FindMissingFiles(bpy.types.Operator):
     bl_idname = "engon.find_missing_files"
     bl_label = "Find Missing Files"
-    bl_description = (
-        "Use Blender's Find Missing Files operator with engon's asset pack install paths"
-    )
+    bl_description = "Find missing files in asset packs registered in \"engon\" addon"
     bl_options = {'REGISTER', 'UNDO'}
 
     @polib.utils_bpy.blender_cursor('WAIT')
     def execute(self, context: bpy.types.Context):
-        missing_datablocks: typing.Set[bpy.types.ID] = set()
-        datablocks_to_reload: typing.List[bpy.types.ID] = []
-        for datablock in itertools.chain(bpy.data.libraries, bpy.data.images):
-            if not polib.utils_bpy.isfile_case_sensitive(
-                bpy.path.abspath(datablock.filepath, library=datablock.library)
-            ):
-                missing_datablocks.add(datablock)
-
-        for pack in asset_registry.instance.get_registered_packs():
-            found_datablocks: typing.List[bpy.types.ID] = []
-            for datablock in missing_datablocks:
-                new_path = pack.get_filepath_from_basename(bpy.path.basename(datablock.filepath))
-                if new_path is not None:
-                    datablock.filepath = new_path
-                    found_datablocks.append(datablock)
-
-            for datablock in found_datablocks:
-                missing_datablocks.remove(datablock)
-                datablocks_to_reload.append(datablock)
-
-        for datablock in datablocks_to_reload:
-            try:
-                datablock.reload()
-                logger.info(f"Reloaded '{datablock.name}'")
-            except ReferenceError:
-                logger.error("ReferenceError: Failed to reload some data")
-
+        found_datablocks = find_missing_files()
+        if found_datablocks > 0:
+            self.report(
+                {'INFO'},
+                (f"Found {found_datablocks} missing datablocks."),
+            )
         return {'FINISHED'}
 
 
@@ -182,11 +225,12 @@ class MigrateFromMaterialiq4(bpy.types.Operator):
                 # We use the global spawn options - this will use the user selected texture
                 # size and displacement preferences
                 hatchery.spawn.MaterialSpawnOptions(
-                    int(spawn_options.texture_size),
-                    spawn_options.use_displacement,
+                    texture_size=int(spawn_options.texture_size),
+                    use_displacement=spawn_options.use_displacement,
+                    select_spawned=True,
                     # We don't assign the material directly to any object, we use user_remap
                     # in the next code block.
-                    set(),
+                    target_objects=set(),
                 ),
             )
 

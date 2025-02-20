@@ -169,6 +169,7 @@ def blender_cursor(cursor_name: str = 'WAIT'):
     """
 
     def cursor_decorator(fn):
+        @functools.wraps(fn)
         def wrapper(self, context: bpy.types.Context, *args, **kwargs):
             context.window.cursor_modal_set(cursor_name)
             try:
@@ -189,6 +190,7 @@ def safe_modal(
     """Decorator that executes a modal method of modal operator and cancels on exception with a possibility of handling it"""
 
     def modal_decorator(fn):
+        @functools.wraps(fn)
         def wrapper(self, context: bpy.types.Context, event: bpy.types.Event):
             try:
                 return fn(self, context, event)
@@ -204,6 +206,7 @@ def safe_modal(
 
 
 def timeit(fn):
+    @functools.wraps(fn)
     def timed(*args, **kw):
         ts = time.time()
         result = fn(*args, **kw)
@@ -228,6 +231,8 @@ def timed_cache(**timedelta_kwargs):
                 f.cache_clear()
                 next_update = now + update_delta
             return f(*args, **kwargs)
+
+        setattr(_wrapped, "cache_clear", f.cache_clear)  # mimic lru_cache interface
 
         return _wrapped
 
@@ -288,6 +293,34 @@ def run_logging_subprocess(
         logger_.info(line.decode())
     process.wait()
     return process.returncode
+
+
+def filter_invalid_characters_from_path(input_path: str) -> str:
+    """Windows, Linux and OSX each have different rules for this. Windows is the most strict
+    so we will filter as if the user is always on Windows. This is a design decision but
+    assuming people work in heterogenous environments they want to follow rules such that
+    everyone can work with all files.
+
+    Caveats:
+    Windows has crazy rules, for example folders with the name 'con' are forbidden. We don't
+    handle that here because it is extremely difficult to filter that out and there are a ton
+    of these exceptions.
+    """
+
+    # the overcomplicated typing hint is just so that mypy gets this
+    forbidden_chars: typing.Dict[str, typing.Union[int, str, None]] = {
+        "<": "_",
+        ">": "_",
+        ":": "_",
+        "\"": "_",
+        "|": "_",
+        "?": "_",
+        "*": "_",
+    }
+    # we have to split into drive and path and only replace in the path
+    # this prevents replacing the ':' with '_' in e.g. "C:/something"
+    drive, path = os.path.splitdrive(input_path)
+    return drive + path.translate(str.maketrans(forbidden_chars))
 
 
 def normalize_path(path: str) -> str:

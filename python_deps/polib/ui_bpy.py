@@ -181,13 +181,6 @@ def collapsible_box(
     return box
 
 
-def center_mouse(context: bpy.types.Context) -> None:
-    region = context.region
-    x = region.width // 2 + region.x
-    y = region.height // 2 + region.y
-    context.window.cursor_warp(x, y)
-
-
 def get_mouseovered_region(
     context: bpy.types.Context, event: bpy.types.Event
 ) -> typing.Tuple[typing.Optional[bpy.types.Area], typing.Optional[bpy.types.Region]]:
@@ -206,6 +199,40 @@ def get_mouseovered_region(
                 return area, region
 
     return None, None
+
+
+def get_area_region_space(
+    context: bpy.types.Context, area_type: str, region_type: str, space_type: typing.Optional[str]
+) -> typing.Tuple[
+    typing.Optional[bpy.types.Area],
+    typing.Optional[bpy.types.Region],
+    typing.Optional[bpy.types.Space],
+]:
+    """Returns tuple (area, region, space) of area, region and space based on their types
+
+    If space type is None, the active space of the area is returned.
+    If any of the input types is not found, (None, None, None) is returned.
+    """
+
+    for area in context.screen.areas:
+        if area.type == area_type:
+            break
+    else:
+        return None, None, None
+
+    for region in area.regions:
+        if region.type == region_type:
+            break
+    else:
+        return None, None, None
+
+    if space_type is None:
+        return area, region, area.spaces.active
+    for space in area.spaces:
+        if space.type == space_type:
+            return area, region, space
+
+    return None, None, None
 
 
 def tag_areas_redraw(

@@ -110,8 +110,21 @@ class CopyGeonodesModifierValues(bpy.types.Operator):
             return {'CANCELLED'}
         else:
             # If all inputs match, we can copy the values
-            for input_ in src_mod.keys():
+            # If we don't materialize the .keys(), blender complaints about the dict changing size during iteration
+            for input_ in list(src_mod.keys()):
+                # setting these utility attributes causes issues with, e.g., the attribute subtype
+                # it should be safe to assume they are set correctly in the destination modifier
+                if input_.endswith("_use_attribute") or input_.endswith("_attribute_name"):
+                    continue
+
                 dst_mod[input_] = src_mod[input_]
+
+                # Due to what is a bug in blender, we need to re-assign descriptions
+                # otherwise the values will be "None" subtype and won't show units ¯\_(ツ)_/¯
+                # https://projects.blender.org/blender/blender/issues/112646#issuecomment-1141403
+                # TODO: Remove when we don't support blender < 4.1
+                if bpy.app.version < (4, 1, 0):
+                    dst_input_map[input_].description = src_input_map[input_].description
 
             dst_object.update_tag()
             polib.ui_bpy.tag_areas_redraw(context, {'VIEW_3D'})

@@ -101,7 +101,7 @@ class SetColor(bpy.types.Operator):
     bl_label = "Set Color to given value"
     bl_description = "Set color of selected assets to given value"
 
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {'UNDO'}
 
     color: bpy.props.FloatVectorProperty(
         name="Color",

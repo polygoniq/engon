@@ -7,14 +7,16 @@ import collections
 import math
 import mathutils
 import numpy
-import unittest
 import typing
 
 
-def plane_from_points(points):
-    assert len(points) == 3
+def plane_from_points(
+    points: typing.Iterable[mathutils.Vector],
+) -> typing.Tuple[mathutils.Vector, float, mathutils.Vector]:
+    points = tuple(points)
+    if len(points) != 3:
+        raise ValueError("Exactly three points are required to define a plane")
     p1, p2, p3 = points
-
     v1 = p3 - p1
     v2 = p2 - p1
 
@@ -24,21 +26,7 @@ def plane_from_points(points):
     offset = numpy.dot(normal, p3)
     centroid = numpy.sum(points, 0) / len(points)
 
-    return (normal, offset, centroid)
-
-
-def fit_plane_to_points(points):
-    assert len(points) >= 3
-    return plane_from_points(points[:3])
-
-    # TODO: This is borked :-(
-    centroid = numpy.sum(points, 0) / len(points)
-    centered_points = points - centroid
-    svd = numpy.linalg.svd(numpy.transpose(centered_points))
-    plane_normal = svd[0][2]
-    # now that we have the normal let's fit the centroid to the plane to find the offset
-    offset = numpy.dot(plane_normal, centroid)
-    return (plane_normal, offset, centroid)
+    return mathutils.Vector(normal), offset, mathutils.Vector(centroid)
 
 
 def is_obj_flat(obj: bpy.types.Object) -> bool:
@@ -185,53 +173,3 @@ def raycast_screen_to_world(
         return None
 
     return RaycastHit(best_hit_obj, best_hit_world, best_normal)
-
-
-class PlaneFittingTest(unittest.TestCase):
-    def test_3pts(self):
-        # unit plane - (0, 0, 1), 0
-        normal, offset, _ = fit_plane_to_points([(1, -1, 0), (-1, 0, 0), (0, 1, 0)])
-        self.assertAlmostEqual(normal[0], 0)
-        self.assertAlmostEqual(normal[1], 0)
-        self.assertAlmostEqual(normal[2], 1)
-        self.assertAlmostEqual(offset, 0)
-
-        normal, offset, _ = fit_plane_to_points([(2, -2, 0), (-1, 0, 0), (0, 1, 0)])
-        self.assertAlmostEqual(normal[0], 0)
-        self.assertAlmostEqual(normal[1], 0)
-        self.assertAlmostEqual(normal[2], 1)
-        self.assertAlmostEqual(offset, 0)
-
-        # offset unit plane - (0, 0, 1), 1
-        normal, offset, _ = fit_plane_to_points([(2, -2, 1), (-1, 0, 1), (0, 1, 1)])
-        self.assertAlmostEqual(normal[0], 0)
-        self.assertAlmostEqual(normal[1], 0)
-        self.assertAlmostEqual(normal[2], 1)
-        self.assertAlmostEqual(offset, 1)
-
-    def test_4pts(self):
-        # unit plane - (0, 0, 1), 0
-        normal, offset, _ = fit_plane_to_points([(1, -1, 0), (-1, 0, 0), (0, 1, 0), (1, 1, 0)])
-        self.assertAlmostEqual(normal[0], 0)
-        self.assertAlmostEqual(normal[1], 0)
-        self.assertAlmostEqual(normal[2], 1)
-        self.assertAlmostEqual(offset, 0)
-
-        # can't fit precisely! unit plane - (0, 0, 1), 0
-        large = 100000000000
-        normal, offset, _ = fit_plane_to_points(
-            [
-                (-large, -large, 0.1),
-                (-large, large, -0.1),
-                (large, -large, 0.1),
-                (large, large, -0.1),
-            ]
-        )
-        self.assertAlmostEqual(normal[0], 0)
-        self.assertAlmostEqual(normal[1], 0)
-        self.assertAlmostEqual(normal[2], 1)
-        self.assertAlmostEqual(offset, 0)
-
-
-if __name__ == "__main__":
-    unittest.main()

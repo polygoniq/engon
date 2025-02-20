@@ -88,99 +88,66 @@ class SnapToGround(bpy.types.Operator):
 
         for obj in objects_to_snap:
             is_snapped = False
-
             if polib.asset_pack_bpy.is_polygoniq_object(obj, lambda x: x == "traffiq"):
                 logger.info(f"Determined that {obj.name} is a traffiq asset.")
-                # if editable car is selected with all its child objects -> skip these child objects
-                if polib.asset_pack_bpy.is_traffiq_asset_part(
-                    obj, polib.asset_pack_bpy.TraffiqAssetPart.Wheel
-                ):
-                    continue
-                if polib.asset_pack_bpy.is_traffiq_asset_part(
-                    obj, polib.asset_pack_bpy.TraffiqAssetPart.Brake
-                ):
-                    continue
-                if polib.asset_pack_bpy.is_traffiq_asset_part(
-                    obj, polib.asset_pack_bpy.TraffiqAssetPart.Lights
-                ):
-                    continue
-
+                # objects with wheels are snapped based on the wheels
                 decomposed_car = polib.asset_pack_bpy.decompose_traffiq_vehicle(obj)
-                if decomposed_car is not None:  # traffiq behavior
+                if (
+                    decomposed_car is not None and len(decomposed_car.wheels) > 0
+                ):  # traffiq vehicle behavior
+                    filtered_ground_objects = [
+                        obj
+                        for obj in ground_objects
+                        if not polib.asset_pack_bpy.is_part_of_decomposed_car(obj, decomposed_car)
+                    ]
                     logger.debug(
                         f"Was able to decompose {obj.name} as if it was a traffiq vehicle. "
-                        f"Snapping to ground using the traffiq behavior."
+                        f"Using {len(decomposed_car.wheels)} separate wheels to determine final rotation..."
                     )
-                    if len(decomposed_car.wheels) > 0:
-                        logger.info(
-                            f"Using {len(decomposed_car.wheels)} separate wheels to determine final rotation..."
-                        )
-                        is_snapped = polib.snap_to_ground_bpy.snap_to_ground_separate_wheels(
-                            obj, decomposed_car.root_object, decomposed_car.wheels, ground_objects
-                        )
-                    else:
-                        logger.info(
-                            f"No wheels present in this asset, using snap normal to determine "
-                            f"final rotation..."
-                        )
-                        is_snapped = polib.snap_to_ground_bpy.snap_to_ground_adjust_rotation(
-                            obj, decomposed_car.root_object, ground_objects
-                        )
+                    snappable_object = decomposed_car.root_object
+                    # if it's a linked car, we want to move the whole collection
+                    if obj.instance_type == 'COLLECTION':
+                        snappable_object = obj
 
+                    is_snapped = polib.snap_to_ground_bpy.snap_to_ground_separate_wheels(
+                        snappable_object, decomposed_car.wheels, filtered_ground_objects
+                    )
+                else:
+                    # other traffiq assets are treated as generic assets
+                    logger.info(
+                        f"No wheels present in this asset, using generic snapping method for {obj.name}."
+                    )
+                    is_snapped = polib.snap_to_ground_bpy.snap_to_ground_adjust_rotation(
+                        obj, ground_objects
+                    )
             elif polib.asset_pack_bpy.is_polygoniq_object(obj, lambda x: x == "botaniq"):
                 logger.info(
                     f"Determined that {obj.name} is a botaniq asset. Going to snap without "
                     f"adjusting rotation."
                 )
-
-                if obj.type == 'MESH':
+                try:
                     is_snapped = polib.snap_to_ground_bpy.snap_to_ground_no_rotation(
-                        obj, obj, ground_objects
+                        obj, ground_objects
                     )
-                elif obj.type == 'EMPTY' and obj.instance_type == 'COLLECTION':
-                    collection = obj.instance_collection
-                    if len(collection.objects) >= 1:
-                        for collection_object in collection.objects:
-                            if collection_object.type == 'MESH':
-                                is_snapped = polib.snap_to_ground_bpy.snap_to_ground_no_rotation(
-                                    obj, collection_object, ground_objects
-                                )
-                                break
-                else:
+                except ValueError:
+                    logger.exception(f"Failed to snap {obj.name} to the ground.")
                     wrong_type_object_names.append(obj.name)
                     continue
-
             else:  # generic behavior
                 logger.info(
                     f"Determined that {obj.name} is a generic asset. Going to snap with "
                     f"adjustment to rotation."
                 )
-
-                if obj.type == 'MESH':
-                    is_snapped = polib.snap_to_ground_bpy.snap_to_ground_adjust_rotation(
-                        obj, obj, ground_objects
-                    )
-                elif obj.type == 'EMPTY' and obj.instance_type == 'COLLECTION':
-                    collection = obj.instance_collection
-                    if len(collection.objects) >= 1:
-                        for collection_object in collection.objects:
-                            if collection_object.type == 'MESH':
-                                is_snapped = (
-                                    polib.snap_to_ground_bpy.snap_to_ground_adjust_rotation(
-                                        obj, collection_object, ground_objects
-                                    )
-                                )
-                                break
-                else:
-                    wrong_type_object_names.append(obj.name)
-                    continue
+                is_snapped = polib.snap_to_ground_bpy.snap_to_ground_adjust_rotation(
+                    obj, ground_objects
+                )
 
             if is_snapped:
                 snapped_objects_names.append(obj.name)
             else:
                 no_ground_object_names.append(obj.name)
 
-        if len(no_ground_object_names + wrong_type_object_names) > 0:
+        if len(no_ground_object_names) + len(wrong_type_object_names) > 0:
             problems = []
 
             if len(no_ground_object_names) > 0:

@@ -25,6 +25,7 @@ import functools
 import typing
 import logging
 from . import asset_registry
+from . import polib
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
@@ -231,6 +232,7 @@ class PackInfoSearchPath(bpy.types.PropertyGroup):
 MODULE_CLASSES.append(PackInfoSearchPath)
 
 
+@polib.log_helpers_bpy.logged_operator
 class ShowDiscoveredPacks(bpy.types.Operator):
     bl_idname = "engon.show_discovered_packs"
     bl_label = "Show Discovered Packs"

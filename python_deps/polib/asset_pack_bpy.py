@@ -136,6 +136,7 @@ class TraffiqAssetPart(enum.Enum):
     Wheel = 'Wheel'
     Brake = 'Brake'
     LicensePlate = 'License-Plate'
+    Root = 'Root'
 
 
 def is_traffiq_asset_part(obj: bpy.types.Object, part: TraffiqAssetPart) -> bool:
@@ -144,6 +145,12 @@ def is_traffiq_asset_part(obj: bpy.types.Object, part: TraffiqAssetPart) -> bool
         return False
 
     obj_name = utils_bpy.remove_object_duplicate_suffix(obj.name)
+    if part in {TraffiqAssetPart.Root}:
+        split_name = obj_name.split("_")
+        if len(split_name) != 4:
+            return False
+        return True
+
     if part in {TraffiqAssetPart.Body, TraffiqAssetPart.Lights}:
         split_name = obj_name.rsplit("_", 1)
         if len(split_name) != 2:
@@ -193,6 +200,18 @@ class DecomposedCar:
     back_plate: typing.Optional[bpy.types.Object] = None
 
 
+def is_part_of_decomposed_car(obj: bpy.types.Object, decomposed_car: DecomposedCar) -> bool:
+    # let's not use get_entire_object_hierarchy here
+    # we want to check only the objects in the DecomposedCar
+    for field in dataclasses.fields(decomposed_car):
+        value = getattr(decomposed_car, field.name)
+        if isinstance(value, list) and obj in value:
+            return True
+        elif obj == value:
+            return True
+    return False
+
+
 def get_root_object_of_asset(asset: bpy.types.Object) -> typing.Optional[bpy.types.Object]:
     """Returns the root linked object if given a linked asset (instanced collection empty).
     Returns the object itself if given an editable asset. In case there are multiple roots
@@ -224,7 +243,6 @@ def get_root_object_of_asset(asset: bpy.types.Object) -> typing.Optional[bpy.typ
         return root_obj
 
     else:
-        # given object is editable
         return asset
 
 
@@ -247,8 +265,25 @@ def get_entire_object_hierarchy(obj: bpy.types.Object) -> typing.Iterable[bpy.ty
         yield obj
 
 
+def get_root_object_of_traffiq_asset(asset: bpy.types.Object) -> typing.Optional[bpy.types.Object]:
+    root_object = get_root_object_of_asset(asset)
+    if root_object is None:
+        return None
+
+    while not is_traffiq_asset_part(root_object, TraffiqAssetPart.Root):
+        if root_object.parent is None:
+            # we want to return the 'most root' object, even if it's not rig
+            logger.warning(
+                f"Failed to find the true root object of a traffiq asset (name='{asset.name}')"
+            )
+            return root_object
+        root_object = root_object.parent
+
+    return root_object
+
+
 def decompose_traffiq_vehicle(obj: bpy.types.Object) -> typing.Optional[DecomposedCar]:
-    root_object = get_root_object_of_asset(obj)
+    root_object = get_root_object_of_traffiq_asset(obj)
     body = None
     lights = None
     wheels = []
@@ -256,7 +291,11 @@ def decompose_traffiq_vehicle(obj: bpy.types.Object) -> typing.Optional[Decompos
     front_license_plate = None
     back_license_plate = None
 
-    hierarchy_objects = get_entire_object_hierarchy(obj)
+    if root_object is None:
+        # if no root object is found, this is not a valid traffiq vehicle
+        return
+
+    hierarchy_objects = get_entire_object_hierarchy(root_object)
     for hierarchy_obj in hierarchy_objects:
         if is_traffiq_asset_part(hierarchy_obj, TraffiqAssetPart.Body):
             # there should be only one body
@@ -272,28 +311,23 @@ def decompose_traffiq_vehicle(obj: bpy.types.Object) -> typing.Optional[Decompos
             brakes.append(hierarchy_obj)
         elif is_traffiq_asset_part(hierarchy_obj, TraffiqAssetPart.LicensePlate):
             _, suffix = utils_bpy.remove_object_duplicate_suffix(hierarchy_obj.name).rsplit("_", 1)
+            license_plate = (
+                hierarchy_obj
+                if hierarchy_obj.instance_type == 'COLLECTION'
+                else hierarchy_obj.children[0]
+            )
             if suffix == "F":
-                front_license_plate = hierarchy_obj.children[0]
+                front_license_plate = license_plate
             elif suffix == "B":
-                back_license_plate = hierarchy_obj.children[0]
+                back_license_plate = license_plate
 
-    # If no root object or body is found, this is not a valid traffiq vehicle
-    if root_object is None or body is None:
+    # If no body is found, this is not a valid traffiq vehicle
+    if body is None:
         return None
 
     return DecomposedCar(
         root_object, body, lights, wheels, brakes, front_license_plate, back_license_plate
     )
-
-
-def find_traffiq_asset_parts(
-    obj: bpy.types.Object, part: TraffiqAssetPart
-) -> typing.Iterable[bpy.types.Object]:
-    """Find all asset parts of a specific type."""
-
-    for hierarchy_obj in get_entire_object_hierarchy(obj):
-        if is_traffiq_asset_part(hierarchy_obj, part):
-            yield hierarchy_obj
 
 
 InstancedObjectInfo = typing.Tuple[

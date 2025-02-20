@@ -53,6 +53,7 @@ class RiverGeneratorPanel(RiverGeneratorPanelMixin, bpy.types.Panel):
 MODULE_CLASSES.append(RiverGeneratorPanel)
 
 
+@polib.log_helpers_bpy.logged_panel
 class RiverGeneratorGeneralAdjustmentsPanel(
     RiverGeneratorPanelMixin,
     feature_utils.GeoNodesAssetFeatureSecondaryControlPanelMixin,
@@ -91,6 +92,7 @@ class RiverGeneratorGeneralAdjustmentsPanel(
 MODULE_CLASSES.append(RiverGeneratorGeneralAdjustmentsPanel)
 
 
+@polib.log_helpers_bpy.logged_panel
 class RiverGeneratorBankRiverbedAdjustmentsPanel(
     RiverGeneratorPanelMixin,
     feature_utils.GeoNodesAssetFeatureSecondaryControlPanelMixin,
@@ -118,6 +120,7 @@ class RiverGeneratorBankRiverbedAdjustmentsPanel(
 MODULE_CLASSES.append(RiverGeneratorBankRiverbedAdjustmentsPanel)
 
 
+@polib.log_helpers_bpy.logged_panel
 class RiverGeneratorScatterPanel(
     RiverGeneratorPanelMixin,
     feature_utils.GeoNodesAssetFeatureSecondaryControlPanelMixin,
@@ -145,6 +148,7 @@ class RiverGeneratorScatterPanel(
 MODULE_CLASSES.append(RiverGeneratorScatterPanel)
 
 
+@polib.log_helpers_bpy.logged_panel
 class RiverGeneratorAdvancedAdjustmentsPanel(
     RiverGeneratorPanelMixin,
     feature_utils.GeoNodesAssetFeatureSecondaryControlPanelMixin,

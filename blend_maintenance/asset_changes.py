@@ -27,6 +27,34 @@ class AssetPackMigrations(typing.NamedTuple):
 
 # versions in the names reflect the last version of asset pack without given changes
 
+_botaniq_7_0_0_drop_with_in_pps_names = {
+    r"^bq_pps_Grass_With-flowers_A_spring-summer": r"bq_pps_Grass_Wildflowers_A_spring-summer",
+    r"^bq_pps_Grass_With-flowers_B_spring-summer": r"bq_pps_Grass_Flowers-decorative_B_spring-summer",
+    r"^bq_pps_Grass_With-flowers_C_spring-summer": r"bq_pps_Flower_Lavender-field_C_spring-summer",
+    r"^bq_pps_Grass_With-flowers_D_spring-summer": r"bq_pps_Grass_Calendula_D_spring-summer",
+}
+
+botaniq_7_0_0_drop_with_in_pps_names = AssetPackMigration(
+    [
+        RegexMapping(re.compile(f"{pattern}.blend$"), f"{replacement}.blend")
+        for pattern, replacement in _botaniq_7_0_0_drop_with_in_pps_names.items()
+    ],
+    {
+        "collections": [
+            RegexMapping(re.compile(pattern), replacement)
+            for pattern, replacement in _botaniq_7_0_0_drop_with_in_pps_names.items()
+        ],
+        "meshes": [
+            RegexMapping(re.compile(pattern), replacement)
+            for pattern, replacement in _botaniq_7_0_0_drop_with_in_pps_names.items()
+        ],
+        "objects": [
+            RegexMapping(re.compile(pattern), replacement)
+            for pattern, replacement in _botaniq_7_0_0_drop_with_in_pps_names.items()
+        ],
+    },
+)
+
 _botaniq_7_0_0_drop_dead_from_leaf_names = {
     r"^bq_Leaf-Dead-Group_Fagus-sylvatica_([A])_spring-summer": r"bq_Leaf-Group_Fagus-sylvatica_\1_spring-summer",
     r"^bq_Leaf-Dead_Fagus-sylvatica_([ABC])_spring-summer-autumn-winter": r"bq_Leaf_Fagus-sylvatica_\1_spring-summer-autumn-winter",
@@ -320,6 +348,7 @@ ASSET_PACK_MIGRATIONS = [
             botaniq_6_8_0_english_names_to_latin,
             botaniq_6_8_0_decapitalize_cortaderia,
             botaniq_7_0_0_drop_dead_from_leaf_names,
+            botaniq_7_0_0_drop_with_in_pps_names,
         ],
     ),
     AssetPackMigrations(

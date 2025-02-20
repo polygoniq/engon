@@ -8,11 +8,17 @@ import math
 import copy
 import logging
 
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
 from . import linalg_bpy
 from . import utils_bpy
+
+try:
+    import hatchery
+except ImportError:
+    from blender_addons import hatchery
 
 
 def find_bounding_wheels(wheels: typing.List[bpy.types.Object]) -> typing.List[bpy.types.Object]:
@@ -80,7 +86,6 @@ GetRayCastedPlaneCallable = typing.Callable[
 
 def snap_to_ground_iterate(
     instance: bpy.types.Object,
-    obj: bpy.types.Object,
     instance_old_matrix_world: mathutils.Matrix,
     get_ray_casted_plane: GetRayCastedPlaneCallable,
     debug: bool = False,
@@ -98,14 +103,16 @@ def snap_to_ground_iterate(
             if debug:
                 logger.debug(
                     f"Failed to raycast all corners while estimating rotation "
-                    f"for {obj.name}, instance={instance.name}. Skipping..."
+                    f"for instance={instance.name}. Skipping..."
                 )
             instance.matrix_world = instance_old_matrix_world
             return False
 
-        orig_plane_normal, _, orig_plane_centroid = linalg_bpy.fit_plane_to_points(bottom_corners)
-        altered_plane_normal, _, altered_plane_centroid = linalg_bpy.fit_plane_to_points(
-            altered_bottom_corners
+        assert len(bottom_corners) >= 3
+        assert len(altered_bottom_corners) >= 3
+        orig_plane_normal, _, orig_plane_centroid = linalg_bpy.plane_from_points(bottom_corners[:3])
+        altered_plane_normal, _, altered_plane_centroid = linalg_bpy.plane_from_points(
+            altered_bottom_corners[:3]
         )
         if debug:
             orig_plane_rotation = mathutils.Vector([0, 0, 1]).rotation_difference(orig_plane_normal)
@@ -149,14 +156,16 @@ def snap_to_ground_iterate(
         if debug:
             logger.debug(
                 f"Failed to raycast all corners while estimating position "
-                f"for {obj.name}, instance={instance.name}. Skipping..."
+                f"for instance={instance.name}. Skipping..."
             )
         instance.matrix_world = instance_old_matrix_world
         return False
 
-    orig_plane_normal, _, orig_plane_centroid = linalg_bpy.fit_plane_to_points(bottom_corners)
-    altered_plane_normal, _, altered_plane_centroid = linalg_bpy.fit_plane_to_points(
-        altered_bottom_corners
+    assert len(bottom_corners) >= 3
+    assert len(altered_bottom_corners) >= 3
+    orig_plane_normal, _, orig_plane_centroid = linalg_bpy.plane_from_points(bottom_corners[:3])
+    altered_plane_normal, _, altered_plane_centroid = linalg_bpy.plane_from_points(
+        altered_bottom_corners[:3]
     )
     delta_location = altered_plane_centroid - orig_plane_centroid
     instance.matrix_world = mathutils.Matrix.Translation(delta_location) @ instance.matrix_world
@@ -212,7 +221,6 @@ def ray_cast_plane(
 
 def snap_to_ground_separate_wheels(
     instance: bpy.types.Object,
-    obj: bpy.types.Object,
     wheels: typing.List[bpy.types.Object],
     ground_objects: typing.List[bpy.types.Object],
     debug: bool = False,
@@ -225,38 +233,51 @@ def snap_to_ground_separate_wheels(
         bottom_corners = get_wheel_contact_points(wheels, instance, debug)
         return ray_cast_plane(ground_objects, bottom_corners)
 
-    return snap_to_ground_iterate(
-        instance, obj, instance_old_matrix_world, get_ray_casted_plane, debug
-    )
+    return snap_to_ground_iterate(instance, instance_old_matrix_world, get_ray_casted_plane, debug)
 
 
 def snap_to_ground_adjust_rotation(
     instance: bpy.types.Object,
-    obj: bpy.types.Object,
     ground_objects: typing.List[bpy.types.Object],
     debug: bool = False,
 ) -> bool:
     instance_old_matrix_world = copy.deepcopy(instance.matrix_world)
 
-    def get_ray_casted_plane() -> (
-        typing.Tuple[typing.List[mathutils.Vector], typing.Optional[typing.List[mathutils.Vector]]]
-    ):
-        # get bounding box corners in world space
-        bbox_corners = [
-            instance.matrix_world @ mathutils.Vector(corner) for corner in obj.bound_box
-        ]
-        # I hope Blender never changes this, it's quite difficult to autodetect
-        bottom_corners = [bbox_corners[0], bbox_corners[3], bbox_corners[4], bbox_corners[7]]
-        return ray_cast_plane(ground_objects, bottom_corners)
+    # create a bounding box of the instance, including all children
+    full_bbox = hatchery.bounding_box.OrientedBox(instance.matrix_world)
+    full_bbox.extend_by_object(instance, recursive=True)
 
+    # make sure the bounding box has some volume
+    # (slightly extend the bounding box if it's flat)
+    if math.isclose(full_bbox.min.x, full_bbox.max.x, abs_tol=1e-4):
+        full_bbox.max.x += 0.01
+    if math.isclose(full_bbox.min.y, full_bbox.max.y, abs_tol=1e-4):
+        full_bbox.max.y += 0.01
+
+    # get bottom corners of the bounding box
+    bbox_bottom_corners_local = [
+        full_bbox.min,
+        mathutils.Vector([full_bbox.max.x, full_bbox.min.y, full_bbox.min.z]),
+        mathutils.Vector([full_bbox.max.x, full_bbox.max.y, full_bbox.min.z]),
+        mathutils.Vector([full_bbox.min.x, full_bbox.max.y, full_bbox.min.z]),
+    ]
+
+    # note: ray_cast_plane requires bottom bounding box corners in world space.
+    # Using lambda allows to precompute the corners in local space (above)
+    # and recalculate correct world position each time the lambda is called.
     return snap_to_ground_iterate(
-        instance, obj, instance_old_matrix_world, get_ray_casted_plane, debug
+        instance,
+        instance_old_matrix_world,
+        lambda: ray_cast_plane(
+            ground_objects,
+            [instance.matrix_world @ corner for corner in bbox_bottom_corners_local],
+        ),
+        debug,
     )
 
 
 def snap_to_ground_no_rotation(
     instance: bpy.types.Object,
-    obj: bpy.types.Object,
     ground_objects: typing.List[bpy.types.Object],
     debug: bool = False,
 ) -> bool:
@@ -305,6 +326,28 @@ def snap_to_ground_no_rotation(
             return obj_lowest_point, None
         else:
             return obj_lowest_point, altered_highest_point
+
+    # end of get_ray_casted_point
+
+    obj = None
+    if instance.type == 'MESH':
+        # editable assets
+        obj = instance
+        pass
+    elif instance.type == 'EMPTY' and instance.instance_type == 'COLLECTION':
+        # instanced assets => get the real mesh object from the collection
+        collection = instance.instance_collection
+        if len(collection.objects) >= 1:
+            for collection_object in collection.objects:
+                if collection_object.type == 'MESH':
+                    obj = collection_object
+
+    if obj is None:
+        raise ValueError(
+            f"Unsupported object. Expected 'MESH' or 'EMPTY' with 'COLLECTION' instance_type, "
+            f"got {instance.type}"
+            f"{f' with {instance.instance_type} instance_type' if instance.type == 'EMPTY' else ''}."
+        )
 
     obj_lowest_point, altered_highest_point = get_ray_casted_point()
     if altered_highest_point is None:

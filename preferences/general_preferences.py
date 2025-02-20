@@ -24,12 +24,16 @@ import typing
 import os
 import glob
 import json
+import logging
 from .. import polib
 from . import prefs_utils
 from .. import asset_pack_installer
 from .. import pack_info_search_paths
 from .. import asset_registry
+from .. import blend_maintenance
 from .. import __package__ as base_package
+
+logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
 MODULE_CLASSES: typing.List[typing.Any] = []
@@ -236,7 +240,6 @@ class GeneralPreferences(bpy.types.PropertyGroup):
         row.alignment = 'LEFT'
         row.scale_y = 1.2
         op = row.operator(InstallAssetPack.bl_idname, text="Install Asset Pack", icon='NEWFOLDER')
-        op.filepath = os.path.expanduser("~" + os.sep)
         row.operator(PackInfoSearchPathList_RefreshPacks.bl_idname, icon='FILE_REFRESH', text="")
         try:
             engon_version = polib.utils_bpy.get_addon_mod_info(base_package)["version"]
@@ -264,7 +267,6 @@ class GeneralPreferences(bpy.types.PropertyGroup):
             row.alignment = 'RIGHT'
             op = row.operator(UpdateAssetPack.bl_idname, text="", icon='FILE_PARENT')
             op.current_filepath = pack.install_path
-            op.filepath = os.path.expanduser("~" + os.sep)
 
             op = row.operator(UninstallAssetPack.bl_idname, text="", icon='TRASH')
             op.current_filepath = pack.install_path
@@ -554,7 +556,27 @@ class InstallAssetPack(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     # All other file types work as well, but are not visible by default
     filter_glob: bpy.props.StringProperty(default="*.paq;*.paq.001;*.pack-info", options={'HIDDEN'})
 
+    # Intentional shadowing of the filepath prop from the ImportHelper
+    # This allows us to force this prop to use 'SKIP_SAVE' option, so we can use the operator without the file selection window
+    # NOTE: Do not change the default value or this will not work
+    filepath: bpy.props.StringProperty(subtype='FILE_PATH', options={'HIDDEN', 'SKIP_SAVE'})
+
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+        if self.filepath == "":
+            # Invoke the file selection window
+            return super().invoke(context, event)
+        return self.execute(context)
+
     def execute(self, context: bpy.types.Context):
+        # Special condition for preventing Drag & Drop triggering unwanted failed installation dialogs
+        # This is a workaround as the FileHandler is not able to accept '.paq.001' files, so we allow '.001' files there
+        if (
+            bpy.app.version >= (4, 1, 0)
+            and self.filepath.endswith(".001")
+            and not self.filepath.endswith(".paq.001")
+        ):
+            logger.error(f"Unsupported file '{self.filepath}'")
+            return {'CANCELLED'}
         installer = asset_pack_installer.instance
         installer.load_installation(self.filepath)
         bpy.ops.engon.asset_pack_install_dialog('INVOKE_DEFAULT', filepath=self.filepath)
@@ -563,6 +585,22 @@ class InstallAssetPack(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 
 
 MODULE_CLASSES.append(InstallAssetPack)
+
+# Drag & Drop support is only available in Blender 4.1+
+if bpy.app.version >= (4, 1, 0):
+
+    class InstallAssetPackDragAndDropHandler(bpy.types.FileHandler):
+        bl_idname = "ENGON_FH_install_asset_pack_drag_and_drop"
+        bl_label = "Drag & Drop Install Asset Pack"
+        bl_import_operator = InstallAssetPack.bl_idname
+        # .paq.001 is not supported so we allow .001 and check the "real" extension in the install operator
+        bl_file_extensions = ".paq;.pack-info;.001"
+
+        @classmethod
+        def poll_drop(cls, context: bpy.types.Context) -> bool:
+            return True
+
+    MODULE_CLASSES.append(InstallAssetPackDragAndDropHandler)
 
 
 @polib.log_helpers_bpy.logged_operator
@@ -672,6 +710,7 @@ class AssetPackInstallationDialog(
                 pack_info_path_to_add, refresh_registry=False
             )
             gen_prefs.refresh_packs(save_prefs=prefs.save_prefs)
+            blend_maintenance.migrator.find_missing_files()
 
     @polib.utils_bpy.blender_cursor('WAIT')
     def execute(self, context: bpy.types.Context):
@@ -805,7 +844,18 @@ class UpdateAssetPack(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     # All other file types work as well, but are not visible by default
     filter_glob: bpy.props.StringProperty(default="*.paq;*.paq.001;*.pack-info", options={'HIDDEN'})
 
+    # Intentional shadowing of the filepath prop from the ImportHelper
+    # This allows us to force this prop to use 'SKIP_SAVE' option, so we can use the operator without the file selection window
+    # NOTE: Do not change the default value or this will not work
+    filepath: bpy.props.StringProperty(subtype='FILE_PATH', options={'HIDDEN', 'SKIP_SAVE'})
+
     current_filepath: bpy.props.StringProperty(options={'HIDDEN'})
+
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+        if self.filepath == "":
+            # Invoke the file selection window
+            return super().invoke(context, event)
+        return self.execute(context)
 
     def execute(self, context: bpy.types.Context):
         installer = asset_pack_installer.instance
@@ -884,11 +934,10 @@ class AssetPackUpdateDialog(bpy.types.Operator, asset_pack_installer.AssetPackIn
                 pack_info_path_to_add, refresh_registry=False
             )
             gen_prefs.refresh_packs(save_prefs=prefs.save_prefs)
+            blend_maintenance.migrator.find_missing_files()
 
     @polib.utils_bpy.blender_cursor('WAIT')
     def execute(self, context: bpy.types.Context):
-        prefs = prefs_utils.get_preferences(context)
-        gen_prefs = prefs.general_preferences
         installer = asset_pack_installer.instance
 
         if self.close:

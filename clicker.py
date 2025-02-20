@@ -78,7 +78,8 @@ class Clicker(bpy.types.Operator):
 
     is_running = False
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.models_collection: typing.Optional[bpy.types.Collection] = None
         self.target_collection: typing.Optional[bpy.types.Collection] = None
         self.collision_collection = bpy.context.scene.collection

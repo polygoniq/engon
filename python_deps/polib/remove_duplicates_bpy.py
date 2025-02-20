@@ -72,19 +72,24 @@ def remove_duplicate_datablocks(
     to_remove = []
 
     for datablock in datablocks:
-        if filters is not None and _is_duplicate_filtered(datablock, filters, install_paths):
+        if datablock.library is not None or (
+            filters is not None and _is_duplicate_filtered(datablock, filters, install_paths)
+        ):
+            # datablock is linked (can not be a duplicate) or is not marked as a duplicate
             continue
 
         # ok, so it's a duplicate, let's figure out the "proper" datablock
         orig_datablock_name = utils_bpy.remove_object_duplicate_suffix(datablock.name)
-        if orig_datablock_name in datablocks:
-            orig_node_group = datablocks[orig_datablock_name]
-            datablock.user_remap(orig_node_group)
+        orig_datablock = datablocks.get(orig_datablock_name, None)
+        if orig_datablock is not None and orig_datablock.library is None:
+            # there is an original local datablock
+            datablock.user_remap(orig_datablock)
             if datablock.users == 0:
                 to_remove.append(datablock)
         else:
             # the original datablock is gone, we should rename this one
             datablock.name = orig_datablock_name
+
     ret = []
     for datablock in to_remove:
         ret.append(datablock.name)

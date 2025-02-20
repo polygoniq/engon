@@ -9,8 +9,10 @@
 # change the behavior of the spawn function.
 
 import bpy
+import bmesh
 import abc
 import dataclasses
+import collections
 import mathutils
 import typing
 import logging
@@ -41,7 +43,9 @@ class SpawnedData(abc.ABC):
 
 @dataclasses.dataclass
 class ModelSpawnOptions(DatablockSpawnOptions):
-    parent_collection: typing.Optional[bpy.types.Collection] = None
+    collection_factory_method: typing.Optional[
+        typing.Callable[[], typing.Optional[bpy.types.Collection]]
+    ] = None
     # If present the spawned model instancer is selected, other objects are deselected
     select_spawned: bool = False
     location_override: typing.Optional[mathutils.Vector] = None
@@ -66,7 +70,11 @@ def spawn_model(
     Returns the empty that instances the model 'master' collection.
     """
 
-    if options.parent_collection is None and options.select_spawned:
+    parent_collection = None
+    if options.collection_factory_method is not None:
+        parent_collection = options.collection_factory_method()
+
+    if parent_collection is None and options.select_spawned:
         raise RuntimeError(
             "Wrong arguments: Cannot select spawned model objects without a parent collection. "
             "The object wouldn't be present in the View Layer!"
@@ -103,8 +111,8 @@ def spawn_model(
     for col in root_empty.users_collection:
         col.objects.unlink(root_empty)
 
-    if options.parent_collection is not None:
-        options.parent_collection.objects.link(root_empty)
+    if parent_collection is not None:
+        parent_collection.objects.link(root_empty)
 
         # Only change selection if we linked the object, so it is present in view layer and if
         # caller wants to.
@@ -119,8 +127,12 @@ def spawn_model(
 
 @dataclasses.dataclass
 class MaterialSpawnOptions(DatablockSpawnOptions):
+    collection_factory_method: typing.Optional[
+        typing.Callable[[], typing.Optional[bpy.types.Collection]]
+    ] = None
     texture_size: int = 2048
     use_displacement: bool = False
+    select_spawned: bool = True
     target_objects: typing.Set[bpy.types.Object] = dataclasses.field(default_factory=set)
 
 
@@ -133,7 +145,7 @@ class MaterialSpawnedData(SpawnedData):
 def spawn_material(
     path: str, context: bpy.types.Context, options: MaterialSpawnOptions
 ) -> MaterialSpawnedData:
-    """Loads material from 'path' and adds it to all selected objects containing material slots.
+    """Loads material from 'path' and adds it to all target objects or to their selected faces if edit mode is toggled on
 
     (materialiq materials only)
     Automatically changes texture sizes and links / unlinks displacement based on spawning options.
@@ -142,20 +154,73 @@ def spawn_material(
     """
 
     material = load.load_material(path)
+    # Copy the set of targets to avoid modifying the original
+    target_objects = set(options.target_objects)
 
-    # If no object is selected we will spawn a sphere and assign material on it
-    if len(options.target_objects) == 0:
+    # If no object is selected we will spawn a sphere and assign material to it
+    if context.mode != 'EDIT_MESH' and len(target_objects) == 0:
+        prev_active = context.active_object
         bpy.ops.mesh.primitive_uv_sphere_add()
         bpy.ops.object.shade_smooth()
         # The spawned sphere is the active object
         assert context.active_object is not None
-        context.active_object.name = material.name
-        options.target_objects.add(context.active_object)
+        obj = context.active_object
+        obj.name = material.name
+        obj.data.name = material.name
+        obj.location = context.scene.cursor.location
+        context.collection.objects.unlink(obj)
+        if options.collection_factory_method is not None:
+            parent_collection = options.collection_factory_method()
+            if parent_collection is not None:
+                parent_collection.objects.link(obj)
 
-    for obj in options.target_objects:
+                if options.select_spawned:
+                    for selected_obj in context.selected_objects:
+                        selected_obj.select_set(False)
+                    obj.select_set(True)
+
+        target_objects.add(obj)
+        context.view_layer.objects.active = prev_active
+
+    for obj in target_objects:
         if not utils.can_have_materials_assigned(obj):
             continue
-        if len(obj.material_slots) < 1:
+        if context.mode == 'EDIT_MESH':
+            # In EDIT mode we only assign material to selected faces of the edited objects
+            if obj.mode != 'EDIT':
+                continue
+            # Convert to BMesh to force update of selected faces
+            bm = bmesh.from_edit_mesh(obj.data)
+            selected_faces = [face for face in bm.faces if face.select]
+            if not any(selected_faces):
+                continue
+            with context.temp_override(active_object=obj, selected_objects=[obj], object=obj):
+                for index, material_slot in enumerate(obj.material_slots):
+                    # If a material slot with the same material is already present, assign the selected
+                    # faces to it. The already assigned material might have been tweaked by the user
+                    # but we don't want to override it.
+                    orig_mapr_index = material_slot.material.get("mapr_asset_id", "")
+                    if orig_mapr_index != "" and orig_mapr_index == material.get(
+                        "mapr_asset_id", ""
+                    ):
+                        obj.active_material_index = index
+                        # Add the currently selected faces to the already assigned material
+                        bpy.ops.object.material_slot_select()
+                        bpy.ops.object.material_slot_assign()
+                        # Revert face selection as user had it before
+                        for face in bm.faces:
+                            face.select_set(face in selected_faces)
+                        bmesh.update_edit_mesh(obj.data)
+                        break
+                else:
+                    # The first material slot added to an object will automatically contain all faces
+                    # Unless there are more material slots, assigning a smaller subset of faces to it
+                    # will not work as expected
+                    bpy.ops.object.material_slot_add()
+                    bpy.ops.object.material_slot_assign()
+                    obj.material_slots[obj.active_material_index].material = material
+
+        elif len(obj.material_slots) == 0:
             obj.data.materials.append(material)
         else:
             obj.material_slots[obj.active_material_index].material = material
@@ -173,14 +238,20 @@ def spawn_material(
 
 @dataclasses.dataclass
 class ParticleSystemSpawnOptions(DatablockSpawnOptions):
+    collection_factory_method: typing.Optional[
+        typing.Callable[[], typing.Optional[bpy.types.Collection]]
+    ] = None
     display_type: str = 'TEXTURED'
     display_percentage: float = 100.0
-    instance_collection_parent: typing.Optional[bpy.types.Collection] = None
+    instance_layer_collection_parent: typing.Optional[bpy.types.LayerCollection] = None
+    # 'enable_instance_collection' is only used when 'instance_layer_collection_parent' is not None
+    enable_instance_collection: bool = False
     include_base_material: bool = True
     max_particle_count: int = 10000
     # count is used when preserve_density is False
     count: int = 1000
     preserve_density: bool = True
+    select_spawned: bool = True
     target_objects: typing.Set[bpy.types.Object] = dataclasses.field(default_factory=set)
 
 
@@ -201,32 +272,65 @@ class ParticlesSpawnedData(SpawnedData):
 def spawn_particles(
     path: str, context: bpy.types.Context, options: ParticleSystemSpawnOptions
 ) -> ParticlesSpawnedData:
-    """Loads all particle systems from a given path and puts them on objects based on options.
+    """Loads all particle systems from a given path and puts them on target objects or on a simple plane.
 
     Returns list of particle settings that were loaded.
     """
-    all_particle_settings = load.load_particles(path)
+    container_obj, all_particle_settings = load.load_particles(path)
+    # Copy the set of targets to avoid modifying the original
+    target_objects = set(options.target_objects)
+    # In case there are no target objects, we will spawn the particles on the container object
+    if len(target_objects) == 0:
+        target_objects.add(container_obj)
+        container_obj.location = context.scene.cursor.location
+        if options.collection_factory_method is not None:
+            parent_collection = options.collection_factory_method()
+            if parent_collection is not None:
+                parent_collection.objects.link(container_obj)
+                if options.select_spawned:
+                    for selected_obj in context.selected_objects:
+                        selected_obj.select_set(False)
+                    container_obj.select_set(True)
+    else:
+        bpy.data.objects.remove(container_obj)
 
     # Get lowest z location from target objects and calculate total mesh are of all target objects
     # so the instanced objects locations and particle counts are adjusted properly.
     lowest_obj_z = 0.0
     total_mesh_area = 0.0
-    for target_obj in options.target_objects:
+    for target_obj in target_objects:
         lowest_obj_z = min(target_obj.location.z, lowest_obj_z)
         total_mesh_area += utils.calculate_mesh_area(target_obj)
 
     for particle_settings in all_particle_settings:
         particle_settings.display_percentage = options.display_percentage
         for obj in particle_settings.instance_collection.all_objects:
-            # We spawn all objects 10units below the lowest location of target objects
+            # We spawn all objects 10 units below the lowest location of target objects
             obj.location.z = lowest_obj_z - 10.0
             obj.display_type = options.display_type
 
-        if options.instance_collection_parent is not None:
-            options.instance_collection_parent.children.link(particle_settings.instance_collection)
+        if options.instance_layer_collection_parent is not None:
+            # Link the instance collection to the parent collection
+            instance_collection_parent = options.instance_layer_collection_parent.collection
+            instance_collection_parent.children.link(particle_settings.instance_collection)
+            if not options.enable_instance_collection:
+                # Exclude the instance collection from the view layer
+                particle_layer_collection = options.instance_layer_collection_parent.children.get(
+                    particle_settings.instance_collection.name, None
+                )
+                if particle_layer_collection is not None:
+                    particle_layer_collection.exclude = True
 
         if options.preserve_density:
-            new_count = int(total_mesh_area * particle_settings.pps_density)
+            try:
+                new_count = int(total_mesh_area * particle_settings.pps_density)
+            except ValueError:
+                logger.exception(
+                    f"Error while calculating particle count with preserve density option. "
+                    f"(total_mesh_area: {total_mesh_area}, pps_density: {particle_settings.pps_density}) "
+                    f"Setting particle count to default value: {options.count}"
+                )
+                new_count = options.count
             if new_count > options.max_particle_count:
                 logger.warning(
                     f"Particle count exceeded maximum by: {int(new_count - options.max_particle_count)}"
@@ -236,19 +340,23 @@ def spawn_particles(
             new_count = options.count
         particle_settings.count = new_count
 
-        for target_obj in options.target_objects:
+        for target_obj in target_objects:
             # Create modifiers and adjust particle system settings based on spawn options
             mod: bpy.types.ParticleSystemModifier = target_obj.modifiers.new(
                 particle_settings.name, type='PARTICLE_SYSTEM'
             )
             mod.particle_system.settings = particle_settings
+            # If seed is 0, particles of all the systems will be spawned over each other
+            # We use hash of the particle settings name to get a unique but consistent seed
+            mod.particle_system.seed = hash(particle_settings.name) % (2**31)
             utils.ensure_particle_naming_consistency(mod, mod.particle_system)
 
     spawned_material_data = None
     if options.include_base_material:
-        spawned_material_data = spawn_material(
-            path, context, MaterialSpawnOptions(target_objects=options.target_objects)
-        )
+        with context.temp_override(mode='OBJECT'):
+            spawned_material_data = spawn_material(
+                path, context, MaterialSpawnOptions(target_objects=target_objects)
+            )
 
     return ParticlesSpawnedData(
         all_particle_settings,
@@ -288,38 +396,76 @@ def spawn_scene(
 
 @dataclasses.dataclass
 class GeometryNodesSpawnOptions(DatablockSpawnOptions):
-    parent_collection: typing.Optional[bpy.types.Collection] = None
+    collection_factory_method: typing.Optional[
+        typing.Callable[[], typing.Optional[bpy.types.Collection]]
+    ] = None
+    select_spawned: bool = True
+    target_objects: typing.Set[bpy.types.Object] = dataclasses.field(default_factory=set)
 
 
 class GeometryNodesSpawnedData(SpawnedData):
     def __init__(
-        self, container_obj: bpy.types.Object, modifiers: typing.Iterable[bpy.types.Modifier]
+        self,
+        container_objs_to_mods_map: typing.Dict[bpy.types.Object, typing.Set[bpy.types.Modifier]],
     ):
-        self.container_obj = container_obj
-        self.modifiers = modifiers
-        super().__init__({container_obj} | {m.node_group for m in modifiers})
+        self.container_objs_to_mods_map = container_objs_to_mods_map
+        node_groups = set()
+        for mods in container_objs_to_mods_map.values():
+            for mod in mods:
+                assert mod.type == 'NODES'
+                node_groups.add(mod.node_group)
+        super().__init__(node_groups)
 
 
 def spawn_geometry_nodes(
     path: str, context: bpy.types.Context, options: GeometryNodesSpawnOptions
 ) -> GeometryNodesSpawnedData:
-    """Loads object with the same name as basename of 'path' and adds it to the scene collection"""
-    # Currently default behavior is to append the object containing the geometry nodes.
-    # TODO: In future we want to load either node group into node tree, apply onto active
-    # object and choose whether to start draw, or edit mode.
-    obj = load.load_master_object(path)
-    if options.parent_collection is not None:
-        options.parent_collection.objects.link(obj)
-    obj.location = context.scene.cursor.location
+    """Loads object with the same name as basename of 'path' and copies its modifiers to suitable target objects.
 
+    If there are no suitable target objects, adds a standalone object with the modifiers into the scene collection.
+    """
+    container_object = load.load_master_object(path)
     # Due to a bug in Blender while converting boolean inputs we reassign the modifier node
     # group when spawning. The bug happens when object with modifiers is appended from a blend
     # file, where the modifier node group is linked from a different file. First append is
     # correct, but any subsequently appended object with the same modifier triggers the:
     # 'Property type does not match input socket (NAME)' error and can make some setups not work
     # Issue link: https://projects.blender.org/blender/blender/issues/110825
-    for mod in obj.modifiers:
+    for mod in container_object.modifiers:
         if mod.type == 'NODES':
             mod.node_group = mod.node_group
 
-    return GeometryNodesSpawnedData(obj, {m for m in obj.modifiers if m.type == 'NODES'})
+    container_objs_to_mods_map: typing.Dict[bpy.types.Object, typing.Set[bpy.types.Modifier]] = (
+        collections.defaultdict(set)
+    )
+    curve_targets = [obj for obj in options.target_objects if obj.type == 'CURVE']
+    if container_object.type == 'CURVE' and len(curve_targets) > 0:
+        # Let's copy the modifiers one object at a time so we have more control
+        for target_obj in curve_targets:
+            with context.temp_override(
+                active_object=container_object,
+                object=container_object,
+                selected_objects=[target_obj],
+            ):
+                prev_mods = set(target_obj.modifiers)
+                for mod in container_object.modifiers:
+                    if mod.type == 'NODES':
+                        bpy.ops.object.modifier_copy_to_selected(modifier=mod.name)
+                spawned_mods = set(target_obj.modifiers) - prev_mods
+                container_objs_to_mods_map[target_obj].update(spawned_mods)
+        bpy.data.objects.remove(container_object)
+    else:
+        if options.collection_factory_method is not None:
+            parent_collection = options.collection_factory_method()
+            if parent_collection is not None:
+                parent_collection.objects.link(container_object)
+                if options.select_spawned:
+                    for selected_obj in context.selected_objects:
+                        selected_obj.select_set(False)
+                    container_object.select_set(True)
+
+        container_object.location = context.scene.cursor.location
+        container_objs_to_mods_map[container_object].update(
+            mod for mod in container_object.modifiers if mod.type == 'NODES'
+        )
+    return GeometryNodesSpawnedData(container_objs_to_mods_map)

@@ -474,32 +474,6 @@ def text_box(
         y_pos -= style.font_size + text_margin
 
 
-def text_rounded_box(
-    pos: mathutils.Vector,
-    padding: float,
-    background_color: Color,
-    lines: typing.List[typing.Tuple[str, TextStyle]],
-    line_spacing: float = 2.0,
-) -> None:
-    height = sum(t[1].font_size for t in lines) + (len(lines) - 1) * line_spacing + padding * 2
-
-    rounded_rectangle(
-        pos[0],
-        pos[1],
-        _calculate_lines_width(lines) + 2 * padding,
-        height,
-        5.0,
-        fill=True,
-        color=background_color,
-    )
-
-    x_pos = pos.x + padding
-    y_pos = pos.y + padding + line_spacing
-    for string, style in lines:
-        text((x_pos, y_pos), string, style)
-        y_pos += style.font_size + line_spacing
-
-
 def key_symbol(
     x: float,
     y: float,

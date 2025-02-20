@@ -37,6 +37,7 @@ EXPECTED_DEV_PATH = os.path.realpath(os.path.expanduser("~/polygoniq/"))
 IS_DEV = os.path.exists(os.path.join(EXPECTED_DEV_PATH, ".git"))
 
 
+@polib.log_helpers_bpy.logged_operator
 class MAPR_BrowserDeleteCache(bpy.types.Operator):
     bl_idname = "engon.dev_browser_delete_cache"
     bl_label = "Delete Cache"
@@ -49,6 +50,7 @@ class MAPR_BrowserDeleteCache(bpy.types.Operator):
 MODULE_CLASSES.append(MAPR_BrowserDeleteCache)
 
 
+@polib.log_helpers_bpy.logged_operator
 class MAPR_BrowserReconstructFilters(bpy.types.Operator):
     bl_idname = "engon.dev_browser_reconstruct_filters"
     bl_label = "Reconstruct Filters"
@@ -63,6 +65,7 @@ class MAPR_BrowserReconstructFilters(bpy.types.Operator):
 MODULE_CLASSES.append(MAPR_BrowserReconstructFilters)
 
 
+@polib.log_helpers_bpy.logged_operator
 class MAPR_BrowserOpenAssetSourceBlend(bpy.types.Operator):
     bl_idname = "engon.dev_open_asset_source_blend"
     bl_label = "Open Asset Source Blend"

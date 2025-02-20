@@ -39,19 +39,6 @@ def add_bezier_point_to_spline(
     return new_point
 
 
-def remove_bezier_point(
-    curve_obj: bpy.types.Object, spline: bpy.types.Spline, remove_idx: int
-) -> None:
-    """Removes bezier point from a spline by changing selection and calling bpy.ops.curve.delete"""
-    bpy.context.view_layer.objects.active = curve_obj
-    bpy.ops.curve.select_all(action='DESELECT')
-    for i, bezier_point in enumerate(spline.bezier_points):
-        bezier_point.select_control_point = i == remove_idx
-
-    if 'FINISHED' not in bpy.ops.curve.delete(type='VERT'):
-        raise RuntimeError(f"Failed to remove bezier point from '{repr(spline)}' on {remove_idx}")
-
-
 def join_splines(
     curve: bpy.types.Curve,
     spline1: bpy.types.Spline,

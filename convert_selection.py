@@ -70,7 +70,7 @@ def make_selection_linked(
         spawned_data = spawner.spawn(
             context,
             asset,
-            hatchery.spawn.ModelSpawnOptions(parent_collection=None, select_spawned=False),
+            hatchery.spawn.ModelSpawnOptions(collection_factory_method=None, select_spawned=False),
         )
         if spawned_data is None:
             logger.error(f"Failed to spawn asset {asset.id_}")

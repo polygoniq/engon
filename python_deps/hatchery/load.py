@@ -92,13 +92,22 @@ def load_material(blend_path: str) -> bpy.types.Material:
     return material
 
 
-def load_particles(blend_path: str) -> typing.List[bpy.types.ParticleSettings]:
-    """Loads are particle system from 'blend_path' and returns them."""
+def load_particles(
+    blend_path: str,
+) -> typing.Tuple[bpy.types.Object, typing.List[bpy.types.ParticleSettings]]:
+    """Loads all particle system and the master object from 'blend_path' and returns them."""
+    asset_name, _ = os.path.splitext(os.path.basename(blend_path))
     with bpy.data.libraries.load(blend_path, link=False) as (data_from, data_to):
+        # We assume that particle blends contain a simple plane with the same name and mesh name as the blend
+        # Instead of copying the object, we just use its mesh data, so we don't copy materials, etc.
+        assert asset_name in data_from.objects
+        assert asset_name in data_from.meshes
+        assert len(data_from.particles) > 0
         data_to.particles = data_from.particles
+        data_to.meshes = [asset_name]
+    obj = bpy.data.objects.new(asset_name, data_to.meshes[0])
 
-    assert len(data_to.particles) > 0
-    return data_to.particles
+    return obj, data_to.particles
 
 
 def load_world(blend_path: str) -> bpy.types.World:

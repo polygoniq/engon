@@ -53,6 +53,7 @@ class RainGeneratorPanel(RainGeneratorPanelMixin, bpy.types.Panel):
 MODULE_CLASSES.append(RainGeneratorPanel)
 
 
+@polib.log_helpers_bpy.logged_panel
 class RainGeneratorGeneralAdjustmentsPanel(
     RainGeneratorPanelMixin,
     feature_utils.GeoNodesAssetFeatureSecondaryControlPanelMixin,
@@ -84,6 +85,7 @@ class RainGeneratorGeneralAdjustmentsPanel(
 MODULE_CLASSES.append(RainGeneratorGeneralAdjustmentsPanel)
 
 
+@polib.log_helpers_bpy.logged_panel
 class RainGeneratorSplashEffectsPanel(
     RainGeneratorPanelMixin,
     feature_utils.GeoNodesAssetFeatureSecondaryControlPanelMixin,
@@ -110,6 +112,7 @@ class RainGeneratorSplashEffectsPanel(
 MODULE_CLASSES.append(RainGeneratorSplashEffectsPanel)
 
 
+@polib.log_helpers_bpy.logged_panel
 class RainGeneratorCameraAdjustmentsPanel(
     RainGeneratorPanelMixin,
     feature_utils.GeoNodesAssetFeatureSecondaryControlPanelMixin,

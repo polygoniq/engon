@@ -333,6 +333,7 @@ class RoadGeneratorPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
 MODULE_CLASSES.append(RoadGeneratorPanel)
 
 
+@polib.log_helpers_bpy.logged_panel
 class RoadGeneratorInputCurvePanel(RoadGeneratorPanelMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_traffiq_road_generator_input_curve"
     bl_parent_id = RoadGeneratorPanel.bl_idname
@@ -364,6 +365,7 @@ class RoadGeneratorInputCurvePanel(RoadGeneratorPanelMixin, bpy.types.Panel):
 MODULE_CLASSES.append(RoadGeneratorInputCurvePanel)
 
 
+@polib.log_helpers_bpy.logged_panel
 class RoadGeneratorProfilePanel(RoadGeneratorPanelMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_traffiq_road_generator_profile"
     bl_parent_id = RoadGeneratorPanel.bl_idname
@@ -401,6 +403,7 @@ class RoadGeneratorProfilePanel(RoadGeneratorPanelMixin, bpy.types.Panel):
 MODULE_CLASSES.append(RoadGeneratorProfilePanel)
 
 
+@polib.log_helpers_bpy.logged_panel
 class RoadGeneratorRoadMarkingPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_traffiq_road_generator_road_marking"
     bl_parent_id = RoadGeneratorPanel.bl_idname
@@ -437,6 +440,7 @@ class RoadGeneratorRoadMarkingPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
 MODULE_CLASSES.append(RoadGeneratorRoadMarkingPanel)
 
 
+@polib.log_helpers_bpy.logged_panel
 class RoadGeneratorDistributePanel(RoadGeneratorPanelMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_traffiq_road_generator_distribute"
     bl_parent_id = RoadGeneratorPanel.bl_idname
@@ -473,6 +477,7 @@ class RoadGeneratorDistributePanel(RoadGeneratorPanelMixin, bpy.types.Panel):
 MODULE_CLASSES.append(RoadGeneratorDistributePanel)
 
 
+@polib.log_helpers_bpy.logged_panel
 class RoadGeneratorCrosswalkPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_traffiq_road_generator_crosswalk"
     bl_parent_id = RoadGeneratorPanel.bl_idname
@@ -509,6 +514,7 @@ class RoadGeneratorCrosswalkPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
 MODULE_CLASSES.append(RoadGeneratorCrosswalkPanel)
 
 
+@polib.log_helpers_bpy.logged_panel
 class RoadGeneratorScatterPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_traffiq_road_generator_scatter"
     bl_parent_id = RoadGeneratorPanel.bl_idname
@@ -546,6 +552,7 @@ class RoadGeneratorScatterPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
 MODULE_CLASSES.append(RoadGeneratorScatterPanel)
 
 
+@polib.log_helpers_bpy.logged_panel
 class RoadGeneratorCleanupPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_traffiq_road_generator_cleanup"
     bl_parent_id = RoadGeneratorPanel.bl_idname

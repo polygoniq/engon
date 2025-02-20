@@ -209,6 +209,15 @@ TEXT_PARAMETERS = {
         "show_filter": False,
         "search_weight": 0.0,
     },
+    "interior_detail": {
+        "choices": [
+            "Low",
+            "Medium",
+            "High",
+        ],
+        "description": "Interior detail level",
+        "search_weight": 0.0,
+    },
 }
 
 

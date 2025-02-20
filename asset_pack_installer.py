@@ -18,6 +18,8 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
+import sys
+import addon_utils
 import bpy
 import typing
 import os
@@ -29,6 +31,7 @@ import zipfile
 import glob
 from . import polib
 from . import asset_registry
+from . import __package__ as base_package
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
@@ -532,6 +535,29 @@ class AssetPackInstaller:
         if pack is None:
             return
 
+        if (
+            self._operation == InstallerOperation.INSTALL
+            or self._operation == InstallerOperation.UPDATE
+        ):
+            # Check min engon version
+            try:
+                engon_version = addon_utils.module_bl_info(sys.modules[base_package])["version"]
+            except (ValueError, KeyError):
+                # This shouldn't happen at all, because we are in the same __package__ that we are
+                # searching for the version, but just to be sure we catch this.
+                self.record_error_message(
+                    "Failed to detect engon version. Please update or re-install engon."
+                )
+                self.abort_operation()
+                return
+            if engon_version is not None and engon_version < pack.min_engon_version:
+                self.record_error_message(
+                    f"The Asset Pack requires engon version {'.'.join(map(str, pack.min_engon_version))}. "
+                    "Please update engon in the 'Updates' section."
+                )
+                self.abort_operation()
+                return
+
         if self._operation == InstallerOperation.UPDATE:
             assert update_file_path is not None
             logger.info(f"Loading Update Asset Pack from '{file_path}'")
@@ -831,7 +857,6 @@ class AssetPackInstallerDialogMixin:
         return not instance.can_installer_proceed
 
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
-        polib.ui_bpy.center_mouse(context)
         # When the dialog is supposed to close, we don't want to show the OK and Cancel buttons
         if self.check_should_dialog_close():
             return context.window_manager.invoke_popup(self, width=550)

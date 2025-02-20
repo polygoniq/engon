@@ -37,7 +37,7 @@ class ShowPopup(bpy.types.Operator):
 
     title: bpy.props.StringProperty(default="No title", options={'HIDDEN'})
 
-    icon: bpy.props.StringProperty(default='WARNING', options={'HIDDEN'})
+    icon: bpy.props.StringProperty(default='INFO', options={'HIDDEN'})
 
     def execute(self, context):
         polib.ui_bpy.show_message_box(self.message, self.title, self.icon)

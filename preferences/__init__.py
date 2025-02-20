@@ -44,6 +44,7 @@ MODULE_CLASSES: typing.List[typing.Any] = []
 CONFLICTING_ADDONS = polib.utils_bpy.get_conflicting_addons(base_package)
 
 
+@polib.log_helpers_bpy.logged_operator
 class ShowReleaseNotes(bpy.types.Operator):
     bl_idname = "engon.show_release_notes"
     bl_label = "Show Release Notes"

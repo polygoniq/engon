@@ -8,6 +8,7 @@ import re
 ASSET_PACK_COLLECTION_COLOR_MAP = {
     "botaniq": 'COLOR_04',  # green
     "traffiq": 'COLOR_02',  # orange
+    "materialiq": 'COLOR_01',  # red
     "aquatiq": 'COLOR_05',  # blue
     "interniq": 'COLOR_03',  # yellow
     "engon_particle_systems": 'COLOR_04',  # green

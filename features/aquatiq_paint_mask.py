@@ -61,8 +61,8 @@ class EnterVertexPaintMode(bpy.types.Operator):
     )
     bl_options = {'REGISTER'}
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         # Control properties for draw method
         self.should_create_mask = False
         self.display_mask_warning = False

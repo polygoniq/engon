@@ -130,6 +130,7 @@ class LicensePlatesAdjustmentsPanelMixin(
             )
 
 
+@polib.log_helpers_bpy.logged_panel
 class FrontPlatePanel(
     LicensePlatesAdjustmentsPanelMixin,
     bpy.types.Panel,
@@ -172,6 +173,7 @@ class FrontPlatePanel(
 MODULE_CLASSES.append(FrontPlatePanel)
 
 
+@polib.log_helpers_bpy.logged_panel
 class BackPlatePanel(
     LicensePlatesAdjustmentsPanelMixin,
     bpy.types.Panel,
@@ -214,6 +216,7 @@ class BackPlatePanel(
 MODULE_CLASSES.append(BackPlatePanel)
 
 
+@polib.log_helpers_bpy.logged_panel
 class GenericPlatePanel(
     LicensePlatesAdjustmentsPanelMixin,
     bpy.types.Panel,

@@ -55,6 +55,7 @@ class VineGeneratorPanel(
 MODULE_CLASSES.append(VineGeneratorPanel)
 
 
+@polib.log_helpers_bpy.logged_panel
 class VineGeneratorGeneralAdjustmentsPanel(
     VineGeneratorPanelMixin,
     feature_utils.GeoNodesAssetFeatureSecondaryControlPanelMixin,
@@ -91,6 +92,7 @@ class VineGeneratorGeneralAdjustmentsPanel(
 MODULE_CLASSES.append(VineGeneratorGeneralAdjustmentsPanel)
 
 
+@polib.log_helpers_bpy.logged_panel
 class VineGeneratorStemAdjustmentsPanel(
     VineGeneratorPanelMixin,
     feature_utils.GeoNodesAssetFeatureSecondaryControlPanelMixin,
@@ -123,6 +125,7 @@ class VineGeneratorStemAdjustmentsPanel(
 MODULE_CLASSES.append(VineGeneratorStemAdjustmentsPanel)
 
 
+@polib.log_helpers_bpy.logged_panel
 class VineGeneratorLeavesAdjustmentsPanel(
     VineGeneratorPanelMixin,
     feature_utils.GeoNodesAssetFeatureSecondaryControlPanelMixin,
