@@ -450,7 +450,7 @@ MODULE_CLASSES.append(ReturnToObjectMode)
 class RemoveParticleSystem(bpy.types.Operator):
     bl_idname = "engon.scatter_particles_remove"
     bl_label = "Remove Particle System"
-    bl_description = "Removes active particle system from selected objects"
+    bl_description = "Removes active particle system from the active object"
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -467,20 +467,17 @@ class RemoveParticleSystem(bpy.types.Operator):
         ps_settings_to_remove = ps_to_remove.settings
         ps_settings_to_remove_name = ps_settings_to_remove.name
 
-        logger.info(
-            f"Going to remove {ps_settings_to_remove_name} from {[obj.name for obj in context.selected_objects]}"
-        )
+        logger.info(f"Going to remove {ps_settings_to_remove_name} from '{active_object.name}'")
 
-        # Remove particle system from selected objects only
-        for obj in context.selected_objects:
-            for modifier in obj.modifiers:
-                if modifier.type != 'PARTICLE_SYSTEM':
-                    continue
-                if modifier.particle_system.settings.name == ps_settings_to_remove_name:
-                    # Store previous index, so we can keep it on the next item from deleted.
-                    prev_index = particle_systems.active_index
-                    obj.modifiers.remove(modifier)
-                    particle_systems.active_index = max(0, prev_index - 1)
+        # Remove particle system from the active object
+        for modifier in active_object.modifiers:
+            if modifier.type != 'PARTICLE_SYSTEM':
+                continue
+            if modifier.particle_system.settings.name == ps_settings_to_remove_name:
+                # Store previous index, so we can keep it on the next item from deleted.
+                prev_index = particle_systems.active_index
+                active_object.modifiers.remove(modifier)
+                particle_systems.active_index = max(0, prev_index - 1)
 
         # If some users of the particle system still exist, we can keep the particle system data
         if ps_settings_to_remove.users > 0:

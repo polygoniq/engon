@@ -50,24 +50,28 @@ def get_wheel_contact_points(
     wheel_contact_points = []
     one_track_vehicle = True if len(wheels) == 2 else False
 
+    # if the instance is a linked asset, `wheel.matrix_world` is in the collection space
+    # => we need to multiply it by the instance matrix_world to get the correct world space
+    if instance.type == 'EMPTY' and instance.instance_type == 'COLLECTION':
+        matrix_instance_world = instance.matrix_world
+    else:
+        matrix_instance_world = mathutils.Matrix.Identity(4)
+
     # when vehicle has more than 4 wheels take only the outer ones
     if len(wheels) > 4:
         wheels = find_bounding_wheels(wheels)
 
     for wheel_obj in wheels:
-        wheel_center = wheel_obj.location
-        radius = wheel_obj.dimensions.y / 2
-        contact_point = wheel_center - mathutils.Vector((0, 0, radius))
+        matrix_world = matrix_instance_world @ wheel_obj.matrix_world
 
-        contact_point_world_space = instance.matrix_world @ contact_point
+        radius = wheel_obj.dimensions.y / 2
+        contact_point_world_space = matrix_world @ mathutils.Vector((0, 0, -radius))
         wheel_contact_points.append(contact_point_world_space)
 
         # hack-fix for one track vehicles, just pretend it has another 2
         # wheels nearby so we can raycast the plane
         if one_track_vehicle:
-            fixture_contact_point_ws = (
-                instance.matrix_world @ mathutils.Matrix.Translation((0.1, 0, 0)) @ contact_point
-            )
+            fixture_contact_point_ws = matrix_world @ mathutils.Vector((0.1, 0, -radius))
             wheel_contact_points.append(fixture_contact_point_ws)
 
         if debug:
@@ -106,6 +110,7 @@ def snap_to_ground_iterate(
                     f"for instance={instance.name}. Skipping..."
                 )
             instance.matrix_world = instance_old_matrix_world
+            bpy.context.view_layer.update()
             return False
 
         assert len(bottom_corners) >= 3
@@ -133,8 +138,6 @@ def snap_to_ground_iterate(
         # Since matrix_world is composed as location @ rotation @ scale, we need to decompose it
         # into separate matrices, multiply only rotation and then compose it back.
         # See https://blender.stackexchange.com/a/44783
-        # We could also use e.g. instance.rotation_quaternion but we would need to call
-        # bpy.context.view_layer.update() after each change to update matrix_world, which is slower.
         orig_loc, orig_rot, orig_scale = instance.matrix_world.decompose()
         orig_loc_mat = mathutils.Matrix.Translation(orig_loc)
         orig_rot_mat = orig_rot.to_matrix().to_4x4()
@@ -142,6 +145,7 @@ def snap_to_ground_iterate(
         orig_scale_mat = mathutils.Matrix.Diagonal(orig_scale).to_4x4()
         # assemble the new matrix
         instance.matrix_world = orig_loc_mat @ delta_rot_mat @ orig_rot_mat @ orig_scale_mat
+        bpy.context.view_layer.update()
 
         if debug:
             logger.debug(f"iteration: {iteration}, angular error: {delta_rotation.angle}")
@@ -159,6 +163,7 @@ def snap_to_ground_iterate(
                 f"for instance={instance.name}. Skipping..."
             )
         instance.matrix_world = instance_old_matrix_world
+        bpy.context.view_layer.update()
         return False
 
     assert len(bottom_corners) >= 3
@@ -169,6 +174,7 @@ def snap_to_ground_iterate(
     )
     delta_location = altered_plane_centroid - orig_plane_centroid
     instance.matrix_world = mathutils.Matrix.Translation(delta_location) @ instance.matrix_world
+    bpy.context.view_layer.update()
     return True
 
 

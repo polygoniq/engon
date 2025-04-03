@@ -20,7 +20,7 @@
 
 import typing
 import bpy
-import itertools
+import collections
 import random
 from .. import polib
 from .. import asset_registry
@@ -57,13 +57,19 @@ BACKWARDS_COMPATIBILITY_ASSET_PACKS_MAP = {
 
 
 class RandomizePropertyOperator(bpy.types.Operator):
-    """Base class for operators that randomize properties on engon property feautres"""
+    """Base class for operators that randomize properties on engon property features"""
 
     bl_description = "Set random value for a custom property of selected objects"
     bl_options = {'REGISTER', 'UNDO'}
 
     custom_property_name: bpy.props.StringProperty(options={'HIDDEN'})
     engon_feature_name: bpy.props.StringProperty(options={'HIDDEN'})
+
+    use_one_value_per_hierarchy: bpy.props.BoolProperty(
+        name="One Value Per Hierarchy",
+        description="Use the same random value for all children of the selected objects",
+        default=False,
+    )
 
     def get_affected_assets(self, context: bpy.types.Context) -> typing.Iterable[bpy.types.ID]:
         feature: type(EngonAssetFeatureControlPanelMixin) = NAME_FEATURE_MAP.get(
@@ -73,26 +79,42 @@ class RandomizePropertyOperator(bpy.types.Operator):
         return feature.get_multiedit_adjustable_assets(context)
 
     def get_random_value(self) -> polib.custom_props_bpy.CustomAttributeValueType:
-        raise NotImplementedError("This method must be overriden and implemented in a subclass")
+        raise NotImplementedError("This method must be overridden and implemented in a subclass")
 
     def execute(self, context: bpy.types.Context):
-        affected_assets = list(self.get_affected_assets(context))
-        for asset in self.get_affected_assets(context):
-            custom_prop = asset.get(self.custom_property_name, None)
-            if custom_prop is None:
-                continue
-
-            polib.custom_props_bpy.update_custom_prop(
-                context,
-                [asset],
-                self.custom_property_name,
-                self.get_random_value(),
-            )
+        affected_assets = self.get_affected_assets(context)
+        changed_assets = set()
+        if self.use_one_value_per_hierarchy:
+            hierarchy_roots = polib.asset_pack_bpy.find_root_objects(affected_assets)
+            for root in hierarchy_roots:
+                affected_hierarchy = [
+                    asset
+                    for asset in polib.asset_pack_bpy.get_hierarchy(root)
+                    if asset.get(self.custom_property_name, None) is not None
+                ]
+                polib.custom_props_bpy.update_custom_prop(
+                    context,
+                    affected_hierarchy,
+                    self.custom_property_name,
+                    self.get_random_value(),
+                )
+                changed_assets.update(affected_hierarchy)
+        else:
+            for asset in affected_assets:
+                if asset.get(self.custom_property_name, None) is None:
+                    continue
+                polib.custom_props_bpy.update_custom_prop(
+                    context,
+                    [asset],
+                    self.custom_property_name,
+                    self.get_random_value(),
+                )
+                changed_assets.add(asset)
 
         self.report(
             {'INFO'},
-            f"Randomized {self.custom_property_name} on {len(affected_assets)} "
-            f"asset{'s' if len(affected_assets) > 1 else ''}",
+            f"Randomized {self.custom_property_name} on {len(changed_assets)} "
+            f"asset{'s' if len(changed_assets) > 1 else ''}",
         )
         return {'FINISHED'}
 
@@ -177,7 +199,9 @@ class RandomizeColorPropertyOperator(RandomizePropertyOperator):
     bl_label = "Randomize Color Property"
 
     def get_random_value(self) -> polib.custom_props_bpy.CustomAttributeValueType:
-        return [random.uniform(0.0, 1.0), random.uniform(0.0, 1.0), random.uniform(0.0, 1.0)]
+        if self.custom_property_name == polib.custom_props_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR:
+            return asset_helpers.get_car_color()
+        return [random.random(), random.random(), random.random()]
 
 
 MODULE_CLASSES.append(RandomizeColorPropertyOperator)
@@ -481,15 +505,25 @@ class PropertyAssetFeatureControlPanelMixin(EngonAssetFeatureControlPanelMixin):
         possible_assets: typing.Iterable[bpy.types.ID],
     ) -> typing.Iterable[bpy.types.ID]:
         """Filter assets out of possible assets and their children that have the property feature."""
-        possible_assets_and_children = itertools.chain(
-            possible_assets, *(polib.asset_pack_bpy.get_hierarchy(obj) for obj in possible_assets)
-        )
-        # Empties that don't instance anything are a leftover after making compound assets editable.
-        # They inherit properties from parent but don't control anything, let's filter them out.
-        possible_assets_and_children = filter(
-            lambda obj: obj.type != 'EMPTY' or obj.instance_type != 'NON',
-            possible_assets_and_children,
-        )
+
+        # we do not use get_hierarchy here to avoid duplicates
+        seen = {obj for obj in possible_assets if polib.asset_pack_bpy.is_polygoniq_object(obj)}
+        queue = collections.deque(seen)
+
+        possible_assets_and_children = []
+        while len(queue) > 0:
+            obj = queue.popleft()
+            # Empties that don't instance anything are a leftover after making compound assets editable.
+            # They inherit properties from parent but don't control anything, let's filter them out.
+            if obj.type != 'EMPTY' or obj.instance_type != 'NONE':
+                possible_assets_and_children.append(obj)
+            for child in obj.children:
+                if not polib.asset_pack_bpy.is_polygoniq_object(child):
+                    continue
+                if child in seen:
+                    continue
+                seen.add(child)
+                queue.append(child)
 
         return cls.filter_adjustable_assets_simple(possible_assets_and_children)
 
@@ -595,10 +629,38 @@ class PropertyAssetFeatureControlPanelMixin(EngonAssetFeatureControlPanelMixin):
         property_name: str,
         randomize_operator: type[RandomizePropertyOperator],
         layout: bpy.types.UILayout,
+        use_one_value_per_hierarchy: bool = False,
     ):
         op = layout.operator(randomize_operator.bl_idname, text="", icon='FILE_3D')
         op.custom_property_name = property_name
         op.engon_feature_name = self.feature_name
+        op.use_one_value_per_hierarchy = use_one_value_per_hierarchy
+
+
+class TraffiqPropertyAssetFeatureControlPanelMixin(PropertyAssetFeatureControlPanelMixin):
+    """Mixin for traffiq asset properties that should be tweakable for each car part.
+
+    Selecting just one car part (even one that is not viable for tweaking)
+    should make all the tweakable parts visible in the UI.
+    """
+
+    @classmethod
+    def get_possible_assets(cls, context: bpy.types.Context) -> typing.Iterable[bpy.types.ID]:
+        objects = cls.extend_with_active_object(context, context.selected_objects)
+        return polib.asset_pack_bpy.find_root_objects(objects)
+
+    @classmethod
+    def filter_adjustable_assets(
+        cls,
+        possible_assets: typing.Iterable[bpy.types.ID],
+    ) -> typing.Iterable[bpy.types.ID]:
+        def sort_func(obj: bpy.types.Object) -> typing.Tuple[int, str]:
+            base_and_suffix = obj.name.rsplit(".", 1)
+            if len(base_and_suffix) == 1 or not base_and_suffix[1].isdigit():  # no suffix
+                return (0, base_and_suffix[0])
+            return (int(base_and_suffix[1]), base_and_suffix[0])
+
+        return sorted(cls.filter_adjustable_assets_hierarchical(possible_assets), key=sort_func)
 
 
 def register():

@@ -89,7 +89,7 @@ MODULE_CLASSES.append(TraffiqLightsSettingsPreferences)
 @feature_utils.register_feature
 @polib.log_helpers_bpy.logged_panel
 class TraffiqLightsSettingsPanel(
-    feature_utils.PropertyAssetFeatureControlPanelMixin, bpy.types.Panel
+    feature_utils.TraffiqPropertyAssetFeatureControlPanelMixin, bpy.types.Panel
 ):
     bl_idname = "VIEW_3D_PT_engon_feature_traffiq_lights_settings"
     bl_parent_id = asset_pack_panels.TraffiqPanel.bl_idname
@@ -97,29 +97,6 @@ class TraffiqLightsSettingsPanel(
     feature_name = "traffiq_lights_settings"
     related_custom_properties = {polib.custom_props_bpy.CustomPropertyNames.TQ_LIGHTS}
     bl_options = {'DEFAULT_CLOSED'}
-
-    @classmethod
-    def find_unique_lights_containers_with_roots(
-        cls, objects: typing.Iterable[bpy.types.Object]
-    ) -> typing.Iterable[typing.Tuple[bpy.types.Object, bpy.types.Object]]:
-        return polib.asset_pack_bpy.get_root_objects_with_matched_child(
-            objects,
-            lambda x, _: x.get(polib.custom_props_bpy.CustomPropertyNames.TQ_LIGHTS, None)
-            is not None,
-        )
-
-    @classmethod
-    def filter_adjustable_assets(
-        cls,
-        possible_assets: typing.Iterable[bpy.types.ID],
-    ) -> typing.Iterable[bpy.types.ID]:
-        light_tuples: typing.Iterable[typing.Tuple[bpy.types.Object, bpy.types.Object]] = (
-            cls.find_unique_lights_containers_with_roots(
-                a for a in possible_assets if isinstance(a, bpy.types.Object)
-            )
-        )
-
-        return cls.filter_adjustable_assets_simple(map(lambda t: t[1], light_tuples))
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon='OUTLINER_OB_LIGHT')

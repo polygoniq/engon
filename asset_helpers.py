@@ -20,10 +20,12 @@
 
 import typing
 import bpy
+import bisect
 import enum
 import os
 import glob
 import collections
+import random
 import logging
 from . import polib
 from . import asset_registry
@@ -55,6 +57,30 @@ BQ_ANIM_LIBRARY_BLEND = "bq_Library_Animation_Data.blend"
 TQ_MODIFIER_LIBRARY_BLEND = "tq_Library_Modifiers.blend"
 TQ_EMERGENCY_LIGHTS_NODE_GROUP_NAME = "tq_Emergency_Lights"
 TQ_LICENSE_PLATE_NODE_GROUP_NAME_PREFIX = "tq_License-Plate_"
+# Mimics the distribution of car colors in the real world
+TQ_COLOR_DISTRIBUTION = (
+    (0.0, (0.004, 0.004, 0.004)),  # 0E0E0E
+    (0.018, (0.063, 0.063, 0.063)),  # 474747
+    (0.031, (0.558, 0.558, 0.558)),  # C5C5C5
+    (0.041, (0.216, 0.004, 0.175)),  # 800E74
+    (0.043, (0.012, 0.001, 0.028)),  # 1D042F
+    (0.045, (0.295, 0.185, 0.0)),  # 947700
+    (0.053, (0.271, 0.22, 0.126441)),  # 8E8164
+    (0.060, (0.04, 0.099, 0.006)),  # 385913
+    (0.070, (0.006, 0.026, 0.002)),  # 132D07
+    (0.074, (0.106, 0.192, 0.009)),  # 5C7918
+    (0.078, (0.014, 0.183, 0.152)),  # 1F766D
+    (0.081, (0.043, 0.017, 0.003)),  # 3B2309
+    (0.101, (0.096, 0.0, 0.002)),  # 570006
+    (0.173, (0.333, 0.07, 0.0)),  # 9C4B00
+    (0.178, (0.282, 0.0, 0.0)),  # 910000
+    (0.2, (0.002, 0.011, 0.042)),  # 071B3A
+    (0.278, (0.006, 0.054, 0.264)),  # 11428C
+    (0.3, (0.187, 0.187, 0.187)),  # 787878
+    (0.45, (0.037, 0.037, 0.037)),  # 363636
+    (0.6, (0.558, 0.558, 0.558)),  # C5C5C5
+    (0.8, (0.004, 0.004, 0.004)),  # 0E0E0E
+)
 
 
 PARTICLE_SYSTEM_PREFIX = f"engon_{polib.asset_pack.PARTICLE_SYSTEM_TOKEN}_"
@@ -271,3 +297,9 @@ def gather_instanced_objects(
                 and instance_collection is not None
             ):
                 yield from instance_collection.all_objects
+
+
+def get_car_color() -> typing.Tuple[float, float, float]:
+    value = random.random()
+    idx = bisect.bisect(TQ_COLOR_DISTRIBUTION, value, key=lambda x: x[0]) - 1
+    return TQ_COLOR_DISTRIBUTION[idx][1]

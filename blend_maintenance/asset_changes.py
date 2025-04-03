@@ -27,6 +27,31 @@ class AssetPackMigrations(typing.NamedTuple):
 
 # versions in the names reflect the last version of asset pack without given changes
 
+_botaniq_7_0_0_larix_decidua_variant = {
+    r"^bq_Tree_Larix-decidua_([ABC])_spring-summer-autumn": r"bq_Tree_Larix-decidua_\1_spring-summer",
+}
+
+botaniq_7_0_0_larix_decidua_variant = AssetPackMigration(
+    [
+        RegexMapping(re.compile(f"{pattern}.blend$"), f"{replacement}.blend")
+        for pattern, replacement in _botaniq_7_0_0_larix_decidua_variant.items()
+    ],
+    {
+        "collections": [
+            RegexMapping(re.compile(pattern), replacement)
+            for pattern, replacement in _botaniq_7_0_0_larix_decidua_variant.items()
+        ],
+        "meshes": [
+            RegexMapping(re.compile(pattern), replacement)
+            for pattern, replacement in _botaniq_7_0_0_larix_decidua_variant.items()
+        ],
+        "objects": [
+            RegexMapping(re.compile(pattern), replacement)
+            for pattern, replacement in _botaniq_7_0_0_larix_decidua_variant.items()
+        ],
+    },
+)
+
 _botaniq_7_0_0_drop_with_in_pps_names = {
     r"^bq_pps_Grass_With-flowers_A_spring-summer": r"bq_pps_Grass_Wildflowers_A_spring-summer",
     r"^bq_pps_Grass_With-flowers_B_spring-summer": r"bq_pps_Grass_Flowers-decorative_B_spring-summer",
@@ -349,6 +374,7 @@ ASSET_PACK_MIGRATIONS = [
             botaniq_6_8_0_decapitalize_cortaderia,
             botaniq_7_0_0_drop_dead_from_leaf_names,
             botaniq_7_0_0_drop_with_in_pps_names,
+            botaniq_7_0_0_larix_decidua_variant,
         ],
     ),
     AssetPackMigrations(

@@ -2,7 +2,7 @@
 # copyright (c) 2018- polygoniq xyz s.r.o.
 
 import bpy
-import bpy_extras
+import bpy_extras.io_utils
 import sys
 import typing
 import re

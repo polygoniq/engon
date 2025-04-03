@@ -19,7 +19,7 @@
 # ##### END GPL LICENSE BLOCK #####
 
 import bpy
-import bpy_extras
+import bpy_extras.io_utils
 import typing
 import os
 import glob

@@ -28,6 +28,7 @@ TAGS = {
     "Park": {"description": ""},
     "Playground": {"description": ""},
     "Restaurant": {"description": ""},
+    "Rigged": {"description": "Asset that has a rig for animation"},
     "Utilities": {"description": ""},
     "Sanitary": {"description": ""},
     "Spring": {"description": ""},
@@ -212,7 +213,6 @@ TEXT_PARAMETERS = {
     "interior_detail": {
         "choices": [
             "Low",
-            "Medium",
             "High",
         ],
         "description": "Interior detail level",

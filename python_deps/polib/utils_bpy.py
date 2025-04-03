@@ -7,6 +7,7 @@ import sys
 import os
 import pathlib
 import typing
+import enum
 import datetime
 import functools
 import urllib.request
@@ -26,6 +27,18 @@ POLYGONIQ_DOCS_URL = "https://docs.polygoniq.com"
 POLYGONIQ_GITHUB_REPO_API_URL = "https://api.github.com/repos/polygoniq"
 
 DUPLICATE_SUFFIX_PATTERN = re.compile(r"^\.[0-9]{3}$")
+
+
+class ByteSizeUnit(enum.IntEnum):
+    B = 0
+    KiB = 1
+    MiB = 2
+    GiB = 3
+    TiB = 4
+    PiB = 5
+    EiB = 6
+    ZiB = 7
+    YiB = 8
 
 
 def autodetect_install_path(
@@ -147,13 +160,22 @@ def generate_unique_name(old_name: str, container: typing.Iterable[typing.Any]) 
     return new_name
 
 
-def convert_size(size_bytes: int) -> str:
+def convert_size(
+    size_bytes: int, decimal_places: int = 2, unit: typing.Optional[ByteSizeUnit] = None
+) -> str:
+    """Converts size in bytes to human readable format with an appropriate unit."""
+
+    def format_size(size: float, unit_name: str):
+        return f"{size:.{decimal_places}f} {unit_name}"
+
     if size_bytes == 0:
-        return "0 B"
-    size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
-    index = int(math.floor(math.log(size_bytes, 1024)))
-    size = round(size_bytes / math.pow(1024, index), 2)
-    return f"{size} {size_name[index]}"
+        return format_size(0, unit.name if unit is not None else ByteSizeUnit.B.name)
+    if unit is not None:
+        index = unit.value
+    else:
+        index = int(math.floor(math.log(size_bytes, 1024)))
+    size = round(size_bytes / math.pow(1024, index), decimal_places)
+    return format_size(size, ByteSizeUnit(index).name)
 
 
 def blender_cursor(cursor_name: str = 'WAIT'):

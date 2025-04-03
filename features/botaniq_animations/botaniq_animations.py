@@ -22,6 +22,7 @@ import bpy
 import typing
 import os
 import enum
+import logging
 
 from bpy.types import ID
 from . import animations
@@ -30,6 +31,7 @@ from .. import asset_pack_panels
 from ... import polib
 from ... import preferences
 
+logger = logging.getLogger(f"polygoniq.{__name__}")
 
 MODULE_CLASSES = []
 
@@ -413,6 +415,11 @@ class AnimationAdvancedPanel(feature_utils.EngonAssetFeatureControlPanelMixin, b
         for mod_name, fmod_limits in sorted(
             animations.get_animation_state_control_modifiers(action), key=lambda x: x[0]
         ):
+            modifier = animated_object.modifiers.get(mod_name, None)
+            if modifier is None:
+                logger.warning(f"Modifier {mod_name} not found on object {animated_object.name}")
+                continue
+
             row = col.row(align=True)
             row.label(text=f"{mod_name[len('bq_'):]}")
 
@@ -424,7 +431,7 @@ class AnimationAdvancedPanel(feature_utils.EngonAssetFeatureControlPanelMixin, b
             else:
                 amplitude_col.label(text="Not Controllable")
 
-            row.prop(animated_object.modifiers[mod_name], "show_viewport", text="")
+            row.prop(modifier, "show_viewport", text="")
             # For some reason next icon from the desired one has to be used: AUTO => CHECKMARK
             row.prop(
                 fmod_limits, "mute", text="", icon='AUTO' if fmod_limits.mute is True else 'BLANK1'

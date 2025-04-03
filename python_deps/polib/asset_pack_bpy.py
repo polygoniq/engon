@@ -132,6 +132,8 @@ def get_polygoniq_objects(
 
 class TraffiqAssetPart(enum.Enum):
     Body = 'Body'
+    Door = 'Door'
+    Trunk = 'Trunk'
     Lights = 'Lights'
     Wheel = 'Wheel'
     Brake = 'Brake'
@@ -161,17 +163,22 @@ def is_traffiq_asset_part(obj: bpy.types.Object, part: TraffiqAssetPart) -> bool
             return False
         return True
 
-    elif part in {TraffiqAssetPart.Wheel, TraffiqAssetPart.Brake}:
+    elif part in {
+        TraffiqAssetPart.Wheel,
+        TraffiqAssetPart.Brake,
+        TraffiqAssetPart.Door,
+        TraffiqAssetPart.Trunk,
+    }:
         split_name = obj_name.rsplit("_", 3)
         if len(split_name) != 4:
             return False
 
-        _, obj_part_name, position, wheel_number = split_name
+        _, obj_part_name, position, number = split_name
         if obj_part_name != part.name:
             return False
         if position not in {"FL", "FR", "BL", "BR", "F", "B"}:
             return False
-        if not wheel_number.isdigit():
+        if not number.isdigit():
             return False
         return True
     elif part == TraffiqAssetPart.LicensePlate:
@@ -193,6 +200,8 @@ def is_traffiq_asset_part(obj: bpy.types.Object, part: TraffiqAssetPart) -> bool
 class DecomposedCar:
     root_object: bpy.types.Object
     body: bpy.types.Object
+    doors: typing.List[bpy.types.Object]
+    trunks: typing.List[bpy.types.Object]
     lights: typing.Optional[bpy.types.Object]
     wheels: typing.List[bpy.types.Object]
     brakes: typing.List[bpy.types.Object]
@@ -260,7 +269,8 @@ def get_entire_object_hierarchy(obj: bpy.types.Object) -> typing.Iterable[bpy.ty
         yield from get_entire_object_hierarchy(child)
 
     if obj.instance_type == 'COLLECTION' and obj.instance_collection is not None:
-        yield from obj.instance_collection.objects
+        for coll_obj in obj.instance_collection.objects:
+            yield from get_entire_object_hierarchy(coll_obj)
     else:
         yield obj
 
@@ -285,6 +295,8 @@ def get_root_object_of_traffiq_asset(asset: bpy.types.Object) -> typing.Optional
 def decompose_traffiq_vehicle(obj: bpy.types.Object) -> typing.Optional[DecomposedCar]:
     root_object = get_root_object_of_traffiq_asset(obj)
     body = None
+    doors = []
+    trunks = []
     lights = None
     wheels = []
     brakes = []
@@ -301,6 +313,10 @@ def decompose_traffiq_vehicle(obj: bpy.types.Object) -> typing.Optional[Decompos
             # there should be only one body
             assert body is None
             body = hierarchy_obj
+        elif is_traffiq_asset_part(hierarchy_obj, TraffiqAssetPart.Door):
+            doors.append(hierarchy_obj)
+        elif is_traffiq_asset_part(hierarchy_obj, TraffiqAssetPart.Trunk):
+            trunks.append(hierarchy_obj)
         elif is_traffiq_asset_part(hierarchy_obj, TraffiqAssetPart.Lights):
             # there should be only one lights
             assert lights is None
@@ -326,7 +342,15 @@ def decompose_traffiq_vehicle(obj: bpy.types.Object) -> typing.Optional[Decompos
         return None
 
     return DecomposedCar(
-        root_object, body, lights, wheels, brakes, front_license_plate, back_license_plate
+        root_object,
+        body,
+        doors,
+        trunks,
+        lights,
+        wheels,
+        brakes,
+        front_license_plate,
+        back_license_plate,
     )
 
 
@@ -498,7 +522,7 @@ def make_selection_editable(
 
     def update_geometry_node_materials(
         obj: bpy.types.Object, old_new_material_map: typing.Dict[bpy.types.ID, bpy.types.ID]
-    ):
+    ) -> None:
         """If geometry nodes reference material, use local version instead of linked.
 
         Linked material is still referenced after asset is converted to local. If we use material
@@ -524,6 +548,104 @@ def make_selection_editable(
                     # slots, but this operator can be used for non-polygoniq assets as well.
                     if new_mat is not None:
                         mod[input_identifier] = new_mat
+
+    def copy_constraints_from_instance_to_realized(
+        source_obj: bpy.types.Object,
+        target_obj: bpy.types.Object,
+        instanced_to_realized_name_map: typing.Dict[bpy.types.Object, bpy.types.Object],
+    ) -> None:
+        """Copy constraints from 'source_obj' to 'target_obj' recursively.
+
+        Constraints are not preserved when using 'duplicates_make_real' operator. This function
+        copies constraints from 'source_obj' to 'target_obj' and for all their children.
+
+        Special handling is needed for 'targets' property of constraints, as it is a bpy collection.
+        This is not an exhaustive implementation for all constraint types, but it covers all known
+        constraints used in our assets for now.
+
+        This function asserts that 'source_obj' and 'target_obj' have the same name, type and children,
+        as it counts on 'target_obj' being a realized copy of 'source_obj'.
+        """
+        assert utils_bpy.remove_object_duplicate_suffix(
+            source_obj.name
+        ) == utils_bpy.remove_object_duplicate_suffix(target_obj.name)
+        if source_obj.type != target_obj.type:
+            logger.warning(
+                f"Expected realized object '{target_obj.name}' of type '{target_obj.type}' and "
+                f"instance object '{source_obj.name}' of type '{source_obj.type}' to share the same type."
+            )
+            return
+
+        for source_constraint in source_obj.constraints:
+            target_constraint = target_obj.constraints.new(source_constraint.type)
+
+            for prop in source_constraint.bl_rna.properties:
+                if prop.is_readonly:
+                    continue
+                try:
+                    setattr(
+                        target_constraint,
+                        prop.identifier,
+                        getattr(source_constraint, prop.identifier),
+                    )
+                except AttributeError as e:
+                    logger.exception(
+                        f"Failed to copy constraint property '{prop.identifier}' from '{source_obj.name}' to '{target_obj.name}'."
+                    )
+            # 'targets' needs special handling, as it's a bpy collection
+            if isinstance(source_constraint, bpy.types.ArmatureConstraint):
+                for target in source_constraint.targets:
+                    target_copy = target_constraint.targets.new()
+                    # only copy target if we found the realized object in the map
+                    if target.target in instanced_to_realized_name_map:
+                        # We need to get the object from the data, so it is the realized copy and not the original
+                        target_copy.target = instanced_to_realized_name_map[target.target]
+                        # subtarget is a string, so we can just copy it safely
+                        target_copy.subtarget = target.subtarget
+                    target_copy.weight = target.weight
+
+        # in source_obj.children, the Meshes are missing, let's add them from source_obj.instance_collection.all_objects
+        source_obj_children = list(source_obj.children)
+        if source_obj.type == 'EMPTY' and source_obj.instance_type == 'COLLECTION':
+            for source_child in source_obj.instance_collection.all_objects:
+                if source_child.type == 'MESH':
+                    source_obj_children.append(source_child)
+
+        source_obj_children = sorted(source_obj_children, key=lambda x: x.name)
+        target_obj_children = sorted(target_obj.children, key=lambda x: x.name)
+
+        for source_child, target_child in zip(source_obj_children, target_obj_children):
+            copy_constraints_from_instance_to_realized(
+                source_child, target_child, instanced_to_realized_name_map
+            )
+
+    def get_instance_object_to_realized_object_map(
+        root: bpy.types.Object, instance_collection: bpy.types.Collection
+    ) -> typing.Dict[bpy.types.Object, bpy.types.Object]:
+        """Returns a dictionary mapping the original objects to the realized.
+
+        During realization of instanced objects, duplicate suffixes might be added.
+        The original names are obtained by removing the duplicate suffixes from the realized names.
+        We rely on the original assets having no duplicate suffixes in their names.
+        """
+        instance_object_to_realized_map = {}
+
+        for realized_obj in get_entire_object_hierarchy(root):
+            suffixed_name = realized_obj.name
+            clean_name = utils_bpy.remove_object_duplicate_suffix(suffixed_name)
+
+            instance_obj = instance_collection.all_objects.get(suffixed_name, None)
+            if instance_obj is None:
+                instance_obj = instance_collection.all_objects.get(clean_name, None)
+
+            # This can happen if the asset contains object with duplicate suffix in its name,
+            # or if the asset contains instanced objects. Some features might not work correctly,
+            # namely copy_constraints_from_instance_to_realized will be impaired.
+            if instance_obj is None or instance_obj.type != realized_obj.type:
+                continue
+
+            instance_object_to_realized_map[instance_obj] = realized_obj
+        return instance_object_to_realized_map
 
     selected_objects_names = [obj.name for obj in context.selected_objects]
     prev_active_object_name = context.active_object.name if context.active_object else None
@@ -583,6 +705,9 @@ def make_selection_editable(
         if parent_name is not None and parent_name in bpy.data.objects:
             parent = bpy.data.objects[parent_name]
             for child in obj.children:
+                # Copy the matrix_world and reapply after setting the parent,
+                # otherwise the child's pos/rot/scale will change after the original parent was removed
+                child_matrix = child.matrix_world.copy()
                 # after setting parent object here, child.parent_type is always set to 'OBJECT'
                 child.parent = parent
                 child_source_name = utils_bpy.remove_object_duplicate_suffix(child.name)
@@ -592,9 +717,26 @@ def make_selection_editable(
                 ):
                     # set parent_type from source blend, for example our _Lights need to have parent_type = 'BONE'
                     child.parent_type = instance_collection.objects[child_source_name].parent_type
-                    child.matrix_local = instance_collection.objects[child_source_name].matrix_local
+                child.matrix_world = child_matrix
             bpy.data.objects.remove(obj)
             continue
+
+        instance_to_realized_map = get_instance_object_to_realized_object_map(
+            obj, instance_collection
+        )
+        realized_to_instance_map = {r: i for i, r in instance_to_realized_map.items()}
+        for child in obj.children:
+            # Blender operator duplicates_make_real doesn't append object constraints.
+            # Thus we have to copy those constraints manually.
+            original = realized_to_instance_map.get(child)
+            if original is None:
+                logger.warning(
+                    f"Failed to find realized object for '{child.name}', skipping constraints copy"
+                )
+                continue
+            if not is_polygoniq_object(child):
+                continue
+            copy_constraints_from_instance_to_realized(original, child, instance_to_realized_map)
 
         if delete_base_empty:
             if len(obj.children) > 1:

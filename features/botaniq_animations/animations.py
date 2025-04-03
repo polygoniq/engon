@@ -283,7 +283,14 @@ def copy_animation_data(source: bpy.types.Object, target: bpy.types.Object) -> b
     if target.animation_data is None:
         target.animation_data_create()
     assert target.animation_data is not None
-    target.animation_data.action = source.animation_data.action.copy()
+    action_copy = source.animation_data.action.copy()
+    target.animation_data.action = action_copy
+    # Force assign an action to a slot. In blender 4.4+ slots were introduced and in some cases
+    # assigning an action fails to auto-assign a slot. We force assign a slot to prevent leaving
+    # the datablocks in non-animated state
+    # https://developer.blender.org/docs/release_notes/4.4/python_api/#breaking
+    if bpy.app.version >= (4, 4, 0):
+        target.animation_data.action_slot = action_copy.slots[0]
     animation_type = source.animation_data.action.name.rsplit("_", 1)[0]
     target.animation_data.action.name = f"{animation_type}_Instance"
     return target.animation_data.action
@@ -586,12 +593,12 @@ def change_preset(
     """Changes preset of 'obj' by switching the action of the same animation type to 'preset'"""
     anim_type, _ = parse_action_name(obj.animation_data.action)
     anim_library = bpy.data.libraries.get(os.path.basename(animation_library_path), None)
-    if anim_library is None:
+    preset_action_name = f"bq_{anim_type}_{preset}"
+    if anim_library is None or preset_action_name not in bpy.data.actions:
         anim_library, _, _ = link_animation_data(anim_type, animation_library_path)
 
     assert anim_library is not None
 
-    preset_action_name = f"bq_{anim_type}_{preset}"
     preset_action = bpy.data.actions.get((preset_action_name, anim_library.filepath), None)
     assert preset_action is not None
 
@@ -618,6 +625,12 @@ def change_preset(
     new_action = preset_action.copy()
     assert obj.animation_data is not None
     obj.animation_data.action = new_action
+    # Force assign an action to a slot. In blender 4.4+ slots were introduced and in some cases
+    # assigning an action fails to auto-assign a slot. We force assign a slot to prevent leaving
+    # the datablocks in non-animated state
+    # https://developer.blender.org/docs/release_notes/4.4/python_api/#breaking
+    if bpy.app.version >= (4, 4, 0):
+        obj.animation_data.action_slot = new_action.slots[0]
 
     set_animation_strength(new_action, strength)
     # We know here that helper_objs didn't change while changing preset thus they should have
@@ -1528,7 +1541,14 @@ class AnimationMakeInstanceUnique(bpy.types.Operator):
         # data is linked into it. This new collection can be used for further instantiation.
         previous_object = original_collection.objects[0]
         new_object = polib.asset_pack_bpy.copy_object_hierarchy(previous_object)
-        new_object.animation_data.action = new_object.animation_data.action.copy()
+        new_action = new_object.animation_data.action.copy()
+        new_object.animation_data.action = new_action
+        # Force assign an action to a slot. In blender 4.4+ slots were introduced and in some cases
+        # assigning an action fails to auto-assign a slot. We force assign a slot to prevent leaving
+        # the datablocks in non-animated state
+        # https://developer.blender.org/docs/release_notes/4.4/python_api/#breaking
+        if bpy.app.version >= (4, 4, 0):
+            new_object.animation_data.action_slot = new_action.slots[0]
 
         new_collection = original_collection.copy()
         polib.asset_pack_bpy.collection_unlink_hierarchy(new_collection, previous_object)

@@ -20,7 +20,6 @@
 
 import bpy
 import typing
-import random
 from . import feature_utils
 from .. import polib
 from .. import preferences
@@ -31,23 +30,6 @@ MODULE_CLASSES = []
 
 
 class TraffiqPaintAdjustmentPreferences(bpy.types.PropertyGroup):
-    @staticmethod
-    def update_car_paint_color_prop(
-        context,
-        affected_assets: typing.Iterable[bpy.types.Object],
-        value: typing.Tuple[float, float, float, float],
-    ):
-        # Don't allow to accidentally set color to random
-        if all(v > 0.99 for v in value[:3]):
-            value = (0.99, 0.99, 0.99, value[3])
-
-        polib.custom_props_bpy.update_custom_prop(
-            context,
-            affected_assets,
-            polib.custom_props_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR,
-            value,
-        )
-
     primary_color: bpy.props.FloatVectorProperty(
         name="Color",
         subtype='COLOR',
@@ -56,9 +38,10 @@ class TraffiqPaintAdjustmentPreferences(bpy.types.PropertyGroup):
         max=1.0,
         default=(0.8, 0.8, 0.8, 1.0),
         size=4,
-        update=lambda self, context: TraffiqPaintAdjustmentPreferences.update_car_paint_color_prop(
+        update=lambda self, context: polib.custom_props_bpy.update_custom_prop(
             context,
             TraffiqPaintAdjustmentsPanel.get_multiedit_adjustable_assets(context),
+            polib.custom_props_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR,
             self.primary_color,
         ),
     )
@@ -92,66 +75,11 @@ class TraffiqPaintAdjustmentPreferences(bpy.types.PropertyGroup):
 
 MODULE_CLASSES.append(TraffiqPaintAdjustmentPreferences)
 
-RANDOM_COLOR = (1.0, 1.0, 1.0, 1.0)
-
-
-@polib.log_helpers_bpy.logged_operator
-class SetColor(bpy.types.Operator):
-    bl_idname = "engon.traffiq_paint_adjustments_set_color"
-    bl_label = "Set Color to given value"
-    bl_description = "Set color of selected assets to given value"
-
-    bl_options = {'UNDO'}
-
-    color: bpy.props.FloatVectorProperty(
-        name="Color",
-        subtype='COLOR',
-        default=(1.0, 1.0, 1.0, 1.0),
-        size=4,
-    )
-    obj_name: bpy.props.StringProperty(
-        name="Object Name",
-        description="Name of the object to set color to. If unset, all selected objects will be affected",
-        default="",
-    )
-
-    @classmethod
-    def poll(cls, context: bpy.types.Context) -> bool:
-        return context.mode == 'OBJECT'
-
-    def execute(self, context: bpy.types.Context):
-        affected_objects = []
-        if self.obj_name is not None and self.obj_name != "":
-            affected_objects = [bpy.data.objects[self.obj_name]]
-        else:
-            possible_assets = TraffiqPaintAdjustmentsPanel.extend_with_active_object(
-                context, context.selected_objects
-            )
-            affected_objects = TraffiqPaintAdjustmentsPanel.filter_adjustable_assets(
-                possible_assets
-            )
-
-        for obj in affected_objects:
-            if obj.get(polib.custom_props_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR, None) is None:
-                continue
-
-            obj[polib.custom_props_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR] = self.color
-            obj.update_tag(refresh={'OBJECT'})
-
-        for area in context.screen.areas:
-            if area.type == 'VIEW_3D':
-                area.tag_redraw()
-
-        return {'FINISHED'}
-
-
-MODULE_CLASSES.append(SetColor)
-
 
 @feature_utils.register_feature
 @polib.log_helpers_bpy.logged_panel
 class TraffiqPaintAdjustmentsPanel(
-    feature_utils.PropertyAssetFeatureControlPanelMixin, bpy.types.Panel
+    feature_utils.TraffiqPropertyAssetFeatureControlPanelMixin, bpy.types.Panel
 ):
     bl_idname = "VIEW_3D_PT_engon_feature_traffiq_paint_adjustments"
     bl_parent_id = asset_pack_panels.TraffiqPanel.bl_idname
@@ -164,47 +92,13 @@ class TraffiqPaintAdjustmentsPanel(
     }
     bl_options = {'DEFAULT_CLOSED'}
 
-    @classmethod
-    def filter_adjustable_assets(
-        cls,
-        possible_assets: typing.Iterable[bpy.types.ID],
-    ) -> typing.Iterable[bpy.types.ID]:
-        return cls.filter_adjustable_assets_hierarchical(possible_assets)
-
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon='MOD_HUE_SATURATION')
 
     def draw_properties(self, datablock: bpy.types.ID, layout: bpy.types.UILayout) -> None:
-        current_color = datablock.get(
-            polib.custom_props_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR, None
+        self.draw_property(
+            datablock, layout, polib.custom_props_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR
         )
-        if current_color is None:
-            layout.label(text="-")
-        elif tuple(current_color) == RANDOM_COLOR:
-            layout.label(text="Random")
-            op = layout.operator(
-                SetColor.bl_idname,
-                text="",
-                icon='CANCEL',
-            )
-            op.color = (
-                random.uniform(0.0, 1.0),
-                random.uniform(0.0, 1.0),
-                random.uniform(0.0, 1.0),
-                1.0,
-            )
-            op.obj_name = datablock.name
-        else:
-            self.draw_property(
-                datablock, layout, polib.custom_props_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR
-            )
-            op = layout.operator(
-                SetColor.bl_idname,
-                text="",
-                icon='FILE_3D',
-            )
-            op.color = RANDOM_COLOR
-            op.obj_name = datablock.name
         self.draw_property(
             datablock, layout, polib.custom_props_bpy.CustomPropertyNames.TQ_CLEARCOAT
         )
@@ -230,6 +124,7 @@ class TraffiqPaintAdjustmentsPanel(
             polib.custom_props_bpy.CustomPropertyNames.TQ_PRIMARY_COLOR,
             feature_utils.RandomizeColorPropertyOperator,
             row,
+            use_one_value_per_hierarchy=True,
         )
         row = col.row(align=True)
         row.prop(prefs, "clearcoat", slider=True)
@@ -237,6 +132,7 @@ class TraffiqPaintAdjustmentsPanel(
             polib.custom_props_bpy.CustomPropertyNames.TQ_CLEARCOAT,
             feature_utils.RandomizeFloatPropertyOperator,
             row,
+            use_one_value_per_hierarchy=True,
         )
         row = col.row(align=True)
         row.prop(prefs, "flakes_amount", slider=True)
@@ -244,11 +140,8 @@ class TraffiqPaintAdjustmentsPanel(
             polib.custom_props_bpy.CustomPropertyNames.TQ_FLAKES_AMOUNT,
             feature_utils.RandomizeFloatPropertyOperator,
             row,
+            use_one_value_per_hierarchy=True,
         )
-        row = self.layout.row()
-        op = row.operator(SetColor.bl_idname, icon='COLOR', text="Set Color to Random in Shader")
-        op.obj_name = ""
-        op.color = RANDOM_COLOR
 
     def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout

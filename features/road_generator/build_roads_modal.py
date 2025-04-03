@@ -85,13 +85,10 @@ class BuildRoads(bpy.types.Operator):
 
         self.curves: typing.Dict[str, bpy.types.Object] = {}
 
-        # Registered view (3D) and pixel (UI) draw handlers
-        BuildRoads.draw_3d_handler_ref = bpy.types.SpaceView3D.draw_handler_add(
-            self.draw_view, (), 'WINDOW', 'POST_VIEW'
-        )
-
-        BuildRoads.draw_2d_handler_ref = bpy.types.SpaceView3D.draw_handler_add(
-            self.draw_px, (), 'WINDOW', 'POST_PIXEL'
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        return context.region_data is not None and isinstance(
+            context.region_data, bpy.types.RegionView3D
         )
 
     @staticmethod
@@ -277,6 +274,10 @@ class BuildRoads(bpy.types.Operator):
         context.area.tag_redraw()
         BuildRoads.is_running = False
 
+    def execute(self, context: bpy.types.Context):
+        # This is needed so the operator call without invoke does not throw an error
+        return {'FINISHED'}
+
     @polib.utils_bpy.safe_modal(on_exception=_cleanup)
     def modal(self, context: bpy.types.Context, event: bpy.types.Event):
         event_handled = False
@@ -370,14 +371,25 @@ class BuildRoads(bpy.types.Operator):
         self.road_builder.clear_collection()
         self.road_builder.init_from_scene(context.scene, road_type.loader)
 
+        # Register the draw handler for the 3D UI
+        assert BuildRoads.draw_3d_handler_ref is None
+        BuildRoads.draw_3d_handler_ref = bpy.types.SpaceView3D.draw_handler_add(
+            self.draw_view, (), 'WINDOW', 'POST_VIEW'
+        )
+
+        # Register the draw handler for the help UI
+        assert BuildRoads.draw_2d_handler_ref is None
+        BuildRoads.draw_2d_handler_ref = bpy.types.SpaceView3D.draw_handler_add(
+            self.draw_px, (), 'WINDOW', 'POST_PIXEL'
+        )
+
         context.window_manager.modal_handler_add(self)
         bpy.ops.view3d.view_axis(type='TOP')
         polib.ui_bpy.tag_areas_redraw(context, {'VIEW_3D'})
 
         # Change the is_running state right before returning in case of any error happening
         # before which would lock the UI.
-        if not BuildRoads.is_running:
-            BuildRoads.is_running = True
+        BuildRoads.is_running = True
         return {'RUNNING_MODAL'}
 
     def _handle_snapping(self, context: bpy.types.Context, event: bpy.types.Event) -> None:

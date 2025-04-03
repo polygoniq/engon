@@ -23,8 +23,11 @@ import typing
 from . import feature_utils
 from .. import polib
 from .. import preferences
+from .. import asset_helpers
 from . import asset_pack_panels
+import logging
 
+logger = logging.getLogger(f"polygoniq.{__name__}")
 
 MODULE_CLASSES = []
 
@@ -121,7 +124,7 @@ MODULE_CLASSES.append(TraffiqWearPreferences)
 @feature_utils.register_feature
 @polib.log_helpers_bpy.logged_panel
 class TraffiqWearAdjustmentsPanel(
-    feature_utils.PropertyAssetFeatureControlPanelMixin, bpy.types.Panel
+    feature_utils.TraffiqPropertyAssetFeatureControlPanelMixin, bpy.types.Panel
 ):
     bl_idname = "VIEW_3D_PT_engon_feature_traffiq_wear_adjustments"
     bl_parent_id = asset_pack_panels.TraffiqPanel.bl_idname
@@ -133,13 +136,6 @@ class TraffiqWearAdjustmentsPanel(
         polib.custom_props_bpy.CustomPropertyNames.TQ_BUMPS,
     }
     bl_options = {'DEFAULT_CLOSED'}
-
-    @classmethod
-    def filter_adjustable_assets(
-        cls,
-        possible_assets: typing.Iterable[bpy.types.ID],
-    ) -> typing.Iterable[bpy.types.ID]:
-        return cls.filter_adjustable_assets_hierarchical(possible_assets)
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon='UV')
@@ -168,6 +164,7 @@ class TraffiqWearAdjustmentsPanel(
             polib.custom_props_bpy.CustomPropertyNames.TQ_DIRT,
             feature_utils.RandomizeFloatPropertyOperator,
             row,
+            use_one_value_per_hierarchy=True,
         )
 
         row = col.row(align=True)
@@ -176,6 +173,7 @@ class TraffiqWearAdjustmentsPanel(
             polib.custom_props_bpy.CustomPropertyNames.TQ_SCRATCHES,
             feature_utils.RandomizeFloatPropertyOperator,
             row,
+            use_one_value_per_hierarchy=True,
         )
 
         row = col.row(align=True)
@@ -184,6 +182,7 @@ class TraffiqWearAdjustmentsPanel(
             polib.custom_props_bpy.CustomPropertyNames.TQ_BUMPS,
             feature_utils.RandomizeFloatPropertyOperator,
             row,
+            use_one_value_per_hierarchy=True,
         )
 
     def draw(self, context: bpy.types.Context) -> None:

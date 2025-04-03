@@ -9,7 +9,7 @@
 # should be done once.
 
 import bpy
-import bpy_extras
+import bpy_extras.view3d_utils
 import blf
 import dataclasses
 import gpu
@@ -608,7 +608,8 @@ def text_box_3d(
 ) -> None:
     """Draws text box based on world position aligned to view"""
     pos_2d = bpy_extras.view3d_utils.location_3d_to_region_2d(region, rv3d, world_pos)
-    text_box(pos_2d, padding, text_margin, background, texts)
+    if pos_2d is not None:  # Do not draw if the position is behind the camera
+        text_box(pos_2d, padding, text_margin, background, texts)
 
 
 def get_text_size(string: str, style: TextStyle) -> typing.Tuple[float, float]:

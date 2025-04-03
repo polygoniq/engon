@@ -21,7 +21,7 @@
 # Code inspired by the 'CLICKR' addon by Oliver J Post
 
 import bpy
-import bpy_extras
+import bpy_extras.view3d_utils
 import math
 import mathutils
 import typing
@@ -98,10 +98,6 @@ class Clicker(bpy.types.Operator):
         # Properties controlling the UI state - e. g. tint of the buttons, based on the events
         self.is_scaling = False
 
-        Clicker.draw_2d_handler_ref = bpy.types.SpaceView3D.draw_handler_add(
-            self.draw_px, (), 'WINDOW', 'POST_PIXEL'
-        )
-
     @staticmethod
     def remove_draw_handlers() -> None:
         if hasattr(Clicker, "draw_2d_handler_ref") and Clicker.draw_2d_handler_ref is not None:
@@ -158,7 +154,12 @@ class Clicker(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        return len(context.selected_objects) > 0 and context.mode == 'OBJECT'
+        return (
+            context.region_data is not None
+            and isinstance(context.region_data, bpy.types.RegionView3D)
+            and len(context.selected_objects) > 0
+            and context.mode == 'OBJECT'
+        )
 
     def execute(self, context: bpy.types.Context):
         return {'FINISHED'}
@@ -210,7 +211,7 @@ class Clicker(bpy.types.Operator):
             context.window.cursor_modal_restore()
             return {'PASS_THROUGH'}
 
-        if area is not None and area.type != 'VIEW_3D':
+        if area is None or area.type != 'VIEW_3D':
             context.window.cursor_modal_set('STOP')
             return {'RUNNING_MODAL'}
 
@@ -473,6 +474,13 @@ class Clicker(bpy.types.Operator):
         self.models_collection.hide_viewport = True
 
         self.choose_next_object(context)
+
+        # Register the draw handler for the clicker help UI
+        assert Clicker.draw_2d_handler_ref is None, "Clicker draw handler is already registered!"
+        Clicker.draw_2d_handler_ref = bpy.types.SpaceView3D.draw_handler_add(
+            self.draw_px, (), 'WINDOW', 'POST_PIXEL'
+        )
+
         context.window_manager.modal_handler_add(self)
         Clicker.is_running = True
         logger.info(

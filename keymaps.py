@@ -36,7 +36,7 @@ KeymapItemDefinition = collections.namedtuple(
 )
 
 
-# TODO: Ideally we would import here the MAPR_ToggleArea and get the bl_idname, but this
+# TODO: Ideally we would import here modules of the operators and get the bl_idname, but this
 # would introduce circular deps and other dependency hell
 KEYMAP_DEFINITIONS: typing.Dict[KeymapDefinition, typing.List[KeymapItemDefinition]] = {
     KeymapDefinition('Window', 'EMPTY', 'WINDOW'): [
@@ -46,6 +46,11 @@ KEYMAP_DEFINITIONS: typing.Dict[KeymapDefinition, typing.List[KeymapItemDefiniti
     ],
     KeymapDefinition('3D View', 'VIEW_3D', 'WINDOW'): [
         KeymapItemDefinition("Click Assets", "engon.clicker", 'C', 'PRESS', False, False, True),
+    ],
+    KeymapDefinition('3D View', 'VIEW_3D', 'WINDOW'): [
+        KeymapItemDefinition(
+            "Snap to Ground", "engon.snap_to_ground", 'V', 'PRESS', False, False, False
+        ),
     ],
 }
 
