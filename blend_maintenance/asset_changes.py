@@ -26,6 +26,50 @@ class AssetPackMigrations(typing.NamedTuple):
 
 
 # versions in the names reflect the last version of asset pack without given changes
+_botaniq_7_0_0_rename_masks = {
+    r"^bq_Noise_High-contrast_Diffuse": r"bq_Noise_High-contrast_Mask",
+    r"^bq_Water_Caustics_Diffuse": r"bq_Water_Caustics_Mask",
+    r"^bq_Water_Foam_Diffuse": r"bq_Water_Foam_Mask",
+}
+
+botaniq_7_0_0_rename_masks = AssetPackMigration(
+    [],
+    {
+        "images": [
+            RegexMapping(re.compile(pattern), replacement)
+            for pattern, replacement in _botaniq_7_0_0_rename_masks.items()
+        ],
+    },
+)
+
+_botaniq_7_0_0_rename_textures = {
+    r"^bq_Grass_Diffuse_mqt_2048": r"bq_Grass-Lawn_Diffuse",
+    r"^bq_Grass_Macro_Diffuse_mqt_1024": r"bq_Grass_Macro_Diffuse",
+    r"^bq_Grass_Mounds_Diffuse_mqt_2048": r"bq_Grass_Mounds_Diffuse",
+    r"^bq_Grass_Normal_mqt_2048": r"bq_Grass-Lawn_Normal",
+    r"^bq_HighContrast_Noise_mqt_1024": r"bq_Noise_High-contrast_Diffuse",
+    r"^bq_HighContrast_Noise_mqt_2048": r"bq_Noise_High-contrast_Diffuse",
+    r"^bq_Noise_Normal_mqt_1024": r"bq_Noise_Normal",
+    r"^bq_Rock_Granite_Brown_Diffuse_mqt_1024": r"bq_Rock_Granite-brown_Diffuse",
+    r"^bq_Rock_Granite_Brown_Normal_mqt_1024": r"bq_Rock_Granite-brown_Normal",
+    r"^bq_Soil_Rough_Diffuse_mqt_1024": r"bq_Soil_Rough_Diffuse",
+    r"^bq_Soil_Rough_Height_mqt_1024": r"bq_Soil_Rough_Height",
+    r"^bq_Soil_Rough_Normal_mqt_1024": r"bq_Soil_Rough_Normal",
+    r"^bq_Water_Caustics_Noise_mqt_2048": r"bq_Water_Caustics_Diffuse",
+    r"^bq_Water_Foam_Noise_mqt_2048": r"bq_Water_Foam_Diffuse",
+    r"^bq_Water_Height_mqt_2048": r"bq_Water_Height",
+    r"^bq_Water_Normal_mqt_2048": r"bq_Water_Normal",
+}
+
+botaniq_7_0_0_rename_textures = AssetPackMigration(
+    [],
+    {
+        "images": [
+            RegexMapping(re.compile(pattern), replacement)
+            for pattern, replacement in _botaniq_7_0_0_rename_textures.items()
+        ],
+    },
+)
 
 _botaniq_7_0_0_larix_decidua_variant = {
     r"^bq_Tree_Larix-decidua_([ABC])_spring-summer-autumn": r"bq_Tree_Larix-decidua_\1_spring-summer",
@@ -364,6 +408,11 @@ traffiq_2_0_0_remove_percent_from_incline_sign = AssetPackMigration(
     },
 )
 
+traffiq_2_2_1_random_color_nodegroup = AssetPackMigration(
+    [],
+    {"node_groups": [RegexMapping(re.compile("tq_Random_Color"), "tq_Colorize_Primary")]},
+)
+
 ASSET_PACK_MIGRATIONS = [
     AssetPackMigrations(
         pack_name="botaniq",
@@ -375,6 +424,8 @@ ASSET_PACK_MIGRATIONS = [
             botaniq_7_0_0_drop_dead_from_leaf_names,
             botaniq_7_0_0_drop_with_in_pps_names,
             botaniq_7_0_0_larix_decidua_variant,
+            botaniq_7_0_0_rename_textures,
+            botaniq_7_0_0_rename_masks,
         ],
     ),
     AssetPackMigrations(
@@ -385,7 +436,11 @@ ASSET_PACK_MIGRATIONS = [
     ),
     AssetPackMigrations(
         pack_name="traffiq",
-        migrations=[traffiq_1_7_0_tq_prefix, traffiq_2_0_0_remove_percent_from_incline_sign],
+        migrations=[
+            traffiq_1_7_0_tq_prefix,
+            traffiq_2_0_0_remove_percent_from_incline_sign,
+            traffiq_2_2_1_random_color_nodegroup,
+        ],
     ),
 ]
 

@@ -47,6 +47,13 @@ DEFAULT_INDICATOR_SIZE = 20.0
 DEFAULT_INDICATOR_COLOR = (0, 1.0, 162.0 / 255.0, 1.0)
 Color = typing.Tuple[float, float, float, float]
 
+# Key constants used for drawing key symbols
+ESCAPE_KEY = "ESC"
+SHIFT_KEY = "\u21e7"  # Unicode for Shift symbol
+CTRL_KEY = "CTRL"
+ALT_KEY = "ALT"
+SPACE_KEY = "\u2423"  # Unicode for Space symbol
+
 
 def set_context(context: bpy.types.Context) -> None:
     """Sets viewport size from context, to be further used as native bpy uniform in shaders"""
@@ -431,6 +438,7 @@ class TextStyle:
     color: Color = (1.0, 1.0, 1.0, 1.0)
     dpi: int = 72
     consider_ui_scale: bool = True
+    outline: bool = True
 
     def __post_init__(self):
         if self.consider_ui_scale:
@@ -441,7 +449,14 @@ def text(pos: mathutils.Vector, string: str, style: TextStyle) -> None:
     blf.position(style.font_id, pos[0], pos[1], 0)
     _set_text_size(style)
     blf.color(style.font_id, *style.color)
+    if bpy.app.version >= (4, 2, 0) and style.outline:
+        blf.enable(style.font_id, blf.SHADOW)
+        blf.shadow(style.font_id, 6, 0, 0, 0, 1.0)
+
     blf.draw(style.font_id, str(string))
+
+    if bpy.app.version >= (4, 2, 0) and style.outline:
+        blf.disable(style.font_id, blf.SHADOW)
 
 
 def text_3d(
@@ -485,6 +500,7 @@ def key_symbol(
     style = TextStyle(
         font_size=DEFAULT_INDICATOR_SIZE - 6,
         color=DEFAULT_INDICATOR_COLOR,
+        outline=False,
     )
     # Adjust font sized based on the length of the key (e. g. ESC, Shift, CTRL, F12)
     if len(key) > 2:

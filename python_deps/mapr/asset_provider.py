@@ -53,6 +53,16 @@ class DataView:
             f"containing {len(self.assets)} assets"
         )
 
+    def find_asset_by_id(self, asset_id: asset.AssetID) -> typing.Tuple[int, asset.Asset]:
+        """Finds an asset by its ID.
+
+        Returns a tuple of (index, asset) if found, otherwise raises ValueError.
+        """
+        for index, asset in enumerate(self.assets):
+            if asset.id_ == asset_id:
+                return index, asset
+        raise ValueError(f"Asset with ID {asset_id} not found in DataView {self}")
+
 
 class EmptyDataView(DataView):
     """Data view containing no data - useful on places, where DataView cannot be constructed yet."""

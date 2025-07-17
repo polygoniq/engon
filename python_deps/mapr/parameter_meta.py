@@ -48,6 +48,18 @@ class VectorParameterMeta:
         return f"{self.name}: Length: {self.length} Min: {self.min_} Max: {self.max_}"
 
 
+class LocationParameterMeta:
+    def __init__(self, name: str, value: typing.Tuple[typing.Tuple[float, ...,], ...]) -> None:  # fmt: skip
+        self.name: str = name
+
+    def register_value(self, value: typing.Tuple[typing.Tuple[float, ...], ...]) -> None:
+        # nothing to do here, keep the function for consistency
+        pass
+
+    def __repr__(self) -> str:
+        return f"{self.name}"
+
+
 class AssetParametersMeta:
     """Stores and provides meta (ranges, values, ...) information about parameters and tags.
 
@@ -62,6 +74,7 @@ class AssetParametersMeta:
         self.numeric: typing.Dict[str, NumericParameterMeta] = {}
         self.text: typing.Dict[str, TextParameterMeta] = {}
         self.vector: typing.Dict[str, VectorParameterMeta] = {}
+        self.location: typing.Dict[str, LocationParameterMeta] = {}
         self.unique_tags: typing.Set[str] = set()
         self.unique_parameter_names: typing.Set[str] = set()
 
@@ -89,11 +102,19 @@ class AssetParametersMeta:
                 else:
                     self.vector[unique_name].register_value(mathutils.Vector(value))
 
+            for param, value in asset_.location_parameters.items():
+                unique_name = f"loc:{param}"
+                if unique_name not in self.location:
+                    self.location[unique_name] = LocationParameterMeta(unique_name, value)
+                else:
+                    self.location[unique_name].register_value(value)
+
             self.unique_tags.update({f"tag:{t}" for t in asset_.tags})
 
         self.unique_parameter_names.update(self.text)
         self.unique_parameter_names.update(self.numeric)
         self.unique_parameter_names.update(self.vector)
+        self.unique_parameter_names.update(self.location)
         self.unique_parameter_names.update(self.unique_tags)
 
     def __repr__(self) -> str:
@@ -102,7 +123,8 @@ class AssetParametersMeta:
         pp = pprint.PrettyPrinter(depth=4)
         return (
             f"{self.__class__.__name__} at {id(self)}:\n"
-            f"{pp.pformat(self.numeric)}\n{pp.pformat(self.text)}\n{pp.pformat(self.vector)}\n"
+            f"{pp.pformat(self.numeric)}\n{pp.pformat(self.text)}\n"
+            f"{pp.pformat(self.vector)}\n{pp.pformat(self.location)}\n"
             f"{self.unique_tags}\nUnique Names: {self.unique_parameter_names}"
         )
 

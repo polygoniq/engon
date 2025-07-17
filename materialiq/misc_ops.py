@@ -22,7 +22,6 @@ import bpy
 import typing
 import logging
 from .. import polib
-from .. import hatchery
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
@@ -37,12 +36,12 @@ class ReplaceMaterial(bpy.types.Operator):
     bl_description = "Replace a material used on selected or all objects for another material"
     bl_options = {'REGISTER', 'UNDO'}
 
-    mat_orig: bpy.props.StringProperty(
-        name="Original",
+    mat_orig_name: bpy.props.StringProperty(
+        name="Original Material Name",
         maxlen=63,
     )
-    mat_rep: bpy.props.StringProperty(
-        name="Replacement",
+    mat_rep_name: bpy.props.StringProperty(
+        name="Replacement Material Name",
         maxlen=63,
     )
     only_selected: bpy.props.BoolProperty(
@@ -62,64 +61,41 @@ class ReplaceMaterial(bpy.types.Operator):
 
     def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
-        layout.prop_search(self, "mat_orig", bpy.data, "materials")
-        layout.prop_search(self, "mat_rep", bpy.data, "materials")
+        layout.prop_search(self, "mat_orig_name", bpy.data, "materials")
+        layout.prop_search(self, "mat_rep_name", bpy.data, "materials")
         layout.prop(self, "only_selected")
         layout.prop(self, "update_selection")
 
-    def invoke(self, context: bpy.types.Context, event):
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+        active_material = polib.material_utils_bpy.safe_get_active_material(context.active_object)
+        if self.mat_orig_name == "" and active_material is not None:
+            self.mat_orig_name = active_material.name
+
         return context.window_manager.invoke_props_dialog(self)
 
-    def replace_material(
-        self, m1: str, m2: str, only_selected: bool = True, update_selection: bool = False
-    ) -> None:
-        # replace material named m1 with material named m2
-        # m1 is the name of original material
-        # m2 is the name of the material to replace it with
-
-        mat_orig = bpy.data.materials.get(m1, None)
-        mat_rep = bpy.data.materials.get(m2, None)
+    def execute(self, context: bpy.types.Context):
+        mat_orig = bpy.data.materials.get(self.mat_orig_name, None)
+        mat_rep = bpy.data.materials.get(self.mat_rep_name, None)
 
         errors_messages: typing.List[str] = []
 
         if mat_orig is None:
-            errors_messages.append(f"Material '{m1}' does not exist!")
+            errors_messages.append(f"Material '{self.mat_orig_name}' does not exist!")
         if mat_rep is None:
-            errors_messages.append(f"Material '{m2}' does not exist!")
+            errors_messages.append(f"Material '{self.mat_rep_name}' does not exist!")
         if len(errors_messages) != 0:
             for message in errors_messages:
                 self.report({'ERROR'}, message)
-            return
+            return {'CANCELLED'}
 
-        if mat_orig == mat_rep:
-            return
-
-        objs = bpy.context.selected_editable_objects if only_selected else bpy.data.objects
-
-        for ob in objs:
-            if not hatchery.utils.can_have_materials_assigned(ob):
-                continue
-
-            changed = False
-            for m in ob.material_slots:
-                if m.material != mat_orig:
-                    continue
-
-                m.material = mat_rep
-                # don't break the loop as the material can be
-                # ref'd more than once
-                changed = True
-
-            if update_selection:
-                ob.select_set(changed)
-
-    def execute(self, context: bpy.types.Context):
-        self.replace_material(
-            self.mat_orig, self.mat_rep, self.only_selected, self.update_selection
+        assert isinstance(mat_orig, bpy.types.Material) and isinstance(mat_rep, bpy.types.Material)
+        objects = context.selected_objects if self.only_selected else context.scene.objects
+        polib.material_utils_bpy.replace_materials(
+            {mat_orig}, mat_rep, objects, self.update_selection
         )
-        logger.info(f"Replaced material {self.mat_orig} with material {self.mat_rep}")
-        self.mat_orig = ""
-        self.mat_rep = ""
+        self.report(
+            {'INFO'}, f"Replaced material '{self.mat_orig_name}' with '{self.mat_rep_name}'"
+        )
         return {'FINISHED'}
 
 

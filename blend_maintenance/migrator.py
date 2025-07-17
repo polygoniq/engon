@@ -273,20 +273,6 @@ class MigrateLibraryPaths(bpy.types.Operator):
         "them. Finds missing custom properties and adds them. And more version migration tasks"
     )
 
-    def log_and_report(self, level: int, message: str) -> None:
-        if level == logging.INFO:
-            logger.log(level, message)
-            self.report({'INFO'}, message)
-        elif level == logging.WARNING:
-            logger.log(level, message)
-            self.report({'WARNING'}, message)
-        elif level == logging.ERROR:
-            logger.log(level, message)
-            self.report({'ERROR'}, message)
-        else:
-            # logging module defines also NOTSET, DEBUG and CRITICAL but we don't use them here
-            raise ValueError(f"Unknown log level {level}")
-
     def fix_datablock_filepath(
         self,
         datablock: typing.Union[bpy.types.Library, bpy.types.Image],
@@ -308,8 +294,8 @@ class MigrateLibraryPaths(bpy.types.Operator):
                 for directory in pack_subdirectories:
                     new_path = os.path.join(directory, filename_candidate)
                     if polib.utils_bpy.isfile_case_sensitive(bpy.path.abspath(new_path)):
-                        self.log_and_report(
-                            logging.INFO,
+                        self.report(
+                            {'INFO'},
                             f"Migrating filepath of "
                             f"{type(datablock).__name__} '{datablock.name}' from "
                             f"'{datablock.filepath}' to '{new_path}'",
@@ -421,15 +407,15 @@ class MigrateLibraryPaths(bpy.types.Operator):
                             continue
 
                     datablock.user_remap(new_datablock)
-                    self.log_and_report(
-                        logging.INFO,
+                    self.report(
+                        {'INFO'},
                         f"Remapped datablock '{datablock.name}' of "
                         f"type '{datablock_type}' to '{name_candidate}' that is "
                         f"linked from {datablock.library.filepath}",
                     )
                     return new_datablock
-        self.log_and_report(
-            logging.WARNING,
+        self.report(
+            {'WARNING'},
             f"Datablock '{datablock.name}' of type '{datablock_type}' "
             f"wasn't migrated. No suitable migration rule was found!",
         )
@@ -532,8 +518,8 @@ class MigrateLibraryPaths(bpy.types.Operator):
             # (and thus their blends) can change before the next run
             get_blend_datablock_names.cache_clear()
 
-        self.log_and_report(
-            logging.INFO,
+        self.report(
+            {'INFO'},
             f"Migrator fixed {len(fixed_libraries)} libraries, "
             f"{len(fixed_images)} local images and "
             f"{len(fixed_datablocks)} datablocks",

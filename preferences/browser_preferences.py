@@ -20,8 +20,6 @@
 
 import bpy
 import typing
-import math
-import mathutils
 import logging
 from .. import polib
 from .. import hatchery
@@ -126,6 +124,21 @@ class SpawnOptions(bpy.types.PropertyGroup):
         default=1000,
     )
 
+    # geonodes
+    link_target_collections: bpy.props.BoolProperty(
+        name="Link Target Collections to Scene",
+        description="If true, this setting links geometry nodes target collections to scene. "
+        "Objects from target collections are spawned 10 units below the lowest affected object.",
+        default=True,
+    )
+
+    enable_target_collections: bpy.props.BoolProperty(
+        name="Enable Target Collections",
+        description="If true, the linked geometry nodes target collections will be included "
+        "in the view layer.",
+        default=False,
+    )
+
     def get_spawn_options(
         self, asset: mapr.asset.Asset, context: bpy.types.Context
     ) -> hatchery.spawn.DatablockSpawnOptions:
@@ -169,7 +182,7 @@ class SpawnOptions(bpy.types.PropertyGroup):
                 target_objects,
             )
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_scene:
-            return hatchery.spawn.DatablockSpawnOptions()
+            return hatchery.spawn.SceneSpawnOptions()
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_world:
             return hatchery.spawn.DatablockSpawnOptions()
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_geometry_nodes:
@@ -177,6 +190,8 @@ class SpawnOptions(bpy.types.PropertyGroup):
                 lambda: self._get_model_parent_collection(asset, context),
                 True,
                 set(context.selected_objects),
+                lambda: self._get_instance_layer_collection_parent(asset, context),
+                self.enable_target_collections,
             )
         else:
             raise NotImplementedError(
@@ -215,14 +230,26 @@ class SpawnOptions(bpy.types.PropertyGroup):
     def _get_instance_layer_collection_parent(
         self, asset: mapr.asset.Asset, context: bpy.types.Context
     ) -> typing.Optional[bpy.types.LayerCollection]:
-        if self.link_instance_collection:
+        collection = None
+        if (
+            asset.type_ == mapr.asset_data.AssetDataType.blender_particle_system
+            and self.link_instance_collection
+        ):
             collection = polib.asset_pack_bpy.collection_get(
                 context, asset_helpers.PARTICLE_SYSTEMS_COLLECTION
             )
+        elif (
+            asset.type_ == mapr.asset_data.AssetDataType.blender_geometry_nodes
+            and self.link_target_collections
+        ):
+            collection = polib.asset_pack_bpy.collection_get(
+                context, asset_helpers.GEONODES_TARGET_COLLECTION
+            )
+
+        if collection is not None:
             return polib.asset_pack_bpy.find_layer_collection(
                 context.view_layer.layer_collection, collection
             )
-
         return None
 
     def _get_model_parent_collection(
@@ -265,10 +292,28 @@ class BrowserPreferences(bpy.types.PropertyGroup):
         min=0,
         default=20,
     )
+
     debug: bpy.props.BoolProperty(
         name="Enable Debug",
-        description="If true then asset browser displays addition debug information",
+        description="If true then asset browser displays additional debug information",
         default=False,
+    )
+
+    def _update_debug_show_hidden_filters(self, context):
+        # we can't reference the operator's bl_id directly, as that would cause circular dependency
+        if hasattr(bpy.ops, 'engon.dev_browser_reconstruct_filters'):
+            bpy.ops.engon.dev_browser_reconstruct_filters()
+        else:
+            logger.error(
+                "Operator engon.dev_browser_reconstruct_filters operator is not available, "
+                "Show Hidden Filters will not work properly."
+            )
+
+    debug_show_hidden_filters: bpy.props.BoolProperty(
+        name="Show Hidden Filters",
+        description="If true then asset browser displays filters for metadata that have `show_filter: False`",
+        default=False,
+        update=_update_debug_show_hidden_filters,
     )
 
     spawn_options: bpy.props.PointerProperty(type=SpawnOptions)

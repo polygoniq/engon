@@ -784,6 +784,8 @@ class AssetPackInstallerDialogMixin:
         description="Select Asset Pack Install Path",
         set=_set_install_path,
         get=_get_install_path,
+        # We use custom file browser in lower versions
+        subtype='DIR_PATH' if bpy.app.version >= (4, 1, 0) else 'NONE',
     )
 
     # Used for passing to operators when offering to switch operation

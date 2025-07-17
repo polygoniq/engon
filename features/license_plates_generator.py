@@ -58,6 +58,31 @@ class LicensePlatesGeneratorPanelMixin(feature_utils.GeonodesAssetFeatureControl
     node_group_name = asset_helpers.TQ_LICENSE_PLATE_NODE_GROUP_NAME_PREFIX
     exact_match = False
 
+    # Differentiate front, back and generic panels
+    filter_: typing.Callable[[bpy.types.Object], bool] = lambda obj: True
+
+    @classmethod
+    def get_possible_assets(cls, context: bpy.types.Context) -> typing.Iterable[bpy.types.ID]:
+        if context.active_object is None:
+            return []
+        traffiq_root = polib.asset_pack_bpy.get_root_object_of_asset(context.active_object)
+        if traffiq_root is None:
+            return []
+        return filter(
+            cls.filter_,
+            polib.asset_pack_bpy.get_entire_object_hierarchy(traffiq_root),
+        )
+
+    @classmethod
+    def filter_adjustable_assets(
+        cls,
+        possible_assets: typing.Iterable[bpy.types.ID],
+    ) -> typing.Iterable[bpy.types.ID]:
+        return filter(
+            cls.filter_,
+            super().filter_adjustable_assets(possible_assets),
+        )
+
 
 @polib.log_helpers_bpy.logged_panel
 class LicensePlatesGeneratorPanel(
@@ -72,12 +97,20 @@ class LicensePlatesGeneratorPanel(
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon='EVENT_L')
 
+    def draw_header_preset(self, context: bpy.types.Context) -> None:
+        self.layout.operator(
+            feature_utils.SelectFeatureCompatibleObjects.bl_idname,
+            text="",
+            icon='RESTRICT_SELECT_ON',
+            emboss=False,
+        ).engon_feature_name = self.__class__.feature_name
+
     def draw(self, context: bpy.types.Context):
         layout: bpy.types.UILayout = self.layout
-        self.conditionally_draw_warning_no_adjustable_active_object(
-            context,
+        self.conditionally_draw_warning_no_adjustable_assets(
+            LicensePlatesGeneratorPanelMixin.get_possible_assets(context),
             layout,
-            include_children=True,
+            # In this feature we can work with multiple objects at once, but they are inferred from the active object
             warning_text=f"Active asset does not support {self.get_feature_name_readable()} feature or is not editable!",
         )
 
@@ -87,13 +120,9 @@ MODULE_CLASSES.append(LicensePlatesGeneratorPanel)
 
 class LicensePlatesAdjustmentsPanelMixin(
     LicensePlatesGeneratorPanelMixin,
-    feature_utils.GeoNodesAssetFeatureSecondaryControlPanelMixin,
 ):
     bl_parent_id = LicensePlatesGeneratorPanel.bl_idname
     bl_options = {'DEFAULT_CLOSED'}
-
-    # Differentiate front, back and generic panels
-    filter_: typing.Callable[[bpy.types.Object], bool] = lambda obj: True
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
         asset_helpers.TQ_LICENSE_PLATE_NODE_GROUP_NAME_PREFIX, exact_match=False
@@ -101,28 +130,19 @@ class LicensePlatesAdjustmentsPanelMixin(
 
     @classmethod
     def poll(cls, context: bpy.types.Context):
-        if context.active_object is None:
-            return False
-        possible_assets = filter(
-            cls.filter_,
-            polib.asset_pack_bpy.get_entire_object_hierarchy(context.active_object),
-        )
-        return (
-            len(list(LicensePlatesGeneratorPanelMixin.filter_adjustable_assets(possible_assets)))
-            > 0
-        )
+        filtered_assets = list(cls.get_multiedit_adjustable_assets(context))
+        return len(filtered_assets) > 0
+
+    def draw_header_preset(self, context: bpy.types.Context) -> None:
+        # We do not want to see the select adjustable objects button in the secondary panel.
+        return None
 
     def draw(self, context: bpy.types.Context):
-        if context.active_object is None:
+        # We need to call self.__class__ to use a class-specific filter_ function
+        filtered_assets = list(self.__class__.get_multiedit_adjustable_assets(context))
+        if not 0 < len(filtered_assets) < 2:
             return
-        for obj in polib.asset_pack_bpy.get_entire_object_hierarchy(context.active_object):
-            if self.__class__.filter_(
-                obj
-            ) and LicensePlatesGeneratorPanelMixin.filter_adjustable_assets([obj]):
-                break
-        else:
-            return
-        with context.temp_override(active_object=obj):
+        with context.temp_override(active_object=filtered_assets[0]):
             self.draw_active_object_modifiers_node_group_inputs_template(
                 self.layout,
                 context,
@@ -146,7 +166,11 @@ class FrontPlatePanel(
         if context.active_object is None:
             return
 
-        decomposed_car = polib.asset_pack_bpy.decompose_traffiq_vehicle(context.active_object)
+        traffiq_root = polib.asset_pack_bpy.get_root_object_of_asset(context.active_object)
+        if traffiq_root is None:
+            return
+
+        decomposed_car = polib.asset_pack_bpy.decompose_traffiq_vehicle(traffiq_root)
         if decomposed_car is None:
             return
 
@@ -189,7 +213,11 @@ class BackPlatePanel(
         if context.active_object is None:
             return
 
-        decomposed_car = polib.asset_pack_bpy.decompose_traffiq_vehicle(context.active_object)
+        traffiq_root = polib.asset_pack_bpy.get_root_object_of_asset(context.active_object)
+        if traffiq_root is None:
+            return
+
+        decomposed_car = polib.asset_pack_bpy.decompose_traffiq_vehicle(traffiq_root)
         if decomposed_car is None:
             return
 

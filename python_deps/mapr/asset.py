@@ -28,6 +28,10 @@ VectorParameters = typing.Dict[str, typing.Union[typing.Tuple[float, ...], typin
 # text parameters can have values that can only be compared for equality. for example
 # "Genus" = "Abies concolor", then you can query all assets where Genus = "Abies concolor".
 TextParameters = typing.Dict[str, str]
+# location parameters are a list of tuples, each tuple is a pair of floats. The tuple represents a
+# location in 2D space. For example, "native_observations" = [(43.0, -98.4), (19.3, -70.3)].
+# contains lat/lon pairs of native plant observations.
+LocationParameters = typing.Dict[str, typing.Tuple[typing.Tuple[float, ...], ...]]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -53,13 +57,19 @@ class Asset:
     numeric_parameters: NumericParameters = dataclasses.field(default_factory=dict)
     vector_parameters: VectorParameters = dataclasses.field(default_factory=dict)
     text_parameters: TextParameters = dataclasses.field(default_factory=dict)
+    location_parameters: LocationParameters = dataclasses.field(default_factory=dict)
     # Search matter that's not coming from this asset e.g. category search matter
     foreign_search_matter: typing.Dict[str, float] = dataclasses.field(default_factory=dict)
 
     @functools.cached_property
     def parameters(self) -> typing.Dict[str, typing.Any]:
-        """Numeric, text and vector parameters combined in one dictionary."""
-        return {**self.numeric_parameters, **self.text_parameters, **self.vector_parameters}
+        """Numeric, text, vector and location parameters combined in one dictionary."""
+        return {
+            **self.numeric_parameters,
+            **self.text_parameters,
+            **self.vector_parameters,
+            **self.location_parameters,
+        }
 
     @functools.cached_property
     def search_matter(self) -> typing.DefaultDict[str, float]:
@@ -73,6 +83,7 @@ class Asset:
         TEXT_PARAMETERS_DEFAULT_WEIGHT = 0.5
         NUMERIC_PARAMETERS_DEFAULT_WEIGHT = 0.5
         VECTOR_PARAMETERS_DEFAULT_WEIGHT = 0.5
+        LOCATION_PARAMETERS_DEFAULT_WEIGHT = 0.0  # coordinates are practically unsearchable
 
         ret: typing.DefaultDict[str, float] = self.type_.search_matter
         ret[self.title.lower()] = max(1.0, ret[self.title.lower()])
@@ -120,6 +131,17 @@ class Asset:
             search_weight = float(
                 known_metadata.VECTOR_PARAMETERS.get(name, {}).get(
                     "search_weight", VECTOR_PARAMETERS_DEFAULT_WEIGHT
+                )
+            )
+            if search_weight <= 0.0:
+                continue
+            token = str(value).lower()
+            ret[token] = max(search_weight, ret[token])
+
+        for name, value in self.location_parameters.items():
+            search_weight = float(
+                known_metadata.LOCATION_PARAMETERS.get(name, {}).get(
+                    "search_weight", LOCATION_PARAMETERS_DEFAULT_WEIGHT
                 )
             )
             if search_weight <= 0.0:

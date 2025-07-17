@@ -681,11 +681,27 @@ class AnimationAddWind(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return (
-            context.mode == 'OBJECT'
-            and next((obj for obj in context.selected_objects if obj.type == 'MESH'), None)
-            is not None
-        )
+        if context.mode != 'OBJECT':
+            return False
+        if not context.selected_objects:
+            return False
+
+        if any(obj.type == 'MESH' for obj in context.selected_objects):
+            return True
+
+        # Curves are animable only if they have curve scatter geonode modifier
+        for obj in context.selected_objects:
+            if obj.type != 'CURVE':
+                continue
+            for mod in obj.modifiers:
+                if mod.type != 'NODES':
+                    continue
+                if mod.node_group is None:
+                    continue
+                if mod.node_group.name == asset_helpers.BQ_CURVES_SCATTER_NODE_GROUP_NAME:
+                    return True
+
+        return False
 
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
         return context.window_manager.invoke_props_dialog(self)
@@ -721,21 +737,29 @@ class AnimationAddWind(bpy.types.Operator):
 
         # currently we support animations only for assets converted to editable
         if obj.type != 'MESH':
-            self.report({'INFO'}, f"{obj.name} cannot add animation to a non-editable object!")
+            self.report(
+                {'INFO'},
+                f"{obj.name} cannot add animation to a non-editable object. Convert it to editable.",
+            )
             return False
 
         if obj.library is not None:
-            self.report({'INFO'}, f"{obj.name} cannot add animation to a linked object!")
+            self.report(
+                {'INFO'},
+                f"{obj.name} cannot add animation to a linked object. Convert it to editable.",
+            )
             return False
 
         if obj.animation_data is not None:
-            self.report({'INFO'}, f"{obj.name} already contains animation data!")
+            self.report(
+                {'INFO'}, f"{obj.name} already contains animation data. Remove the animation data."
+            )
             return False
 
         if not asset_helpers.is_obj_with_engon_feature(obj, "botaniq"):
             return False
 
-        asset_id = obj.get(mapr.blender_asset_spawner.ASSET_ID_PROP_NAME, None)
+        asset_id = obj.data.get(mapr.blender_asset_spawner.ASSET_ID_PROP_NAME, None)
         if asset_id is None:
             self.report(
                 {'INFO'},
@@ -835,7 +859,7 @@ class AnimationAddWind(bpy.types.Operator):
         assert asset_provider is not None
 
         for obj in objects:
-            asset_id = obj.get(mapr.blender_asset_spawner.ASSET_ID_PROP_NAME, None)
+            asset_id = obj.data.get(mapr.blender_asset_spawner.ASSET_ID_PROP_NAME, None)
             if asset_id is None:
                 logger.error(
                     f"Object {obj.name} does not have the 'mapr_asset_id' property! Can't get its "
@@ -982,7 +1006,10 @@ class AnimationAddWind(bpy.types.Operator):
         new_animated_object_names: typing.List[str] = []
         try:
             scatter_objs = asset_helpers.gather_instanced_objects(selected_objects)
-            extended_selected_objects = set(selected_objects) | set(scatter_objs)
+            curves_scatter_objs = asset_helpers.gather_curves_instanced_objects(selected_objects)
+            extended_selected_objects = (
+                set(selected_objects) | set(scatter_objs) | set(curves_scatter_objs)
+            )
             animable_objects = {o for o in extended_selected_objects if self.is_animable(o)}
 
             # Source map has to be build out of all objects in the scene, so we can detect that

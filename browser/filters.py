@@ -30,13 +30,14 @@ import logging
 import math
 import mathutils
 import threading
-import functools
 import random
+from . import tiled_map
+from . import utils
+from . import state
 from .. import polib
 from .. import mapr
 from .. import asset_registry
 from .. import preferences
-from . import utils
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
@@ -52,12 +53,22 @@ class DataRepository:
 
     Queries are executed in a separate thread if `USE_THREADED_QUERY` is True,
     query being performed is indicated by `is_loading` member variable.
+
+    The repository is responsible for lazily displaying assets (slicing and storing current view),
+    currently this is OK, but it should be moved forward to a separate class when we truly "lazy load"
+    assets.
     """
 
-    def __init__(self, asset_provider: mapr.asset_provider.AssetProvider):
+    def __init__(
+        self, asset_provider: mapr.asset_provider.AssetProvider, lazy_display_increment: int = 200
+    ):
         self.asset_provider = asset_provider
         self.is_loading = False
         self.last_view: typing.Optional[mapr.asset_provider.DataView] = None
+
+        # Number of lazily displayed assets, check lazy_ properties and methods.
+        self._lazy_displayed_count = lazy_display_increment
+        self._lazy_display_increment = lazy_display_increment
 
     def query(
         self,
@@ -71,11 +82,15 @@ class DataRepository:
             self.last_view = self.asset_provider.query(query)
             self.is_loading = False
             polib.ui_bpy.tag_areas_redraw(bpy.context, {'PREFERENCES'})
+            # Reset the count of displayed assets, so we display only first N again after each query.
+            self.lazy_reset_displayed()
+
             if on_complete is not None:
                 on_complete(self.last_view)
 
         self.is_loading = True
         polib.ui_bpy.tag_areas_redraw(bpy.context, {'PREFERENCES'})
+        state.get_browser_state(bpy.context).reset_active_asset()
         if USE_THREADED_QUERY:
             thread = threading.Thread(target=_query)
             thread.start()
@@ -111,6 +126,28 @@ class DataRepository:
         if isinstance(self.asset_provider, mapr.asset_provider.CachedAssetProviderMultiplexer):
             self.asset_provider.clear_cache()
 
+    def lazy_show_more(self):
+        self._lazy_displayed_count += self._lazy_display_increment
+
+    def lazy_reset_displayed(self):
+        self._lazy_displayed_count = self._lazy_display_increment
+
+    @property
+    def lazy_all_displayed(self) -> bool:
+        return self._lazy_displayed_count >= len(self.current_assets)
+
+    @property
+    def lazy_current_assets(self) -> typing.List[mapr.asset.Asset]:
+        return (
+            self.last_view.assets[: self._lazy_displayed_count]
+            if self.last_view is not None
+            else []
+        )
+
+    @property
+    def current_assets(self) -> typing.List[mapr.asset.Asset]:
+        return self.last_view.assets if self.last_view is not None else []
+
     @property
     def current_category_id(self) -> mapr.category.CategoryID:
         return (
@@ -122,10 +159,6 @@ class DataRepository:
     @property
     def current_view(self) -> mapr.asset_provider.DataView:
         return self.last_view if self.last_view is not None else mapr.asset_provider.EmptyDataView()
-
-    @property
-    def current_assets(self) -> typing.List[mapr.asset.Asset]:
-        return self.last_view.assets if self.last_view is not None else []
 
 
 asset_repository = DataRepository(asset_registry.instance.master_asset_provider)
@@ -178,7 +211,8 @@ class BrowserFilter:
         self._clear_is_default_cache_if_any()
 
     def _clear_is_default_cache_if_any(self):
-        self.__dict__.pop("_is_default", None)
+        if hasattr(self, "_is_default"):
+            del self._is_default  # type: ignore
 
 
 def _filters_updated_bulk_query() -> None:
@@ -187,7 +221,7 @@ def _filters_updated_bulk_query() -> None:
     asset_repository.query(
         mapr.query.Query(
             asset_repository.current_category_id,
-            filters_properties.filters.values(),
+            filters_properties.used_filters.values(),
             filters_properties.sort_mode,
         ),
         on_complete=lambda _: filters_properties.reenable(),
@@ -281,7 +315,7 @@ class BrowserNumericParameterFilter(
         row.prop(self, self._range_start_name(), text="Min")
         row.prop(self, self._range_end_name(), text="Max")
 
-    @functools.cached_property
+    @polib.utils_bpy.cached_property
     def _is_default(self):
         return math.isclose(self.range_start, self.range_min) and math.isclose(
             self.range_end, self.range_max
@@ -378,23 +412,30 @@ class BrowserTagFilter(bpy.types.PropertyGroup, mapr.filters.TagFilter, BrowserF
 MODULE_CLASSES.append(BrowserTagFilter)
 
 
-class TextParameterValue(bpy.types.PropertyGroup):
-    name: bpy.props.StringProperty()
+class ProxiedFilterParameterValue(bpy.types.PropertyGroup):
     filter_name: bpy.props.StringProperty()
-    include: bpy.props.BoolProperty(
-        update=lambda self, context: TextParameterValue._updated_proxy(self, context), default=False
-    )
 
-    def _updated_proxy(self, context: bpy.types.Context):
+    def _filter_updated_proxy(self, context: bpy.types.Context):
         """Proxy to update of the individual values, so the update event gets the parent filter."""
         filter_ = get_filters(context).filters.get(self.filter_name, None)
         if filter_ is None:
-            # This shouldn't happen nas the value shouldn't be present if there isn't a corresponding
+            # This shouldn't happen as the value shouldn't be present if there isn't a corresponding
             # filter, but as a sanity check we check against None and log.
             logger.error(f"Filter {self.filter_name} not found, but it's value exists!")
             return
 
         _filter_updated_event(filter_)
+
+
+MODULE_CLASSES.append(ProxiedFilterParameterValue)
+
+
+class TextParameterValue(ProxiedFilterParameterValue):
+    name: bpy.props.StringProperty()
+    include: bpy.props.BoolProperty(
+        update=lambda self, context: TextParameterValue._filter_updated_proxy(self, context),
+        default=False,
+    )
 
 
 MODULE_CLASSES.append(TextParameterValue)
@@ -470,7 +511,7 @@ class BrowserTextParameterFilter(
                 emboss=False,
             )
 
-    @functools.cached_property
+    @polib.utils_bpy.cached_property
     def _is_default(self):
         return not any(x.include for x in self.param_values)
 
@@ -596,7 +637,7 @@ class BrowserVectorParameterFilter(
             col.row(align=True).prop(self, "range_start", text="From")
             col.row(align=True).prop(self, "range_end", text="To")
 
-    @functools.cached_property
+    @polib.utils_bpy.cached_property
     def _is_default(self) -> bool:
         # For some reason I had to lower the 'rel_tol' for the self.distance 'isclose' check to pass
         if self.type_ == mapr.known_metadata.VectorType.COLOR:
@@ -669,6 +710,93 @@ class BrowserVectorParameterFilter(
 
 
 MODULE_CLASSES.append(BrowserVectorParameterFilter)
+
+
+class BrowserLocationParameterFilter(
+    bpy.types.PropertyGroup, mapr.filters.LocationParameterFilter, BrowserFilter
+):
+    map_tiles: bpy.props.BoolVectorProperty(
+        size=(
+            [
+                mapr.filters.LocationParameterFilter.map_projection.max_x,
+                mapr.filters.LocationParameterFilter.map_projection.max_y,
+            ]
+        ),
+        update=lambda self, _: self._on_map_tiles_update(),
+    )
+
+    # TODO: this deservers a more systemic solution
+    # filters could have something like _on_update method
+    # that would be called when the filter is updated, to clear all caches
+    def _on_map_tiles_update(self):
+        _filter_updated_event(self)
+        if hasattr(self, "_get_map_tiles"):
+            del self._get_map_tiles
+
+    def init(self, parameter_meta: mapr.parameter_meta.LocationParameterMeta):
+        self.name = parameter_meta.name
+        self.name_without_type = mapr.parameter_meta.remove_type_from_name(self.name)
+
+    def draw(self, context: bpy.types.Context, layout: bpy.types.UILayout):
+        row = layout.row(align=True)
+        sub = row.column()
+        sub.enabled = False
+        sub.label(text=self.get_nice_name())
+        projection = mapr.filters.LocationParameterFilter.map_projection
+
+        if self.is_applied() or self.enabled is False:
+            row.operator(
+                MAPR_BrowserResetFilter.bl_idname, text="", icon='PANEL_CLOSE', emboss=False
+            ).filter_name = self.name
+
+        # responsive design ¯\_(ツ)_/¯
+        # if the panel is too narrow, we can't show the map as the tiles start to overlap
+        if context.region.width < 320 * context.preferences.system.ui_scale:
+            layout.label(text="Make panel wider to reveal map.")
+            return
+        col = layout.column(align=True)
+        col.alignment = 'CENTER'
+        tiled_map.draw_map_interactive(
+            col,
+            self,
+            "map_tiles",
+            projection.max_x,
+            projection.max_y,
+            projection.crop,
+        )
+
+    @polib.utils_bpy.cached_property
+    def _get_map_tiles(self) -> typing.List[typing.List[bool]]:
+        return [row[:] for row in self.map_tiles]
+
+    @polib.utils_bpy.cached_property
+    def _is_default(self):
+        return not any(map(lambda row: any(row), self._get_map_tiles))
+
+    def is_default(self) -> bool:
+        return self._is_default
+
+    def reset(self) -> None:
+        super().reset()
+        for i in range(mapr.filters.LocationParameterFilter.map_projection.max_x):
+            for j in range(mapr.filters.LocationParameterFilter.map_projection.max_y):
+                self.map_tiles[i][j] = False
+
+    def filter_(self, asset_: mapr.asset.Asset) -> bool:
+        if self.is_default():
+            return True
+
+        return super().filter_(asset_)
+
+    @property
+    def selected_tiles(self) -> typing.List[typing.List[bool]]:
+        # OVERRIDES 'tiles' from 'mapr.filters.LocationParameterFilter'
+
+        # we need to return a copy of the map_tiles, the original is bpy_prop that is not serializable
+        return self._get_map_tiles
+
+
+MODULE_CLASSES.append(BrowserLocationParameterFilter)
 
 
 class BrowserAssetTypesFilter(
@@ -763,6 +891,13 @@ class BrowserSearchFilter(bpy.types.PropertyGroup, mapr.filters.SearchFilter, Br
         update=lambda self, context: self.search_updated(context),
     )
 
+    # This is used to store the previous search string, so we can check if the search was changed
+    # and avoid unnecessary updates
+    previous_search: bpy.props.StringProperty(
+        name="Previous Search",
+        description="Previous search string",
+    )
+
     recent_search: bpy.props.EnumProperty(
         name="Recent Search",
         description="Recent searches history, select one to search it again",
@@ -807,15 +942,25 @@ class BrowserSearchFilter(bpy.types.PropertyGroup, mapr.filters.SearchFilter, Br
             ).filter_name = self.name
 
     def reset(self):
-        super().reset()
-        self.search = ""
-        # Return the sort mode to default if the search filter is cleared
-        get_filters().sort_mode = mapr.query.SortMode.ALPHABETICAL_ASC
+        self.search = ""  # This will trigger the search_updated method
 
     def is_default(self):
         return self.search == ""
 
     def search_updated(self, context: bpy.types.Context) -> None:
+        if self.previous_search == self.search:
+            # If the search didn't change, we don't need to do anything
+            return
+        self.previous_search = self.search
+
+        if self.search == "":
+            # Empty search => reset search filter
+            super().reset()
+            # Return the sort mode to default if the search filter is cleared
+            filters = get_filters(context)
+            filters.sort_mode = mapr.query.SortMode.ALPHABETICAL_ASC  # Triggers query update
+            return
+
         # We store search history as class variable, we assume one instance of this class existing
         # at any point.
         cls = type(self)
@@ -938,6 +1083,7 @@ class DynamicFilters(bpy.types.PropertyGroup):
     tag_filters: bpy.props.CollectionProperty(type=BrowserTagFilter)
     text_filters: bpy.props.CollectionProperty(type=BrowserTextParameterFilter)
     vector_filters: bpy.props.CollectionProperty(type=BrowserVectorParameterFilter)
+    location_filters: bpy.props.CollectionProperty(type=BrowserLocationParameterFilter)
     search: bpy.props.PointerProperty(type=BrowserSearchFilter)
     asset_types: bpy.props.PointerProperty(type=BrowserAssetTypesFilter)
 
@@ -987,7 +1133,7 @@ class DynamicFilters(bpy.types.PropertyGroup):
             self.reenable()
 
         asset_repository.query(
-            mapr.query.Query(category_id, self.filters.values(), self.sort_mode),
+            mapr.query.Query(category_id, self.used_filters.values(), self.sort_mode),
             on_complete=_on_complete,
         )
 
@@ -1018,6 +1164,11 @@ class DynamicFilters(bpy.types.PropertyGroup):
                 (current_view.parameters_meta.numeric, self.numeric_filters, "NUMERIC_PARAMETERS"),
                 (current_view.parameters_meta.text, self.text_filters, "TEXT_PARAMETERS"),
                 (current_view.parameters_meta.vector, self.vector_filters, "VECTOR_PARAMETERS"),
+                (
+                    current_view.parameters_meta.location,
+                    self.location_filters,
+                    "LOCATION_PARAMETERS",
+                ),
                 # Convert set of tags to mapping tag: tag, so we can use the same API
                 (
                     {tag: tag for tag in current_view.parameters_meta.unique_tags},
@@ -1025,13 +1176,16 @@ class DynamicFilters(bpy.types.PropertyGroup):
                     "TAGS",
                 ),
             ]
+            browser_prefs = preferences.prefs_utils.get_preferences(bpy.context).browser_preferences
+
             for params_meta, collection, known_metadata_field in filters_def:
                 known_params_dict = getattr(mapr.known_metadata, known_metadata_field)
                 for param_name, param_meta in params_meta.items():
                     param_name_without_type = mapr.parameter_meta.remove_type_from_name(param_name)
-                    if not known_params_dict.get(param_name_without_type, {}).get(
+                    param_show_filter = known_params_dict.get(param_name_without_type, {}).get(
                         "show_filter", True
-                    ):
+                    )
+                    if not browser_prefs.debug_show_hidden_filters and not param_show_filter:
                         assert collection.get(param_name, None) is None
                         continue
 
@@ -1058,6 +1212,7 @@ class DynamicFilters(bpy.types.PropertyGroup):
         self.tag_filters.clear()
         self.text_filters.clear()
         self.vector_filters.clear()
+        self.location_filters.clear()
 
     def clear_and_reconstruct(self):
         """Clears the parametrization filters and reconstructs based on last view in repository"""
@@ -1125,8 +1280,18 @@ class DynamicFilters(bpy.types.PropertyGroup):
         }
 
     @property
+    def used_filters(self) -> typing.Dict[str, BrowserFilter]:
+        """Filters that have non default values - were changed by the user."""
+        return {k: v for k, v in self.filters.items() if not v.is_default()}
+
+    @property
     def parametrization_filters(self) -> typing.Dict[str, BrowserFilter]:
-        return {**self.numeric_filters, **self.text_filters, **self.vector_filters}
+        return {
+            **self.numeric_filters,
+            **self.text_filters,
+            **self.vector_filters,
+            **self.location_filters,
+        }
 
     def _sort_mode_updated(self) -> None:
         # We use previous query, and adjust the sort mode parameter, if there is no previous

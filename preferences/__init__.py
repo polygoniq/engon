@@ -30,6 +30,7 @@ from . import prefs_utils
 from . import general_preferences
 from . import browser_preferences
 from . import what_is_new_preferences
+from .. import available_asset_packs
 from .. import keymaps
 from .. import utils
 from .. import features
@@ -56,8 +57,16 @@ class ShowReleaseNotes(bpy.types.Operator):
         default="",
     )
 
+    update_operator_bl_idname: bpy.props.StringProperty(
+        name="Update Operator ID",
+        description="The ID of the operator to display as the update button",
+        default="",
+    )
+
     def execute(self, context: bpy.types.Context):
-        polib.ui_bpy.show_release_notes_popup(context, base_package, self.release_tag)
+        polib.ui_bpy.show_release_notes_popup(
+            context, base_package, self.release_tag, self.update_operator_bl_idname
+        )
         return {'FINISHED'}
 
 
@@ -182,7 +191,13 @@ class Preferences(bpy.types.AddonPreferences):
         default=True,
     )
 
-    show_asset_packs: bpy.props.BoolProperty(description="Show/Hide Asset Packs", default=True)
+    show_asset_packs: bpy.props.BoolProperty(
+        description="Show/Hide Installed Asset Packs", default=True
+    )
+
+    show_available_packs: bpy.props.BoolProperty(
+        description="Show/Hide Available Asset Packs", default=False
+    )
 
     show_pack_info_paths: bpy.props.BoolProperty(
         name="Show/Hide Pack Info Search Paths", default=False
@@ -226,6 +241,22 @@ class Preferences(bpy.types.AddonPreferences):
                 docs_rel_url="advanced_topics/search_paths",
             )
 
+        # Available Asset Packs section
+        not_installed_available_packs = (
+            available_asset_packs.get_not_installed_available_asset_packs()
+        )
+        if len(not_installed_available_packs) > 0:
+            polib.ui_bpy.collapsible_box(
+                col,
+                self,
+                "show_available_packs",
+                f"Discover Available Asset Packs ({len(not_installed_available_packs)})",
+                functools.partial(
+                    available_asset_packs.draw_available_asset_packs,
+                    context,
+                ),
+            )
+
         # Keymaps section
         polib.ui_bpy.collapsible_box(
             col,
@@ -263,18 +294,22 @@ class Preferences(bpy.types.AddonPreferences):
         split = col.split(factor=0.5)
         left_row = split.row()
         left_row.enabled = bool(addon_updater.Updater.update_ready)
-        left_row.operator(
+        op = left_row.operator(
             ShowReleaseNotes.bl_idname, text="Latest Release Notes", icon='PRESET_NEW'
-        ).release_tag = ""
+        )
+        op.release_tag = ""
+        op.update_operator_bl_idname = addon_updater_ops.AddonUpdaterUpdateNow.bl_idname
         right_row = split.row()
         # TODO: Broken 4.2
         if addon_updater.Updater.current_version is not None:
             current_release_tag = polib.utils_bpy.get_release_tag_from_version(
                 addon_updater.Updater.current_version
             )
-            right_row.operator(
+            op = right_row.operator(
                 ShowReleaseNotes.bl_idname, text="Current Release Notes", icon='PRESET'
-            ).release_tag = current_release_tag
+            )
+            op.release_tag = current_release_tag
+            op.update_operator_bl_idname = ""
 
     def draw_save_userpref_prompt(self, layout: bpy.types.UILayout):
         row = layout.row()

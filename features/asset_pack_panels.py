@@ -60,7 +60,7 @@ class AssetPackPanelMixin(feature_utils.EngonFeaturePanelMixin):
 class BotaniqPanel(AssetPackPanelMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_engon_botaniq"
     bl_label = "botaniq"
-    bl_order = 10
+    bl_order = 11
 
     feature_name = "botaniq"
 
@@ -76,7 +76,7 @@ MODULE_CLASSES.append(BotaniqPanel)
 class InterniqPanel(AssetPackPanelMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_engon_interniq"
     bl_label = "interniq"
-    bl_order = 10
+    bl_order = 12
 
     feature_name = "interniq"
 
@@ -92,7 +92,7 @@ MODULE_CLASSES.append(InterniqPanel)
 class TraffiqPanel(AssetPackPanelMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_engon_traffiq"
     bl_label = "traffiq"
-    bl_order = 10
+    bl_order = 13
 
     feature_name = "traffiq"
 
@@ -108,7 +108,7 @@ MODULE_CLASSES.append(TraffiqPanel)
 class AquatiqPanel(AssetPackPanelMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_engon_aquatiq"
     bl_label = "aquatiq"
-    bl_order = 10
+    bl_order = 14
 
     feature_name = "aquatiq"
 

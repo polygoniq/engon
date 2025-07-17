@@ -84,6 +84,35 @@ def logged_operator(cls: typing.Type[bpy.types.Operator]):
 
         cls.invoke = new_invoke
 
+    # The 'report' method is defined in C API and cannot be wrapped like the previous methods
+    # We have to use custom __getattribute__ hack to achieve it
+    original_getattribute = cls.__getattribute__
+
+    def new_getattribute(self, name: str) -> typing.Any:
+        if name == "report":
+            orig_report = original_getattribute(self, name)
+
+            def new_report(type_: typing.Set[str], message: str) -> None:
+                type_value = list(type_)[0]
+                type_value_log_fn_map = {
+                    'ERROR': logger.error,
+                    'WARNING': logger.warning,
+                    'DEBUG': logger.debug,
+                    'INFO': logger.info,
+                }
+                # There are Blender report types starting with "ERROR"
+                if type_value.startswith("ERROR"):
+                    log_fn = logger.error
+                else:
+                    log_fn = type_value_log_fn_map.get(type_value, logger.info)
+                log_fn(f"{cls.__name__} operator report: {message}")
+                return orig_report(type_, message)
+
+            return new_report
+        return original_getattribute(self, name)
+
+    cls.__getattribute__ = new_getattribute
+
     return cls
 
 

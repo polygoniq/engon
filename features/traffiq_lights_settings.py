@@ -101,6 +101,14 @@ class TraffiqLightsSettingsPanel(
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon='OUTLINER_OB_LIGHT')
 
+    def draw_header_preset(self, context: bpy.types.Context) -> None:
+        self.layout.operator(
+            feature_utils.SelectFeatureCompatibleObjects.bl_idname,
+            text="",
+            icon='RESTRICT_SELECT_ON',
+            emboss=False,
+        ).engon_feature_name = self.__class__.feature_name
+
     def draw_properties(self, datablock: bpy.types.ID, layout: bpy.types.UILayout) -> None:
         layout.prop(
             datablock,

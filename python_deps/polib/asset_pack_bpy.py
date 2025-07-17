@@ -2,7 +2,6 @@
 # copyright (c) 2018- polygoniq xyz s.r.o.
 
 import bpy
-import bpy.utils.previews
 import typing
 import collections
 import dataclasses

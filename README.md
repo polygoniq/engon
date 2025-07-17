@@ -17,7 +17,7 @@
   <a href="https://github.com/polygoniq/engon/issues/new?assignees=&labels=question&template=04_SUPPORT_QUESTION.md&title=support%3A+">Ask a Question</a>
   <br />
 
-  [![Buy on BlenderMarket](https://img.shields.io/badge/Buy_on-BlenderMarket-orange?style=flat)](https://blendermarket.com/products/engon?ref=673)
+  [![Buy on Superhive](https://img.shields.io/badge/Buy_on-Superhive-orange?style=flat)](https://superhivemarket.com/products/engon?ref=673)
   [![Buy on Gumroad](https://img.shields.io/badge/Buy_on-Gumroad-blue?style=flat&color=%23fb80e8)](https://polygoniq.gumroad.com/l/engon/)
   [![Project license](https://img.shields.io/github/license/polygoniq/engon.svg?style=flat)](LICENSE)
   [![Pull Requests welcome](https://img.shields.io/badge/PRs-welcome-ff69b4.svg?style=flat)](https://github.com/polygoniq/engon/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)

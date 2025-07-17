@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 
 PARTICLE_SYSTEMS_COLLECTION = "engon_particle_systems"
+GEONODES_TARGET_COLLECTION = "engon_geometry_nodes"
 ANIMATION_EMPTIES_COLL_NAME = "animation_empties"
 
 
@@ -50,7 +51,7 @@ AQ_MATERIALS_LIBRARY_BLEND = "aq_Library_Materials.blend"
 BOTANIQ_ALL_SEASONS_RAW = "spring-summer-autumn-winter"
 BQ_COLLECTION_NAME = "botaniq"
 BQ_VINE_GENERATOR_NODE_GROUP_NAME = "bq_Vine_Generator"
-BQ_CURVES_GENERATOR_NODE_GROUP_NAME = "bq_Generator_Curves"
+BQ_CURVES_SCATTER_NODE_GROUP_NAME = "bq_Curve_Scatter"
 BQ_ANIM_LIBRARY_BLEND = "bq_Library_Animation_Data.blend"
 
 # traffiq constants
@@ -297,6 +298,38 @@ def gather_instanced_objects(
                 and instance_collection is not None
             ):
                 yield from instance_collection.all_objects
+
+
+def gather_curves_instanced_objects(
+    objects: typing.Iterable[bpy.types.Object],
+) -> typing.Iterator[bpy.types.Object]:
+    """Goes through 'objects' and gathers all objects instanced in curve scatter.
+
+    This checks whether any object from 'objects' is a polygoniq curve scatter and if yes
+    it yields objects from curve scatter instance collections.
+    """
+    for obj in objects:
+        for mod in obj.modifiers:
+            if mod.type != 'NODES':
+                continue
+
+            mod = typing.cast(bpy.types.NodesModifier, mod)
+
+            if mod.node_group is None or not mod.node_group.name.startswith(
+                BQ_CURVES_SCATTER_NODE_GROUP_NAME
+            ):
+                continue
+
+            for group_input in mod.node_group.inputs:
+                if group_input.type == 'COLLECTION' and group_input.description.startswith(
+                    "bq_Curve_Scatter_Collection"
+                ):
+                    if mod.get(group_input.identifier) is not None:
+                        yield from mod.get(group_input.identifier).all_objects
+
+            instance_collection = mod.node_group.nodes.get("Instance Collection")
+            if instance_collection is not None and instance_collection.collection is not None:
+                yield from instance_collection.collection.all_objects
 
 
 def get_car_color() -> typing.Tuple[float, float, float]:

@@ -959,6 +959,14 @@ class TraffiqRigsPanel(bpy.types.Panel, feature_utils.PropertyAssetFeatureContro
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon='AUTO')
 
+    def draw_header_preset(self, context: bpy.types.Context) -> None:
+        self.layout.operator(
+            feature_utils.SelectFeatureCompatibleObjects.bl_idname,
+            text="",
+            icon='RESTRICT_SELECT_ON',
+            emboss=False,
+        ).engon_feature_name = TraffiqRigsPanel.feature_name
+
     def draw_properties(self, datablock: bpy.types.ID, layout: bpy.types.UILayout) -> None:
         raise NotImplementedError()
 
@@ -1016,14 +1024,7 @@ def get_position_display_name(position: str) -> str:
     return f"{raw_position_to_display_map.get(position, '')}{index_suffix}"
 
 
-@polib.log_helpers_bpy.logged_panel
-class RigsGroundSensorsPanel(feature_utils.EngonAssetFeatureControlPanelMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_engon_traffiq_rigs_ground_sensors"
-    bl_parent_id = TraffiqRigsPanel.bl_idname
-    bl_label = "Rig Ground Sensors"
-
-    feature_name = "traffiq_rigs"
-
+class TraffiqRigsSubPanel(feature_utils.EngonAssetFeatureControlPanelMixin, bpy.types.Panel):
     @classmethod
     def get_possible_assets(
         cls,
@@ -1032,6 +1033,19 @@ class RigsGroundSensorsPanel(feature_utils.EngonAssetFeatureControlPanelMixin, b
         if context.active_object is not None:
             return [context.active_object]
         return []
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        return len(list(cls.filter_adjustable_assets(cls.get_possible_assets(context)))) > 0
+
+
+@polib.log_helpers_bpy.logged_panel
+class RigsGroundSensorsPanel(TraffiqRigsSubPanel):
+    bl_idname = "VIEW_3D_PT_engon_traffiq_rigs_ground_sensors"
+    bl_parent_id = TraffiqRigsPanel.bl_idname
+    bl_label = "Rig Ground Sensors"
+
+    feature_name = "traffiq_rigs"
 
     @classmethod
     def filter_adjustable_assets(
@@ -1085,21 +1099,12 @@ MODULE_CLASSES.append(RigsGroundSensorsPanel)
 
 
 @polib.log_helpers_bpy.logged_panel
-class RigsRigPropertiesPanel(feature_utils.EngonAssetFeatureControlPanelMixin, bpy.types.Panel):
+class RigsRigPropertiesPanel(TraffiqRigsSubPanel):
     bl_idname = "VIEW_3D_PT_engon_traffiq_rigs_rig_properties"
     bl_parent_id = TraffiqRigsPanel.bl_idname
     bl_label = "Rig Properties"
 
     feature_name = "traffiq_rigs"
-
-    @classmethod
-    def get_possible_assets(
-        cls,
-        context: bpy.types.Context,
-    ) -> typing.Iterable[bpy.types.ID]:
-        if context.active_object is not None:
-            return [context.active_object]
-        return []
 
     @classmethod
     def filter_adjustable_assets(

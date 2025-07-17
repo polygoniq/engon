@@ -26,7 +26,10 @@ import math
 import mathutils
 from . import polib
 from . import hatchery
+from . import mapr
 from . import asset_helpers
+from . import asset_registry
+from . import browser
 from . import panel
 from . import preferences
 
@@ -560,18 +563,16 @@ class ParticleSystemAppendSelection(bpy.types.Operator):
 
         for obj in selection:
             if obj.type != 'MESH':
-                msg = f"Cannot append {obj.name}, it is not a mesh."
-                logger.warning(msg)
-                self.report({'WARNING'}, msg)
+                self.report({'WARNING'}, f"Cannot append {obj.name}, it is not a mesh.")
                 continue
 
             if obj == active_object:
                 continue
 
             if obj.name in instance_collection.all_objects:
-                msg = f"Cannot append {obj.name}, it is already in the particle system."
-                logger.warning(msg)
-                self.report({'WARNING'}, msg)
+                self.report(
+                    {'WARNING'}, f"Cannot append {obj.name}, it is already in the particle system."
+                )
                 continue
 
             # Rotate the spawned asset 90° around Y axis to make it straight in particle systems.
@@ -1107,6 +1108,80 @@ MODULE_CLASSES.append(ScatterWeightPaintPanel)
 
 
 @polib.log_helpers_bpy.logged_panel
+class ScatterTexturePanel(panel.EngonPanelMixin, bpy.types.Panel):
+    bl_idname = "VIEW_3D_PT_engon_scatter_texture"
+    bl_parent_id = ScatterPanel.bl_idname
+    bl_label = "Texture"
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        if context.active_object is None or not asset_helpers.has_active_particle_system(
+            context.active_object
+        ):
+            return False
+
+        active_object = context.active_object
+        particle_system = active_object.particle_systems.active
+
+        return (
+            len(particle_system.settings.texture_slots) > 0
+            and particle_system.settings.texture_slots[0] is not None
+            and particle_system.settings.texture_slots[0].texture is not None
+        )
+
+    def draw_header(self, context: bpy.types.Context) -> None:
+        self.layout.label(text="", icon='TEXTURE')
+
+    def draw(self, context):
+        layout = self.layout
+        active_object = context.active_object
+        particle_system = active_object.particle_systems.active
+        texture_slot = particle_system.settings.texture_slots[0]
+
+        layout.template_ID(
+            texture_slot,
+            "texture",
+        )
+
+        if texture_slot.use_map_density or texture_slot.use_map_velocity:
+            layout.label(text="Texture Influence")
+        if texture_slot.use_map_density:
+            layout.prop(
+                texture_slot,
+                "density_factor",
+                slider=True,
+                text="Density factor",
+            )
+        if texture_slot.use_map_velocity:
+            layout.prop(
+                texture_slot,
+                "velocity_factor",
+                slider=True,
+                text="Scale factor",
+            )
+
+        layout.label(text="Texture Mapping")
+        box = layout.box()
+        box.prop(
+            texture_slot,
+            "texture_coords",
+            text="Coordinates",
+        )
+        col = box.column(align=True)
+        col.prop(
+            texture_slot,
+            "offset",
+        )
+        col.prop(
+            texture_slot,
+            "scale",
+        )
+
+
+MODULE_CLASSES.append(ScatterTexturePanel)
+
+
+@polib.log_helpers_bpy.logged_panel
 class ScatterInstancerDetailPanel(panel.EngonPanelMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_engon_scatter_instancer_detail"
     bl_parent_id = ScatterPanel.bl_idname
@@ -1145,12 +1220,24 @@ class ScatterInstancerDetailPanel(panel.EngonPanelMixin, bpy.types.Panel):
             return
 
         orig_name, _ = dupli_object.name.split(":")
-        layout.label(text=orig_name, icon='OBJECT_DATA')
+        row = layout.row()
+        row.label(text=orig_name, icon='OBJECT_DATA')
 
         actual_object = bpy.data.objects.get(orig_name, None)
         # Actual object can be none if instance weights are not refreshed
         if actual_object is None:
             return
+
+        asset_id = actual_object.get(mapr.blender_asset_spawner.ASSET_ID_PROP_NAME, None)
+        if asset_id is not None:
+            asset = asset_registry.instance.master_asset_provider.get_asset(asset_id)
+            if asset is not None:
+                row.operator(
+                    browser.browser.MAPR_BrowserShowAssetDetail.bl_idname, text="", icon='VIEWZOOM'
+                ).asset_id = asset_id
+                layout.template_icon(
+                    browser.previews.preview_manager.get_icon_id(asset_id), scale=7.0
+                )
 
         col = layout.column()
         col.prop(actual_object, "scale")

@@ -1,13 +1,13 @@
 schema_version = "1.0.0"
 
 id = "engon"
-version = "1.5.1"
+version = "1.6.0"
 name = "engon"
 tagline = "Browse assets, filter and sort, scatter, animate, adjust rigs"
 maintainer = "polygoniq <ahoy@polygoniq.com>"
 type = "add-on"
 
-website = "https://docs.polygoniq.com/engon/1.4.1/"
+website = "https://docs.polygoniq.com/engon/1.6.0/"
 tags = ["Add Mesh", "Animation", "Material", "Mesh", "Object", "Scene", "User Interface"]
 blender_version_min = "4.2.0"
 

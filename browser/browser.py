@@ -29,12 +29,15 @@ from .. import polib
 from . import filters
 from . import previews
 from . import spawn
+from . import state
 from . import categories
 from . import what_is_new
 from . import utils
 from . import dev
+from . import tiled_map
 from .. import preferences
 from .. import asset_registry
+from .. import available_asset_packs
 from .. import __package__ as base_package
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
@@ -43,6 +46,7 @@ logger = logging.getLogger(f"polygoniq.{__name__}")
 MODULE_CLASSES: typing.List[typing.Any] = []
 IS_KNOWN_BROWSER = "pq_is_known_browser"
 IS_KNOWN_BROWSER_POPUP = "pq_is_known_browser_popup"
+SELECT_ALL_WARNING_THRESHOLD = 100
 # Path where Blender stores thumbnails that failed to load, this can happen e. g. when the source file
 # cannot be further read after opened and isn't considered valid image.
 FAILED_THUMBNAILS_PATH = os.path.expanduser(os.path.join("~", ".thumbnails", "fail", "blender"))
@@ -97,6 +101,10 @@ class MAPR_BrowserPreferencesPopoverPanel(bpy.types.Panel):
         col = layout.column()
         col.operator(dev.MAPR_BrowserDeleteCache.bl_idname)
         col.operator(dev.MAPR_BrowserReconstructFilters.bl_idname)
+        col.prop(
+            preferences.prefs_utils.get_preferences(context).browser_preferences,
+            "debug_show_hidden_filters",
+        )
         col.separator()
         col.label(text="Asset Providers:")
         sub_col = col.column(align=True)
@@ -195,10 +203,36 @@ class MAPR_BrowserShowAssetDetail(bpy.types.Operator):
         default=[True] * len(mapr.known_metadata.PARAMETER_GROUPING),
     )
 
+    def format_parameter_value(self, param_name: str, value: typing.Any) -> str:
+        """Formats the parameter value for display in the UI."""
+        assert self.asset is not None
+
+        ret = ""
+        if param_name in self.asset.location_parameters:
+            assert isinstance(value, list)
+            projection = mapr.filters.LocationParameterFilter.map_projection
+            selected_coords = [False] * projection.max_x * projection.max_y
+            for lat, lon in value:
+                x, y = projection.project(lat, lon)
+                selected_coords[y * projection.max_x + x] = True
+
+            ret += f" {selected_coords.count(True)} map segments"
+        elif isinstance(value, float):
+            # Format value with up to 2 decimal places without trailing zeros
+            ret += f"{int(value) if value % 1 == 0 else float(f'{value:.2f}')}"
+        else:
+            ret += str(value)
+
+        if param_name in mapr.known_metadata.PARAMETER_UNITS:
+            ret += f" {mapr.known_metadata.PARAMETER_UNITS[param_name]}"
+        return ret
+
     def draw_parameters(self, layout: bpy.types.UILayout) -> None:
         box = layout.box()
         heading = box.row()
         heading.enabled = False
+
+        assert self.asset is not None
 
         all_parameters = self.asset.parameters
         if len(all_parameters) == 0:
@@ -241,13 +275,22 @@ class MAPR_BrowserShowAssetDetail(bpy.types.Operator):
             col = group_box.column(align=True)
             for param_name in asset_parameters:
                 value = all_parameters[param_name]
-                param_unit = mapr.known_metadata.PARAMETER_UNITS.get(param_name, "")
-                if isinstance(value, float):
-                    # Format value with up to 2 decimal places without trailing zeros
-                    value = int(value) if value % 1 == 0 else float(f"{value:.2f}")
+
                 col.label(
-                    text=f"{mapr.known_metadata.format_parameter_name(param_name)}: {value} {param_unit}"
+                    text=f"{mapr.known_metadata.format_parameter_name(param_name)}: "
+                    f"{self.format_parameter_value(param_name, value)}"
                 )
+
+                if isinstance(value, list) and param_name in self.asset.location_parameters:
+                    projection = mapr.filters.LocationParameterFilter.map_projection
+                    selected_coords = [[False] * projection.max_x for _ in range(projection.max_y)]
+                    for lat, lon in value:
+                        x, y = projection.project(lat, lon)
+                        selected_coords[y][x] = True
+
+                    tiled_map.draw_map_static(
+                        col, selected_coords, projection.max_x, projection.max_y, projection.crop
+                    )
 
         not_yet_drawn = set(all_parameters) - already_considered_parameters
 
@@ -327,15 +370,13 @@ class MAPR_ShowAssetMenu(bpy.types.Operator):
     @staticmethod
     def asset_menu_draw(menu_self, context: bpy.types.Context) -> None:
         layout: bpy.types.UILayout = menu_self.layout
+        browser_state = state.get_browser_state(context)
         asset = MAPR_ShowAssetMenu.current_asset
         assert asset is not None, "Asset has to be set before drawing the menu"
 
         col = layout.column(align=True)
         col.operator_context = 'INVOKE_DEFAULT'
-        if asset.type_ in {
-            mapr.asset_data.AssetDataType.blender_model,
-            mapr.asset_data.AssetDataType.blender_geometry_nodes,
-        }:
+        if asset.type_ == mapr.asset_data.AssetDataType.blender_model:
             col.operator(
                 spawn.MAPR_BrowserReplaceSelected.bl_idname, icon='FILE_REFRESH'
             ).asset_id = asset.id_
@@ -348,10 +389,26 @@ class MAPR_ShowAssetMenu(bpy.types.Operator):
                 spawn.MAPR_BrowserSpawnModelIntoParticleSystem.bl_idname, icon='PARTICLES'
             ).asset_id = asset.id_
 
+        if asset.type_ == mapr.asset_data.AssetDataType.blender_material:
+            col.operator(
+                spawn.MAPR_BrowserReplaceActiveMaterials.bl_idname, icon='MATERIAL'
+            ).asset_id = asset.id_
+
         if "Drawable" in asset.tags or asset.id_ in DRAWABLE_GEONODES_ASSET_IDS:
             col.operator(
                 spawn.MAPR_BrowserDrawGeometryNodesAsset.bl_idname, icon='GREASEPENCIL'
             ).asset_id = asset.id_
+
+        is_selected = browser_state.is_asset_selected(asset.id_)
+        col.separator()
+        row = col.row()
+        op = row.operator(
+            MAPR_SelectAsset.bl_idname,
+            text="Deselect in Browser" if is_selected else "Select in Browser",
+            icon='RESTRICT_SELECT_ON' if is_selected else 'RESTRICT_SELECT_OFF',
+        )
+        op.asset_id = asset.id_
+        op.select = not is_selected
 
         row = col.row()
         row.operator_context = 'INVOKE_DEFAULT'
@@ -375,32 +432,139 @@ class MAPR_ShowAssetMenu(bpy.types.Operator):
 MODULE_CLASSES.append(MAPR_ShowAssetMenu)
 
 
+@polib.log_helpers_bpy.logged_operator
+class MAPR_ShowMoreAssets(bpy.types.Operator):
+    bl_idname = "engon.browser_show_more"
+    bl_label = "Show More Assets"
+    bl_description = "Displays more assets in the browser"
+
+    def execute(self, context: bpy.types.Context):
+        filters.asset_repository.lazy_show_more()
+        return {'FINISHED'}
+
+
+MODULE_CLASSES.append(MAPR_ShowMoreAssets)
+
+
+@polib.log_helpers_bpy.logged_operator
+class MAPR_SelectAsset(bpy.types.Operator):
+    """Operator to select or deselect asset in the browser.
+
+    Selection mainly happens in part of MAPR_BrowserMainAction, to have control of assets under one
+    button. This operator is used in places, where linking with main action doesn't make sense.
+    """
+
+    bl_idname = "engon.browser_select_asset"
+    bl_label = "Select Asset"
+    bl_description = "Selects the asset in the browser"
+
+    asset_id: bpy.props.StringProperty(
+        name="Asset ID", description="ID of asset to select/deselect", options={'SKIP_SAVE'}
+    )
+    select: bpy.props.BoolProperty(
+        name="Select", description="New selection state", default=True, options={'SKIP_SAVE'}
+    )
+
+    def execute(self, context: bpy.types.Context):
+        state.get_browser_state(context).select_asset(self.asset_id, self.select)
+        polib.ui_bpy.tag_areas_redraw(context, {'PREFERENCES'})
+        return {'FINISHED'}
+
+
+MODULE_CLASSES.append(MAPR_SelectAsset)
+
+
+@polib.log_helpers_bpy.logged_operator
+class MAPR_BrowserSelectDisplayed(bpy.types.Operator):
+    bl_idname = "engon.browser_select_displayed"
+    bl_label = "Select Displayed"
+    bl_description = "Select all currently displayed assets in the browser"
+
+    def draw(self, context: bpy.types.Context) -> None:
+        layout = self.layout
+        layout.label(
+            text=f"This will select {len(filters.asset_repository.current_assets)} assets, continue?"
+        )
+
+    def execute(self, context: bpy.types.Context):
+        browser_state = state.get_browser_state(context)
+        browser_state.select_asset_range(
+            (asset.id_ for asset in filters.asset_repository.current_assets), True
+        )
+        browser_state.reset_active_asset()
+
+        polib.ui_bpy.tag_areas_redraw(context, {'PREFERENCES'})
+        return {'FINISHED'}
+
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+        if (
+            context.area.type != 'PREFERENCES'
+            or not preferences.prefs_utils.get_preferences(
+                context
+            ).browser_preferences.prefs_hijacked
+        ):
+            return {'PASS_THROUGH'}
+
+        if len(filters.asset_repository.current_assets) > SELECT_ALL_WARNING_THRESHOLD:
+            return context.window_manager.invoke_props_dialog(self)
+
+        return self.execute(context)
+
+
+MODULE_CLASSES.append(MAPR_BrowserSelectDisplayed)
+
+
+@polib.log_helpers_bpy.logged_operator
+class MAPR_DeselectAll(bpy.types.Operator):
+    bl_idname = "engon.browser_deselect_all"
+    bl_label = "Deselect All Assets"
+    bl_description = "Deselect all assets in the browser"
+
+    def execute(self, context: bpy.types.Context):
+        browser_state = state.get_browser_state(context)
+        browser_state.select_asset_range(browser_state.selected_asset_ids, False)
+        browser_state.reset_active_asset()
+
+        polib.ui_bpy.tag_areas_redraw(context, {'PREFERENCES'})
+        return {'FINISHED'}
+
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+        return context.window_manager.invoke_confirm(self, event)
+
+
+MODULE_CLASSES.append(MAPR_DeselectAll)
+
+
 def draw_asset_buttons_row(
-    context: bpy.types.Context,
     layout: bpy.types.UILayout,
     asset: mapr.asset.Asset,
     preview_scale: float,
+    prefs: preferences.browser_preferences.BrowserPreferences,
+    browser_state: state.BrowserState,
+    trim_title: bool = True,
 ) -> None:
     # The columns scale based on the content, we need to trim the text so the width of assets
     # resizes correctly.
     asset_title = asset.title
-    # 3.0 is a constant that represents scale -> text width transformation
-    expected_chars = int(preview_scale * 3.0)
-    if (len(asset.title) + 3) > expected_chars:
-        asset_title = asset.title[:expected_chars] + "..."
+    if trim_title:
+        # 3.0 is a constant that represents scale -> text width transformation
+        expected_chars = int(preview_scale * 3.0)
+        if (len(asset.title) + 3) > expected_chars:
+            asset_title = asset.title[:expected_chars] + "..."
 
     row = layout.row(align=True)
+    is_selected = browser_state.is_asset_selected(asset.id_)
     row.operator(
-        spawn.MAPR_BrowserSpawnAsset.bl_idname,
+        spawn.MAPR_BrowserMainAssetAction.bl_idname,
         text=asset_title,
         icon=utils.get_icon_of_asset_data_type(asset.type_),
+        depress=is_selected,
     ).asset_id = str(asset.id_)
 
     row.operator(MAPR_ShowAssetMenu.bl_idname, text="", icon='DOWNARROW_HLT').asset_id = str(
         asset.id_
     )
 
-    prefs = preferences.prefs_utils.get_preferences(context).browser_preferences
     if prefs.debug and dev.IS_DEV:
         row.separator()
         row.operator(
@@ -413,13 +577,55 @@ def draw_asset_buttons_row(
         row.label(text=f"Search score: {mapr.filters.SEARCH_ASSET_SCORE.get(asset.id_, 'n/a')}")
 
 
+def draw_selected_assets(
+    context: bpy.types.Context,
+    layout: bpy.types.UILayout,
+    selected_assets: typing.List[mapr.asset.Asset],
+    prefs: preferences.browser_preferences.BrowserPreferences,
+    browser_state: state.BrowserState,
+    columns: int = 3,
+) -> None:
+    row = layout.row()
+    selected_assets_count = len(selected_assets)
+    row.label(
+        text=f"{selected_assets_count} Selected Asset{'s' if selected_assets_count != 1 else ''}",
+        icon='CHECKMARK',
+    )
+    sub = row.row(align=True)
+    sub.alignment = 'RIGHT'
+    sub.operator(MAPR_DeselectAll.bl_idname, text="", icon='X')
+    layout.separator()
+
+    grid = layout.grid_flow(
+        row_major=True,
+        align=False,
+        columns=columns,
+    )
+    grid.operator(spawn.MAPR_BrowserSpawnSelected.bl_idname, icon='STICKY_UVS_LOC', text="Spawn")
+    grid.operator(spawn.MAPR_BrowserScatterSelected.bl_idname, icon='FILE_VOLUME', text="Scatter")
+    grid.operator(spawn.MAPR_BrowserClickSelected.bl_idname, icon='PIVOT_CURSOR', text="Click")
+    layout.separator()
+
+    for asset in selected_assets:
+        row = layout.box().row(align=True)
+        row.template_icon(previews.preview_manager.get_icon_id(asset.id_), scale=3.0)
+        draw_asset_buttons_row(row, asset, 3.0, prefs, browser_state, trim_title=False)
+
+
 def draw_asset_previews(
     context: bpy.types.Context,
     layout: bpy.types.UILayout,
-    mapr_prefs: preferences.browser_preferences.BrowserPreferences,
+    prefs: preferences.browser_preferences.BrowserPreferences,
 ) -> None:
     pm = previews.preview_manager
-    assets = filters.asset_repository.current_assets
+    all_assets = filters.asset_repository.current_assets
+    current_assets = filters.asset_repository.lazy_current_assets
+    browser_state = state.get_browser_state(context)
+    selected_assets = list(browser_state.selected_assets)
+
+    # Convert percentages to Blender icon scale, 0% = 5.0, 100% = 12.5
+    preview_scale = prefs.preview_scale_percentage / 100 * 7.5 + 5
+
     if len(asset_registry.instance.get_registered_packs()) == 0:
         col = layout.column()
         col.separator()
@@ -437,10 +643,50 @@ def draw_asset_previews(
         row.scale_y = 1.2
         row.alignment = 'CENTER'
         row.operator(MAPR_BrowserOpenAssetPacksPreferences.bl_idname, icon='SETTINGS')
+
+        if len(available_asset_packs.AVAILABLE_ASSET_PACKS) > 0:
+            col.separator()
+            box = col.box()
+            box.label(text="Available Asset Packs")
+            available_asset_packs.draw_available_asset_packs(context, box, icon_scale=preview_scale)
+
         return
 
-    elif len(assets) == 0:
-        col = layout.column()
+    browser_layout = layout
+    if len(selected_assets) > 0:
+        # 700px / context.region.width determines a factor of how much space we want to use
+        # to display the selected assets and the number of columns for displaying selected assets operators.
+        # This seems to work quite nicely.
+        available_size = min(700 / context.region.width, 1.0)
+        factor = min(max(0.2, available_size - 0.5), 0.5)
+        columns = int(context.region.width * factor / 100)
+        split = layout.split(factor=factor)
+        selected_layout = split.column(align=True)
+
+        browser_layout = split.column(align=True)
+        row = browser_layout.row()
+        row.enabled = False
+        row.alignment = 'LEFT'
+        row.label(text="", icon='EVENT_CTRL')
+        row.label(text="To select individual assets.", icon='MOUSE_LMB')
+        row.label(text="", icon='EVENT_SHIFT')
+        row.label(text="To select asset range.", icon='MOUSE_LMB')
+        draw_selected_assets(
+            context,
+            selected_layout,
+            selected_assets,
+            prefs,
+            browser_state,
+            columns=columns,
+        )
+    else:
+        row = layout.row()
+        row.enabled = False
+        row.label(text="", icon='EVENT_CTRL')
+        row.label(text="To select an asset.", icon='MOUSE_LMB')
+
+    if len(all_assets) == 0:
+        col = browser_layout.column()
         col.separator()
         row = col.row()
         row.alignment = 'CENTER'
@@ -459,20 +705,24 @@ def draw_asset_previews(
         row.operator(
             filters.MAPR_BrowserResetFilter.bl_idname, text="Reset All Filters", icon='PANEL_CLOSE'
         ).reset_all = True
-        return
 
-    grid_flow = layout.grid_flow(
+    grid_flow = browser_layout.grid_flow(
         row_major=True,
         align=False,
         # columns = 0 calculates the number of columns automatically
         columns=0,
     )
-    for asset in assets:
+    for asset in current_assets:
         entry = grid_flow.box().column(align=True)
-        # Convert percentages to Blender icon scale, 0% = 5.0, 100% = 12.5
-        preview_scale = mapr_prefs.preview_scale_percentage / 100 * 7.5 + 5
         entry.template_icon(pm.get_icon_id(asset.id_), scale=preview_scale)
-        draw_asset_buttons_row(context, entry, asset, preview_scale)
+        draw_asset_buttons_row(entry, asset, preview_scale, prefs, browser_state)
+
+    if not filters.asset_repository.lazy_all_displayed:
+        row = layout.row()
+        row.alignment = 'CENTER'
+        row.scale_y = 2.0
+        row.scale_x = 1.2
+        row.operator(MAPR_ShowMoreAssets.bl_idname, text="Show More", icon='PLUS')
 
 
 def is_known_browser(window: bpy.types.Window) -> bool:
@@ -515,8 +765,9 @@ def prefs_navbar_draw(self, context: bpy.types.Context) -> None:
         categories.draw_tree_category_navigation(context, layout)
 
     layout.separator()
-    row = layout.row(align=True)
-    row.operator(spawn.MAPR_BrowserSpawnAllDisplayed.bl_idname, icon='IMGDISPLAY')
+    col = layout.column(align=True)
+    col.operator(spawn.MAPR_BrowserSpawnDisplayed.bl_idname, icon='IMGDISPLAY')
+    col.operator(MAPR_BrowserSelectDisplayed.bl_idname, icon='RESTRICT_SELECT_OFF')
     layout.separator()
     filters.draw(context, layout)
 

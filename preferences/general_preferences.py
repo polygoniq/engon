@@ -30,6 +30,7 @@ from . import prefs_utils
 from .. import asset_pack_installer
 from .. import pack_info_search_paths
 from .. import asset_registry
+from .. import available_asset_packs
 from .. import blend_maintenance
 from .. import __package__ as base_package
 
@@ -265,6 +266,15 @@ class GeneralPreferences(bpy.types.PropertyGroup):
             # Right row for Update and Uninstall buttons
             row = row.row(align=True)
             row.alignment = 'RIGHT'
+            pack_metadata = available_asset_packs.get_available_pack_from_full_name(pack.full_name)
+            if pack_metadata is not None and pack_metadata.version > pack.version:
+                row.operator(
+                    available_asset_packs.ShowAvailablePackInfo.bl_idname,
+                    text="New Version Available",
+                    icon='INTERNET',
+                ).pack_id = pack_metadata.id_
+                row.separator()
+
             op = row.operator(UpdateAssetPack.bl_idname, text="", icon='FILE_PARENT')
             op.current_filepath = pack.install_path
 
@@ -649,11 +659,14 @@ class AssetPackInstallationDialog(
         if not installer.is_update_available:
             col = box.column(align=True)
             col.label(text="Select an installation directory")
-            split = col.split(factor=0.05, align=True)
-            split.operator(
-                SelectAssetPackInstallPath.bl_idname, text="", icon='FILE_FOLDER'
-            ).filepath = os.path.expanduser("~" + os.sep)
-            split.prop(self, "install_path", text="")
+            row = col.row(align=True)
+            row.prop(self, "install_path", text="")
+            # No need to use custom browser in higher versions because the functionality we tried to implement
+            # was patched in
+            if bpy.app.version < (4, 1, 0):
+                row.operator(
+                    SelectAssetPackInstallPath.bl_idname, text="", icon='FILE_FOLDER'
+                ).filepath = os.path.expanduser("~" + os.sep)
 
         self.draw_installer_info(box)
         col = box.column()

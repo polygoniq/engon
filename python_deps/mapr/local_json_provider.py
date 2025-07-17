@@ -11,6 +11,7 @@ from . import asset_data
 from . import blender_asset_data
 from . import file_provider
 from . import asset_provider
+from . import country_locations
 import logging
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
@@ -138,6 +139,28 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
                 }
             )
 
+            # Convert country of origin to location parameters to make the country of origin
+            # compatible with the search map feature. This is relevant for asset packs with
+            # implied geographical data, such as "country_of_origin" in traffiq and interniq.
+            text_parameters = asset_metadata_json.get("text_parameters", {})
+            location_parameters = asset_metadata_json.get("location_parameters", {})
+            if (
+                "country_of_origin" in text_parameters
+                and "location_of_origin" not in location_parameters
+            ):
+                location = country_locations.COUNTRY_COORDINATES.get(
+                    text_parameters["country_of_origin"], None
+                )
+                if location is None:
+                    logger.info(
+                        f"Country of origin '{text_parameters['country_of_origin']}' in asset "
+                        f"'{asset_id}' not found in known country locations. "
+                        f"This asset will be updated in newer version of the asset pack."
+                    )
+                else:
+                    location_parameters.update({"location_of_origin": location})
+                    asset_metadata_json.update({"location_parameters": location_parameters})
+
             asset_metadata = asset.Asset(
                 id_=asset_id,
                 title=asset_metadata_json.get("title", "unknown"),
@@ -147,6 +170,7 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
                 numeric_parameters=asset_metadata_json.get("numeric_parameters", {}),
                 vector_parameters=vector_parameters,
                 text_parameters=asset_metadata_json.get("text_parameters", {}),
+                location_parameters=asset_metadata_json.get("location_parameters", {}),
                 foreign_search_matter=foreign_search_matter,
             )
             # clear search matter cache since we updated search matter

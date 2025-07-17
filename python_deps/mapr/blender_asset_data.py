@@ -65,7 +65,7 @@ class BlenderSceneAssetData(BlenderAssetData):
     type_ = asset_data.AssetDataType.blender_scene
 
     def spawn(
-        self, path: str, context: bpy.types.Context, options: hatchery.spawn.DatablockSpawnOptions
+        self, path: str, context: bpy.types.Context, options: hatchery.spawn.SceneSpawnOptions
     ) -> hatchery.spawn.SceneSpawnedData:
         return hatchery.spawn.spawn_scene(path, context, options)
 

@@ -102,9 +102,10 @@ class MaterialiqPanel(MaterialiqPanelMixin, bpy.types.Panel):
         )
 
     def draw_header_preset(self, context: bpy.types.Context) -> None:
-        self.layout.prop(get_panel_props(context), "advanced_ui", text="", icon='MENU_PANEL')
+        master_row = self.layout.row(align=True)
+        master_row.row().prop(get_panel_props(context), "advanced_ui", text="", icon='MENU_PANEL')
         polib.ui_bpy.draw_doc_button(
-            self.layout,
+            master_row.row(),
             base_package,
             rel_url="panels/materialiq/panel_overview",
         )

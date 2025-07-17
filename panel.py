@@ -18,6 +18,8 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
+from . import addon_updater
+from . import addon_updater_ops
 import bpy
 import enum
 import math
@@ -388,13 +390,20 @@ class EngonPanel(EngonPanelMixin, bpy.types.Panel):
         )
 
     def draw_header_preset(self, context: bpy.types.Context) -> None:
-        self.layout.operator(
+        master_row = self.layout.row(align=True)
+        if addon_updater.Updater.update_ready:
+            op = master_row.operator(
+                preferences.ShowReleaseNotes.bl_idname, text="Update", icon='IMPORT'
+            )
+            op.release_tag = ""
+            op.update_operator_bl_idname = addon_updater_ops.AddonUpdaterUpdateNow.bl_idname
+        master_row.row().operator(
             browser.browser.MAPR_BrowserOpenAssetPacksPreferences.bl_idname,
             text="",
             icon='SETTINGS',
         )
         polib.ui_bpy.draw_doc_button(
-            self.layout, __package__, rel_url="panels/engon/panel_overview"
+            master_row.row(), __package__, rel_url="panels/engon/panel_overview"
         )
 
     def draw(self, context: bpy.types.Context):

@@ -157,6 +157,8 @@ class AssetPack:
         # newest one.
         self.full_name = full_name
         # Short name of the asset pack, without variant
+        # TODO: This might not be unique for all asset packs, as evermotion packs don't have
+        # variants in their names and are treated differently.
         assert "_" in full_name
         self.short_name = full_name.rsplit("_")[0]
         # Semantic version of the asset pack
@@ -472,6 +474,9 @@ class AssetRegistry:
 
     def get_registered_packs(self) -> typing.Iterable[AssetPack]:
         return self._packs_by_full_name.values()
+
+    def get_registered_packs_full_names(self) -> typing.Set[str]:
+        return set(self._packs_by_full_name.keys())
 
     def get_install_paths_by_engon_feature(self) -> typing.Dict[str, typing.List[str]]:
         """Returns a dictionary with engon features as keys and list of related packs as values"""

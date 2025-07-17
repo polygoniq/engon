@@ -5,6 +5,11 @@ import numpy
 import typing
 from . import node_utils_bpy
 
+try:
+    import hatchery
+except ImportError:
+    from blender_addons import hatchery
+
 
 def safe_get_active_material(
     obj: typing.Optional[bpy.types.Object],
@@ -130,3 +135,28 @@ def get_materials_used_by_geonodes(obj: bpy.types.Object) -> typing.FrozenSet[bp
                     used_materials.add(node.material)
 
     return frozenset(used_materials)
+
+
+def replace_materials(
+    original_materials: typing.Iterable[bpy.types.Material],
+    replacement_material: bpy.types.Material,
+    objects: typing.Iterable[bpy.types.Object],
+    update_selection: bool = False,
+) -> None:
+    original_materials = set(original_materials)
+    objects = set(objects)
+    for obj in objects:
+        if not hatchery.utils.can_have_materials_assigned(obj):
+            continue
+
+        changed = False
+        for mat_slot in obj.material_slots:
+            if mat_slot.material not in original_materials:
+                continue
+
+            mat_slot.material = replacement_material
+            # don't break the loop as the material can be referenced more than once
+            changed = True
+
+        if update_selection:
+            obj.select_set(changed)

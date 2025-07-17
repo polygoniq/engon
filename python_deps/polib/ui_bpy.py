@@ -28,7 +28,7 @@ class SocialMediaURL:
     DISCORD = "https://polygoniq.com/discord/"
     FACEBOOK = "https://www.facebook.com/polygoniq/"
     INSTAGRAM = "https://www.instagram.com/polygoniq.xyz/"
-    BLENDERMARKET = "https://blendermarket.com/creators/polygoniq?ref=673"
+    SUPERHIVEMARKET = "https://superhivemarket.com/creators/polygoniq?ref=673"
     WEBPAGE = "https://polygoniq.com/"
     GUMROAD = "https://gumroad.com/polygoniq"
 
@@ -68,9 +68,9 @@ def draw_social_media_buttons(layout: bpy.types.UILayout, show_text: bool = Fals
 
     layout.operator(
         "wm.url_open",
-        text="BlenderMarket" if show_text else "",
-        icon_value=icon_manager.get_icon_id("logo_blendermarket"),
-    ).url = SocialMediaURL.BLENDERMARKET
+        text="SuperHive" if show_text else "",
+        icon_value=icon_manager.get_icon_id("logo_superhive"),
+    ).url = SocialMediaURL.SUPERHIVEMARKET
 
     layout.operator(
         "wm.url_open",
@@ -94,15 +94,37 @@ def draw_settings_footer(layout: bpy.types.UILayout):
     row.label(text="© polygoniq xyz s.r.o")
 
 
-def show_message_box(message: str, title: str, icon: str = 'INFO') -> None:
+def draw_message_in_lines(
+    layout: bpy.types.UILayout, message: str, max_chars: typing.Optional[int] = None
+) -> None:
     lines = message.split("\n")
+    for line in lines:
+        chunks = []
+        if max_chars is not None:
+            chunks = textwrap.wrap(line, width=max_chars)
+        else:
+            chunks = [line]
+        for chunk in chunks:
+            row = layout.row()
+            row.label(text=chunk)
 
-    def draw(self, context):
-        for line in lines:
-            row = self.layout.row()
-            row.label(text=line)
 
-    bpy.context.window_manager.popup_menu(draw, title=title, icon=icon)
+def show_message_box(
+    message: str, title: str, icon: str = 'INFO', max_chars: typing.Optional[int] = None
+) -> None:
+    if bpy.app.background:
+        logger.warning(
+            f"Message box functionality is not available in background mode!\n"
+            f"Title: {title}\n"
+            f"Message: {message}"
+        )
+        return
+
+    bpy.context.window_manager.popup_menu(
+        lambda popup_menu, _: draw_message_in_lines(popup_menu.layout, message, max_chars),
+        title=title,
+        icon=icon,
+    )
 
 
 def multi_column(
@@ -165,16 +187,19 @@ def collapsible_box(
         raise ValueError(f"Property '{show_prop_name}' not found in data object!")
     box = layout.box()
     row = box.row()
-    row.prop(
+    left_side = row.row()
+    left_side.alignment = 'LEFT'
+    left_side.prop(
         data,
         show_prop_name,
         icon='DISCLOSURE_TRI_DOWN' if show else 'DISCLOSURE_TRI_RIGHT',
-        text="",
+        text=title,
         emboss=False,
     )
-    row.label(text=title)
+    right_side = row.row()
+    right_side.alignment = 'RIGHT'
     if docs_module is not None:
-        draw_doc_button(row, docs_module, docs_rel_url)
+        draw_doc_button(right_side, docs_module, docs_rel_url)
     if show:
         content_draw(box)
 
@@ -338,8 +363,19 @@ def draw_markdown_text(layout: bpy.types.UILayout, text: str, max_length: int = 
 
 
 def show_release_notes_popup(
-    context: bpy.types.Context, module_name: str, release_tag: str = ""
+    context: bpy.types.Context,
+    module_name: str,
+    release_tag: str = "",
+    update_operator_bl_idname: str = "",
 ) -> None:
+    def draw(layout: bpy.types.UILayout, body: str):
+        draw_markdown_text(layout, text=body, max_length=100)
+        if update_operator_bl_idname != "":
+            row = layout.row()
+            row.scale_x = 1.2
+            row.scale_y = 1.2
+            row.operator(update_operator_bl_idname, text="Update", icon='IMPORT')
+
     if bpy.app.version >= (4, 2, 0) and not bpy.app.online_access:
         show_message_box(
             "This requires online access. You have to \"Allow Online Access\" in "
@@ -373,7 +409,7 @@ def show_release_notes_popup(
         return
 
     context.window_manager.popup_menu(
-        lambda self, context: draw_markdown_text(self.layout, text=body, max_length=100),
+        lambda self, _: draw(self.layout, body),
         title=f"{addon_name} {version} Release Notes",
         icon='INFO',
     )

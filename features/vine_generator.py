@@ -47,6 +47,14 @@ class VineGeneratorPanel(
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon="GRAPH")
 
+    def draw_header_preset(self, context: bpy.types.Context) -> None:
+        self.layout.operator(
+            feature_utils.SelectFeatureCompatibleObjects.bl_idname,
+            text="",
+            icon='RESTRICT_SELECT_ON',
+            emboss=False,
+        ).engon_feature_name = self.__class__.feature_name
+
     def draw(self, context: bpy.types.Context):
         layout: bpy.types.UILayout = self.layout
         self.conditionally_draw_warning_no_adjustable_active_object(context, layout)

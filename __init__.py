@@ -106,6 +106,7 @@ try:
     from . import asset_registry
     from . import asset_pack_installer
     from . import pack_info_search_paths
+    from . import available_asset_packs
     from . import asset_helpers
     from . import preferences
     from . import convert_selection
@@ -132,12 +133,12 @@ finally:
 bl_info = {
     "name": "engon",
     "author": "polygoniq xyz s.r.o.",
-    "version": (1, 5, 1),  # bump doc_url and version in register as well!
+    "version": (1, 6, 0),  # bump doc_url and version in register as well!
     "blender": (3, 6, 0),
     "location": "polygoniq tab in the sidebar of the 3D View window",
     "description": "Browse assets, filter and sort, scatter, animate, adjust rigs",
     "category": "Object",
-    "doc_url": "https://docs.polygoniq.com/engon/1.5.1/",
+    "doc_url": "https://docs.polygoniq.com/engon/1.6.0/",
     "tracker_url": "https://polygoniq.com/discord/",
 }
 
@@ -154,14 +155,17 @@ def _post_register():
         polib.ui_bpy.expand_addon_prefs(__package__)
         prefs.first_time_register = False
 
+    addon_updater_ops.check_for_update_background()
+
 
 def register():
     # We pass mock "bl_info" to the updater, as from Blender 4.2.0, the "bl_info" is
     # no longer available in this scope.
-    addon_updater_ops.register({"version": (1, 5, 1)})
+    addon_updater_ops.register({"version": (1, 6, 0)})
 
     utils.register()
     pack_info_search_paths.register()
+    available_asset_packs.register()
     convert_selection.register()
     panel.register()
     scatter.register()
@@ -195,6 +199,7 @@ def unregister():
     scatter.unregister()
     panel.unregister()
     convert_selection.unregister()
+    available_asset_packs.unregister()
     pack_info_search_paths.unregister()
     utils.unregister()
 

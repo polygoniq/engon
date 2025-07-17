@@ -1,5 +1,7 @@
 # copyright (c) 2018- polygoniq xyz s.r.o.
 
+from . import country_locations
+
 # Definition of tags that can be manually added to the asset in grumpy_cat. Each tag maps to a
 # dictionary where more details can be specified. Including a description that is used as a tooltip.
 # Keep in mind that in addition to these, assets can have tags not on this list!
@@ -87,7 +89,8 @@ NUMERIC_PARAMETERS = {
     },
 }
 
-
+# Order matters! From least to most permissive.
+LICENSE_TYPES = ["Editorial", "Royalty Free", "Public Domain / CC0"]
 # Which text parameters can be added to assets in grumpy_cat. Each maps to a dictionary with more
 # info about each parameter. Keep in mind that in addition to these, assets can have parameters not
 # on this list!
@@ -95,7 +98,7 @@ TEXT_PARAMETERS = {
     "license": {
         "description": "What license applies to this asset",
         "is_required": True,
-        "choices": ["Editorial", "Royalty Free", "Public Domain / CC0", "GPL3"],
+        "choices": LICENSE_TYPES,
         "search_weight": 0.0,
     },
     "mapr_asset_id": {
@@ -141,7 +144,13 @@ TEXT_PARAMETERS = {
     "model": {
         "description": "What does the manufacturer call this man-made object in marketing materials"
     },
-    "country_of_origin": {"description": "Where is this man-made object usually made"},
+    "country_of_origin": {
+        "description": "Where is this man-made object usually made",
+        "choices": sorted(
+            country_locations.COUNTRY_COORDINATES.keys(),
+            key=lambda country: country.lower(),
+        ),
+    },
     "furniture_style": {
         "choices": [
             "Art-Deco",
@@ -181,6 +190,26 @@ TEXT_PARAMETERS = {
         "description": "English common name for genus of the species",
         "search_weight": 1.0,
     },
+    "varietas": {
+        "description": "Scientific (usually Latin) taxonomy varietas (variant) name for the asset",
+        "search_weight": 1.0,
+    },
+    "varietas_en": {
+        "description": "English common name for varietas of the asset",
+        "search_weight": 1.0,
+    },
+    "forma": {
+        "description": "Scientific (usually Latin) taxonomy forma name for the asset",
+        "search_weight": 1.0,
+    },
+    "forma_en": {
+        "description": "English common name for forma of the asset",
+        "search_weight": 1.0,
+    },
+    "cultivar": {
+        "description": "Name for cultivated variety of the asset",
+        "search_weight": 1.0,
+    },
     "conservation_status": {
         "choices": [
             "? - Not evaluated (NE)",
@@ -218,6 +247,23 @@ TEXT_PARAMETERS = {
         "description": "Interior detail level",
         "search_weight": 0.0,
     },
+    "author": {
+        "description": "Who created this asset. Optional and relevant only for internal use",
+        "show_filter": False,
+        "search_weight": 0.0,
+    },
+    "native_observations": {
+        "description": "List of lat/long coordinates where the asset is naturally occurring",
+        "search_weight": 0.0,
+    },
+    "all_observations": {
+        "description": "List of lat/long coordinates where the asset is occurring",
+        "search_weight": 0.0,
+    },
+    "location_of_origin": {
+        "description": "List of lat/long coordinates based on 'country_of_origin' parameter",
+        "search_weight": 0.0,
+    },
 }
 
 
@@ -248,6 +294,18 @@ VECTOR_PARAMETERS = {
     },
 }
 
+LOCATION_PARAMETERS = {
+    "native_observations": {
+        "description": "List of lat/long coordinates where the asset is naturally occurring.",
+        "search_weight": 0.0,
+    },
+    "all_observations": {
+        "description": "List of lat/long coordinates where the asset is naturally occurring, "
+        "or was artificially introduced.",
+        "search_weight": 0.0,
+    },
+}
+
 
 # Mapping of parameter name to unit. If the parameter is not specified here it is considered unitless.
 PARAMETER_UNITS = {
@@ -273,6 +331,9 @@ PARAMETER_GROUPING = {
         "text:family",
         "text:genus",
         "text:species",
+        "text:varietas",
+        "text:forma",
+        "text:cultivar",
     ],
     "taxonomy_en": [
         "text:class_en",
@@ -280,10 +341,20 @@ PARAMETER_GROUPING = {
         "text:family_en",
         "text:genus_en",
         "text:species_en",
+        "text:varietas_en",
+        "text:forma_en",
+        # this is an intentional duplicate of the cultivar in (latin) `taxonomy` group
+        # as cultivars don't have another 'common' name
+        "text:cultivar",
+    ],
+    "observations": [
+        "loc:native_observations",
+        "loc:all_observations",
     ],
     "manufacturing": [
         "text:brand",
         "text:country_of_origin",
+        "loc:location_of_origin",
         "text:model",
         "num:model_year",
         "num:price_usd",

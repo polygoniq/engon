@@ -44,10 +44,19 @@ KEYMAP_DEFINITIONS: typing.Dict[KeymapDefinition, typing.List[KeymapItemDefiniti
             "Toggle engon Browser", "engon.browser_toggle_area", 'E', 'PRESS', False, False, False
         ),
     ],
-    KeymapDefinition('3D View', 'VIEW_3D', 'WINDOW'): [
-        KeymapItemDefinition("Click Assets", "engon.clicker", 'C', 'PRESS', False, False, True),
+    KeymapDefinition('User Interface', 'EMPTY', 'WINDOW'): [
+        KeymapItemDefinition(
+            "Select Displayed Assets",
+            "engon.browser_select_displayed",
+            'A',
+            'PRESS',
+            True,
+            False,
+            False,
+        ),
     ],
     KeymapDefinition('3D View', 'VIEW_3D', 'WINDOW'): [
+        KeymapItemDefinition("Click Assets", "engon.clicker", 'C', 'PRESS', False, False, True),
         KeymapItemDefinition(
             "Snap to Ground", "engon.snap_to_ground", 'V', 'PRESS', False, False, False
         ),

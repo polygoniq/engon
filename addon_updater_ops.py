@@ -1472,7 +1472,7 @@ def register(bl_info):
     # check for update in user preferences found a new version, show a popup
     # (at most once per blender session, and it provides an option to ignore
     # for future sessions); default behavior is set to True.
-    updater.show_popups = True
+    updater.show_popups = False
     # note: if set to false, there will still be an "update ready" box drawn
     # using the `update_notice_box_ui` panel function.
 

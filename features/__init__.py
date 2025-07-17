@@ -31,7 +31,7 @@ from . import aquatiq_material_limitation_warning
 
 from . import botaniq_adjustments
 from . import botaniq_animations
-from . import vegetation_generator
+from . import curve_scatter
 
 from . import traffiq_paint_adjustments
 from . import traffiq_wear
@@ -59,7 +59,7 @@ def register():
 
     botaniq_adjustments.register()
     botaniq_animations.register()
-    vegetation_generator.register()
+    curve_scatter.register()
 
     traffiq_paint_adjustments.register()
     traffiq_wear.register()
@@ -89,7 +89,7 @@ def unregister():
     traffiq_wear.unregister()
     traffiq_paint_adjustments.unregister()
 
-    vegetation_generator.unregister()
+    curve_scatter.unregister()
     botaniq_animations.unregister()
     botaniq_adjustments.unregister()
 

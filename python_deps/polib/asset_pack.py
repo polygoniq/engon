@@ -12,13 +12,14 @@ ASSET_PACK_COLLECTION_COLOR_MAP = {
     "aquatiq": 'COLOR_05',  # blue
     "interniq": 'COLOR_03',  # yellow
     "engon_particle_systems": 'COLOR_04',  # green
+    "engon_geometry_nodes": 'COLOR_04',  # green
 }
 
 
 PARTICLE_SYSTEM_TOKEN = "pps"
 
 
-BOTANIQ_SEASONS = {"spring", "summer", "autumn", "winter"}
+BOTANIQ_SEASONS = ["spring", "summer", "autumn", "winter"]
 
 
 # order matters, assets often have multiple seasons, color is set according to the first

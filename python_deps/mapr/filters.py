@@ -14,6 +14,7 @@ import functools
 import typing
 import mathutils
 import re
+import math
 from . import asset
 from . import asset_data
 from . import parameter_meta
@@ -178,6 +179,112 @@ class VectorComponentWiseComparator(VectorComparator):
 
     def as_dict(self) -> typing.Dict:
         return {"min": tuple(self.min_), "max": tuple(self.max_), "method": "component-wise"}
+
+
+class MapProjection(abc.ABC):
+    """Projects from latitude and longitude to XY coordinates on a fixed-sized grid"""
+
+    @property
+    @abc.abstractmethod
+    def max_x(self) -> int:
+        pass
+
+    @property
+    @abc.abstractmethod
+    def max_y(self) -> int:
+        pass
+
+    # due to rounding in the location data, we have repeated values, we can cache where possible
+    @abc.abstractmethod
+    def project(self, latitude: float, longitude: float) -> typing.Tuple[int, int]:
+        """Projects latitude and longitude to XY coordinates on the grid"""
+        pass
+
+    @property
+    @abc.abstractmethod
+    def crop(self) -> typing.Tuple[int, int, int, int]:
+        """Returns the crop of the map projection - top, bottom, left, right"""
+        return (0, 0, 0, 0)
+
+
+class MercatorProjection(MapProjection):
+    """Implements 16x16 grid Mercator projection between 85S and 85N."""
+
+    @property
+    def max_x(self) -> int:
+        return 16
+
+    @property
+    def max_y(self) -> int:
+        return 16
+
+    @property
+    def crop(self) -> typing.Tuple[int, int, int, int]:
+        """Returns the crop of the map projection - top, bottom, left, right"""
+        return (0, 4, 0, 0)  # bottom - antarctica
+
+    # due to rounding in the location data, we have repeated values, we can use caching
+    @functools.cache
+    def project_x(self, longitude: float) -> int:
+        """Projects longitude to X coordinate on the grid."""
+        if longitude < -180 or longitude > 180:
+            longitude = max(-180, min(180, longitude))
+
+        return int((longitude + 180) / 360 * self.max_x)
+
+    # due to rounding in the location data, we have repeated values, we can use caching
+    @functools.cache
+    def project_y(self, latitude: float) -> int:
+        """Projects latitude to Y coordinate on the grid."""
+        if latitude < -85 or latitude > 85:
+            latitude = max(-85, min(85, latitude))
+
+        lat_rads = math.radians(latitude)
+        return int(
+            (1 - math.log(math.tan(lat_rads) + 1 / math.cos(lat_rads)) / math.pi) / 2 * self.max_y
+        )
+
+    def project(self, latitude: float, longitude: float) -> typing.Tuple[int, int]:
+        """Projects latitude and longitude to XY coordinates on the grid.
+
+        Implements Mercator projection, see https://en.wikipedia.org/wiki/Mercator_projection.
+        The projection is clamped to +/-85 degrees latitude. Median is 0 degrees (greenwich).
+
+        """
+
+        return self.project_x(longitude), self.project_y(latitude)
+
+
+class LocationParameterFilter(Filter):
+    """Checks if the location contains at least one of the selected tiles"""
+
+    map_projection = MercatorProjection()
+
+    def __init__(
+        self,
+        name: str,
+        selected_tiles: typing.List[typing.List[bool]],
+    ):
+        super().__init__(name)
+        self.selected_tiles = selected_tiles
+
+    def filter_(self, asset_: asset.Asset) -> bool:
+        projection = LocationParameterFilter.map_projection
+        asset_locations = asset_.location_parameters.get(self.name_without_type)
+
+        if asset_locations is None:
+            return False
+
+        selected_tiles = self.selected_tiles
+        for lat, lon in asset_locations:
+            x, y = projection.project(lat, lon)
+            if selected_tiles[y][x]:
+                return True
+
+        return False
+
+    def as_dict(self) -> typing.Dict:
+        return {self.name: self.selected_tiles}
 
 
 class VectorParameterFilter(Filter):

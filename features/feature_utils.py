@@ -207,6 +207,56 @@ class RandomizeColorPropertyOperator(RandomizePropertyOperator):
 MODULE_CLASSES.append(RandomizeColorPropertyOperator)
 
 
+@polib.log_helpers_bpy.logged_operator
+class SelectFeatureCompatibleObjects(bpy.types.Operator):
+    bl_idname = "engon.select_feature_compatible_objects"
+    bl_label = "Select Feature-Compatible Objects"
+    bl_description = "Select all objects that are compatible with the target feature"
+
+    engon_feature_name: bpy.props.StringProperty(options={'HIDDEN'})
+
+    @polib.utils_bpy.blender_cursor('WAIT')
+    def execute(self, context: bpy.types.Context):
+        feature: type(EngonAssetFeatureControlPanelMixin) = NAME_FEATURE_MAP.get(
+            self.engon_feature_name
+        )
+        assert issubclass(feature, EngonAssetFeatureControlPanelMixin)
+        adjustable_objects = list(
+            filter(
+                lambda obj: isinstance(obj, bpy.types.Object),
+                feature.filter_adjustable_assets(context.scene.objects),
+            )
+        )
+        if len(adjustable_objects) == 0:
+            self.report(
+                {'WARNING'}, f"No objects compatible with '{feature.feature_name}' feature found"
+            )
+            return {'CANCELLED'}
+
+        polib.asset_pack_bpy.clear_selection(context)
+        contains_active = False
+        for obj in adjustable_objects:
+            if obj == context.active_object:
+                contains_active = True
+            obj.select_set(True)
+
+        if not contains_active and len(adjustable_objects) > 0:
+            # We want the active object to be one of the adjustable objects.
+            # So panels for adjusting active object are not empty.
+            context.view_layer.objects.active = adjustable_objects[0]
+
+        plural = "s" if len(adjustable_objects) > 1 else ""
+        self.report(
+            {'INFO'},
+            f"Selected {len(adjustable_objects)} object{plural} compatible "
+            f"with '{feature.feature_name}' feature",
+        )
+        return {'FINISHED'}
+
+
+MODULE_CLASSES.append(SelectFeatureCompatibleObjects)
+
+
 class EngonFeaturePanelMixin:
     """Abstract base mixin for engon features panels.
 

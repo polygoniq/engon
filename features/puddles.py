@@ -130,8 +130,8 @@ class AddPuddles(bpy.types.Operator):
         try:
             ensure_puddles_nodegroup(context)
         except Exception as e:
-            logger.exception("Failed to load the puddles node group!")
-            self.report({'ERROR'}, str(e))
+            logger.exception("Uncaught exception when loading puddles node group!")
+            self.report({'ERROR'}, f"Failed to load the puddles node group!")
             return {'FINISHED'}
 
         for obj in context.selected_objects:

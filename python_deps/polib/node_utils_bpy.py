@@ -27,7 +27,7 @@ def get_node_tree_inputs_map(
         return {
             item.identifier: item
             for item in node_tree.interface.items_tree
-            if item.in_out == 'INPUT' and item.item_type == 'SOCKET'
+            if item.item_type == 'SOCKET' and item.in_out == 'INPUT'
         }
 
 

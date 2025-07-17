@@ -25,6 +25,12 @@ CustomAttributeValueType = typing.Union[
 class CustomPropertyNames:
     """Lists names of properties that control shader features through attributes."""
 
+    # properties on all assets
+    COPYRIGHT = "copyright"
+    POLYGONIQ_ADDON = "polygoniq_addon"
+    POLYGONIQ_ADDON_BLEND_PATH = "polygoniq_addon_blend_path"
+    MAPR_ASSET_ID = "mapr_asset_id"
+    MAPR_ASSET_DATA_ID = "mapr_asset_data_id"
     # traffiq_wear feature
     TQ_DIRT = "tq_dirt"
     TQ_SCRATCHES = "tq_scratches"
@@ -76,9 +82,20 @@ class CustomPropertyNames:
         }
 
     @classmethod
+    def is_known_property(cls, prop: str) -> bool:
+        """Check if the property is one of the known custom properties."""
+        return prop in cls._all() or prop.startswith(
+            cls.TQ_WHEEL_ROTATION
+        )  # Wheel rotation prop has different suffix for each wheel
+
+    @classmethod
     @functools.lru_cache(maxsize=1)
-    def all(cls) -> typing.Set[str]:
+    def _all(cls) -> typing.Set[str]:
         """Returns all custom property names defined in this class.
+
+        Note that this set doesn't represent all known custom properties.
+        E.g., `TQ_WHEEL_ROTATION` can contain different suffixes for each wheel.
+        To test if a property is known, use `is_known_property()` method.
 
         This is cached, as we don't expect the number of properties to change during runtime.
         """

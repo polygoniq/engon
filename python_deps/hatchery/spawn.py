@@ -13,15 +13,16 @@ import bmesh
 import abc
 import dataclasses
 import collections
+import math
 import mathutils
 import typing
 import logging
+import hashlib
 
 from . import utils
 from . import load
 from . import textures
 from . import displacement
-from . import bounding_box
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
@@ -261,6 +262,13 @@ class ParticlesSpawnedData(SpawnedData):
         super().__init__(datablocks)
 
 
+def get_expected_particle_system_settings_seed(
+    particle_settings: bpy.types.ParticleSettings,
+) -> int:
+    """Returns a unique but consistent seed for the particle system based on its name."""
+    return int(hashlib.md5(particle_settings.name.encode()).hexdigest(), 16) % (2**31)
+
+
 def spawn_particles(
     path: str, context: bpy.types.Context, options: ParticleSystemSpawnOptions
 ) -> ParticlesSpawnedData:
@@ -288,7 +296,7 @@ def spawn_particles(
 
     # Get lowest z location from target objects and calculate total mesh are of all target objects
     # so the instanced objects locations and particle counts are adjusted properly.
-    lowest_obj_z = 0.0
+    lowest_obj_z = math.inf if len(target_objects) > 0 else context.scene.cursor.location.z
     total_mesh_area = 0.0
     for target_obj in target_objects:
         lowest_obj_z = min(target_obj.location.z, lowest_obj_z)
@@ -339,8 +347,7 @@ def spawn_particles(
             )
             mod.particle_system.settings = particle_settings
             # If seed is 0, particles of all the systems will be spawned over each other
-            # We use hash of the particle settings name to get a unique but consistent seed
-            mod.particle_system.seed = hash(particle_settings.name) % (2**31)
+            mod.particle_system.seed = get_expected_particle_system_settings_seed(particle_settings)
             utils.ensure_particle_naming_consistency(mod, mod.particle_system)
 
     spawned_material_data = None
@@ -371,6 +378,11 @@ def spawn_world(
     return WorldSpawnedData(world)
 
 
+@dataclasses.dataclass
+class SceneSpawnOptions(DatablockSpawnOptions):
+    activate_spawned: bool = True
+
+
 class SceneSpawnedData(SpawnedData):
     def __init__(self, scene: bpy.types.Scene):
         self.scene = scene
@@ -378,11 +390,12 @@ class SceneSpawnedData(SpawnedData):
 
 
 def spawn_scene(
-    path: str, context: bpy.types.Context, options: DatablockSpawnOptions
+    path: str, context: bpy.types.Context, options: SceneSpawnOptions
 ) -> SceneSpawnedData:
     """Loads scene from 'path' and replaces current scene with it, returns the loaded scene."""
     scene = load.load_scene(path)
-    context.window.scene = scene
+    if options.activate_spawned:
+        context.window.scene = scene
     return SceneSpawnedData(scene)
 
 
@@ -393,6 +406,11 @@ class GeometryNodesSpawnOptions(DatablockSpawnOptions):
     ] = None
     select_spawned: bool = True
     target_objects: typing.Set[bpy.types.Object] = dataclasses.field(default_factory=set)
+    parent_targets_layer_collection_factory_method: typing.Optional[
+        typing.Callable[[], typing.Optional[bpy.types.LayerCollection]]
+    ] = None
+    # 'enable_target_collections' is only used when 'parent_targets_layer_collection_factory_method' is not None
+    enable_target_collections: bool = False
 
 
 class GeometryNodesSpawnedData(SpawnedData):
@@ -416,7 +434,10 @@ def spawn_geometry_nodes(
 
     If there are no suitable target objects, adds a standalone object with the modifiers into the scene collection.
     """
+    cols = set(filter(lambda col: col.library is None, bpy.data.collections))
     container_object = load.load_master_object(path)
+    asset_name = container_object.name
+    target_collections = set(filter(lambda col: col.library is None, bpy.data.collections)) - cols
     # Due to a bug in Blender while converting boolean inputs we reassign the modifier node
     # group when spawning. The bug happens when object with modifiers is appended from a blend
     # file, where the modifier node group is linked from a different file. First append is
@@ -430,7 +451,8 @@ def spawn_geometry_nodes(
     container_objs_to_mods_map: typing.Dict[bpy.types.Object, typing.Set[bpy.types.Modifier]] = (
         collections.defaultdict(set)
     )
-    curve_targets = [obj for obj in options.target_objects if obj.type == 'CURVE']
+    target_objects = set(options.target_objects)
+    curve_targets = [obj for obj in target_objects if obj.type == 'CURVE']
     if container_object.type == 'CURVE' and len(curve_targets) > 0:
         # Let's copy the modifiers one object at a time so we have more control
         for target_obj in curve_targets:
@@ -448,9 +470,9 @@ def spawn_geometry_nodes(
         bpy.data.objects.remove(container_object)
     else:
         if options.collection_factory_method is not None:
-            parent_collection = options.collection_factory_method()
-            if parent_collection is not None:
-                parent_collection.objects.link(container_object)
+            targets_collection = options.collection_factory_method()
+            if targets_collection is not None:
+                targets_collection.objects.link(container_object)
                 if options.select_spawned:
                     for selected_obj in context.selected_objects:
                         selected_obj.select_set(False)
@@ -460,4 +482,35 @@ def spawn_geometry_nodes(
         container_objs_to_mods_map[container_object].update(
             mod for mod in container_object.modifiers if mod.type == 'NODES'
         )
+
+    # Get lowest z location from target objects so the objects from target collections are adjusted properly.
+    lowest_obj_z = math.inf if len(target_objects) > 0 else context.scene.cursor.location.z
+    for target_obj in target_objects:
+        lowest_obj_z = min(target_obj.location.z, lowest_obj_z)
+
+    if (
+        options.parent_targets_layer_collection_factory_method is not None
+        and len(target_collections) > 0
+    ):
+        parent_targets_layer_collection = options.parent_targets_layer_collection_factory_method()
+        if parent_targets_layer_collection is not None:
+            targets_collection = bpy.data.collections.new(asset_name)
+            parent_targets_layer_collection.collection.children.link(targets_collection)
+            targets_layer_collection = parent_targets_layer_collection.children.get(
+                targets_collection.name, None
+            )
+            assert targets_layer_collection is not None
+
+            if not options.enable_target_collections:
+                # Exclude the target collections from the view layer
+                targets_layer_collection.exclude = True
+
+            for target_col in target_collections:
+                for obj in target_col.objects:
+                    # We spawn all objects 10 units below the lowest location of target objects
+                    obj.location.z = lowest_obj_z - 10.0
+
+                # Link the target collection to the parent collection
+                targets_collection.children.link(target_col)
+
     return GeometryNodesSpawnedData(container_objs_to_mods_map)

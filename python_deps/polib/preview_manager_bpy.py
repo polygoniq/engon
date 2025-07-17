@@ -4,8 +4,12 @@
 import bpy
 import bpy.utils.previews
 import os
+import urllib.request
+import urllib.error
 import logging
 import typing
+
+from . import utils_bpy
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
@@ -126,3 +130,59 @@ class PreviewManager:
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}: Loaded {len(self.preview_collection)} previews."
+
+
+class OnlinePreviewManager(PreviewManager):
+    """Preview manager with extra functionality for loading previews from online sources."""
+
+    def __init__(
+        self,
+        downloads_folder_path: str,
+        blocking_load: bool = True,
+        timeout: typing.Optional[float] = None,
+    ) -> None:
+        super().__init__(blocking_load)
+        self.downloads_folder_path = downloads_folder_path
+        self.timeout = timeout
+
+    def preview_id_from_url(self, url: str) -> str:
+        """Infers ID of a preview loaded from URL."""
+        return os.path.basename(url)
+
+    def request_preview_url(
+        self,
+        url: str,
+        id_override: typing.Optional[str] = None,
+    ) -> None:
+        """Downloads image from 'url' so it can be loaded locally."""
+        basename = os.path.basename(url)
+        full_path = os.path.join(self.downloads_folder_path, basename)
+
+        needs_download = False
+        if not os.path.isfile(full_path):
+            logger.debug(f"Preview file '{full_path}' does not exist, downloading from '{url}'.")
+            needs_download = True
+        else:
+            local_mtime = utils_bpy.get_local_file_last_modified_utc(full_path)
+            remote_mtime = utils_bpy.get_remote_file_last_modified_utc(url, timeout=self.timeout)
+            if remote_mtime is not None and remote_mtime > local_mtime:
+                logger.debug(
+                    f"Remote preview file '{url}' is newer than local file '{full_path}', downloading new version."
+                )
+                needs_download = True
+
+        if needs_download:
+            os.makedirs(self.downloads_folder_path, exist_ok=True)
+            try:
+                with urllib.request.urlopen(url, timeout=self.timeout) as response:
+                    with open(full_path, 'wb') as out_file:
+                        out_file.write(response.read())
+
+            except urllib.error.HTTPError as e:
+                logger.error(f"HTTP error while downloading preview from {url}: {e}")
+            except urllib.error.URLError as e:
+                logger.error(f"URL error while downloading preview from {url}: {e}")
+        else:
+            logger.debug(f"Preview file '{full_path}' already exists, and is up-to-date.")
+
+        self._update_path_map_entry(full_path, id_override)

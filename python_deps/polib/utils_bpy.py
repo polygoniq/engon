@@ -12,13 +12,16 @@ import datetime
 import functools
 import urllib.request
 import urllib.error
-import ssl
+import email.utils
 import json
+import shutil
 import subprocess
 import math
 import time
 import re
 import logging
+import weakref
+import threading
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
@@ -39,6 +42,16 @@ class ByteSizeUnit(enum.IntEnum):
     EiB = 6
     ZiB = 7
     YiB = 8
+
+
+def move_file(src: str, dst: str, copy_function=shutil.copyfile):
+    """Move file to another location.
+
+    Alternative to `shutil.move` which may use `os.rename` instead of creating an actual copy.
+    This is important as `os.rename` will not apply access permissions of the destination to the file.
+    """
+    copy_function(src, dst)
+    os.remove(src)
 
 
 def autodetect_install_path(
@@ -133,6 +146,14 @@ def absolutize_preferences_path(
         setattr(self, path_property_name, abs_)
 
 
+def get_user_data_resource_path(addon_name: str, create: bool = False) -> str:
+    """Returns the path to the user data resource directory for the given addon name."""
+    ret = os.path.join(bpy.utils.user_resource('DATAFILES', create=create), addon_name)
+    if create and not os.path.exists(ret):
+        os.makedirs(ret)
+    return ret
+
+
 def contains_object_duplicate_suffix(name: str) -> bool:
     return bool(DUPLICATE_SUFFIX_PATTERN.match(name[-4:]))
 
@@ -207,7 +228,7 @@ def blender_cursor(cursor_name: str = 'WAIT'):
 def safe_modal(
     on_exception: typing.Optional[
         typing.Callable[[typing.Any, bpy.types.Context, bpy.types.Event, Exception], typing.Any]
-    ] = None
+    ] = None,
 ):
     """Decorator that executes a modal method of modal operator and cancels on exception with a possibility of handling it"""
 
@@ -259,6 +280,44 @@ def timed_cache(**timedelta_kwargs):
         return _wrapped
 
     return _wrapper
+
+
+TProp = typing.TypeVar('TProp')
+TPropReturn = typing.TypeVar('TPropReturn')
+
+
+class cached_property(typing.Generic[TProp, TPropReturn]):
+    """A bpy_types.PropertyGroup-safe cached property.
+
+    This is an (almost) drop-in replacement for functools.cached_property, but it uses
+    different caching mechanism that is safe to use with bpy_types.PropertyGroup.
+
+    Functional differences to functools.cached_property:
+    - The value will not show up in instance.__dict__
+    - To evict a value, use `del instance.property_name` (can't pop it from instance.__dict__)
+    - This decorator is thread-safe.
+    """
+
+    def __init__(self, func: typing.Callable[[TProp], TPropReturn]) -> None:
+        self.func = func
+        self.lock = threading.RLock()
+        self._cache: weakref.WeakKeyDictionary[TProp, TPropReturn] = weakref.WeakKeyDictionary()
+
+    def __get__(self, instance: typing.Optional[TProp], _owner: typing.Any = None) -> TPropReturn:
+        if instance is None:
+            return typing.cast(TPropReturn, self)  # trust me bro
+
+        with self.lock:
+            if instance in self._cache:
+                return self._cache[instance]
+
+            result = self.func(instance)
+            self._cache[instance] = result
+            return result
+
+    def __delete__(self, instance: TProp) -> None:
+        with self.lock:
+            self._cache.pop(instance, None)
 
 
 def xdg_open_file(path):
@@ -315,6 +374,19 @@ def run_logging_subprocess(
         logger_.info(line.decode())
     process.wait()
     return process.returncode
+
+
+def format_signed_int_padding(value: int, padding: int = 4) -> str:
+    """Formats signed integer with padding,
+
+    Classic padding treats positive and negative numbers differently,
+    e.g. padding 4 will result in:
+    -1 -> "-001", 0 -> "0000", 1 -> "0001".
+
+    This function pads positive and negative numbers the same way,
+    e.g. -1 -> "-0001", 0 -> "0000", 1 -> "0001".
+    """
+    return f"{'-' if value < 0 else ''}{abs(value):0{padding}d}"
 
 
 def filter_invalid_characters_from_path(input_path: str) -> str:
@@ -510,25 +582,41 @@ def get_addon_release_info(
         url = f"{POLYGONIQ_GITHUB_REPO_API_URL}/{addon_name}/releases/latest"
     request = urllib.request.Request(url)
     try:
-        ssl_context = ssl._create_unverified_context()
-    except:
-        # Some blender packaged python versions don't have this, largely
-        # useful for local network setups otherwise minimal impact.
-        ssl_context = None
-    try:
-        if ssl_context is not None:
-            response = urllib.request.urlopen(request, context=ssl_context)
-        else:
-            response = urllib.request.urlopen(request)
+        response = urllib.request.urlopen(request)
     except (urllib.error.HTTPError, urllib.error.URLError) as e:
-        logger.error(e)
+        logger.exception(e)
     else:
         result_string = response.read()
         response.close()
         try:
             return json.JSONDecoder().decode(result_string.decode())
         except json.JSONDecodeError as e:
-            logger.error("API response has invalid JSON format")
+            logger.exception("API response has invalid JSON format")
+
+
+def get_local_file_last_modified_utc(file_path: str) -> datetime.datetime:
+    """Returns the last modified date of a local file."""
+    assert os.path.isfile(file_path)
+    last_modified_timestamp = os.path.getmtime(file_path)
+    return datetime.datetime.fromtimestamp(last_modified_timestamp, tz=datetime.timezone.utc)
+
+
+def get_remote_file_last_modified_utc(
+    url: str,
+    timeout: typing.Optional[float] = None,
+) -> typing.Optional[datetime.datetime]:
+    """Returns the last modified date of a remote file."""
+    request = urllib.request.Request(url, method='HEAD')
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            last_modified = response.headers.get('Last-Modified')
+            dt = email.utils.parsedate_to_datetime(last_modified)
+            if dt is not None:
+                return dt.astimezone(datetime.timezone.utc)
+            return None
+    except (urllib.error.HTTPError, urllib.error.URLError) as e:
+        logger.exception(e)
+    return None
 
 
 def get_name_from_blend_path(path: str) -> str:  # folder/structure/name.blend

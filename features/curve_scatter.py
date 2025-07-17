@@ -34,27 +34,35 @@ MODULE_CLASSES: typing.List[typing.Type] = []
 
 
 @feature_utils.register_feature
-class VegetationGeneratorPanelMixin(feature_utils.GeonodesAssetFeatureControlPanelMixin):
-    feature_name = "vegetation_generator"
-    node_group_name = asset_helpers.BQ_CURVES_GENERATOR_NODE_GROUP_NAME
+class CurveScatterPanelMixin(feature_utils.GeonodesAssetFeatureControlPanelMixin):
+    feature_name = "curve_scatter"
+    node_group_name = asset_helpers.BQ_CURVES_SCATTER_NODE_GROUP_NAME
 
 
 @polib.log_helpers_bpy.logged_panel
-class VegetationGeneratorPanel(
-    VegetationGeneratorPanelMixin,
+class CurveScatterPanel(
+    CurveScatterPanelMixin,
     bpy.types.Panel,
 ):
-    bl_idname = "VIEW_3D_PT_engon_vegetation_generator"
+    bl_idname = "VIEW_3D_PT_engon_curve_scatter"
     bl_parent_id = asset_pack_panels.BotaniqPanel.bl_idname
-    bl_label = "Vegetation Generator"
+    bl_label = "Curve Scatter"
     bl_options = {'DEFAULT_CLOSED'}
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
-        asset_helpers.BQ_CURVES_GENERATOR_NODE_GROUP_NAME,
+        asset_helpers.BQ_CURVES_SCATTER_NODE_GROUP_NAME,
     )
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon='OUTLINER_DATA_CURVES')
+
+    def draw_header_preset(self, context: bpy.types.Context) -> None:
+        self.layout.operator(
+            feature_utils.SelectFeatureCompatibleObjects.bl_idname,
+            text="",
+            icon='RESTRICT_SELECT_ON',
+            emboss=False,
+        ).engon_feature_name = self.__class__.feature_name
 
     def draw(self, context: bpy.types.Context):
         layout: bpy.types.UILayout = self.layout
@@ -63,11 +71,11 @@ class VegetationGeneratorPanel(
         self.draw_active_object_modifiers_node_group_inputs_template(
             self.layout,
             context,
-            VegetationGeneratorPanel.template,
+            CurveScatterPanel.template,
         )
 
 
-MODULE_CLASSES.append(VegetationGeneratorPanel)
+MODULE_CLASSES.append(CurveScatterPanel)
 
 
 def register():

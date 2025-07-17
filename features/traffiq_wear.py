@@ -140,6 +140,14 @@ class TraffiqWearAdjustmentsPanel(
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon='UV')
 
+    def draw_header_preset(self, context: bpy.types.Context) -> None:
+        self.layout.operator(
+            feature_utils.SelectFeatureCompatibleObjects.bl_idname,
+            text="",
+            icon='RESTRICT_SELECT_ON',
+            emboss=False,
+        ).engon_feature_name = self.__class__.feature_name
+
     def draw_properties(self, datablock: bpy.types.ID, layout: bpy.types.UILayout) -> None:
         self.draw_property(datablock, layout, polib.custom_props_bpy.CustomPropertyNames.TQ_DIRT)
         self.draw_property(

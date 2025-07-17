@@ -24,25 +24,31 @@ from . import dev
 from . import filters
 from . import previews
 from . import spawn
+from . import state
 from . import what_is_new
+from . import tiled_map
 
 
 def register():
+    state.register()
     filters.register()
     categories.register()
     dev.register()
     spawn.register()
     browser.register()
     what_is_new.register()
+    tiled_map.register()
 
 
 def unregister():
+    tiled_map.unregister()
     what_is_new.unregister()
     browser.unregister()
     spawn.unregister()
     dev.unregister()
     categories.unregister()
     filters.unregister()
+    state.unregister()
 
     # Delete the preview_manager to close the preview collection and allow previews to free
     del previews.preview_manager
