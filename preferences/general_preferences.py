@@ -271,7 +271,7 @@ class GeneralPreferences(bpy.types.PropertyGroup):
                 row.operator(
                     available_asset_packs.ShowAvailablePackInfo.bl_idname,
                     text="New Version Available",
-                    icon='INTERNET',
+                    icon='URL',
                 ).pack_id = pack_metadata.id_
                 row.separator()
 

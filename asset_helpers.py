@@ -30,7 +30,7 @@ import logging
 from . import polib
 from . import asset_registry
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
 PARTICLE_SYSTEMS_COLLECTION = "engon_particle_systems"

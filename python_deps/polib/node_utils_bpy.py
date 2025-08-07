@@ -226,16 +226,18 @@ def find_link_connected_to(
 
 
 def find_links_connected_from(
-    links: typing.Iterable[bpy.types.NodeLink], from_node: bpy.types.Node, from_socket_name: str
+    links: typing.Iterable[bpy.types.NodeLink],
+    from_node: bpy.types.Node,
+    from_socket_name: typing.Optional[str] = None,
 ) -> typing.Iterable[bpy.types.NodeLink]:
-    """Find links connected from given node (from_node) from given socket name (from_socket_name)
+    """Find links connected from the given node (from_node) with an option for links only from a given socket name (from_socket_name)
 
     There can be any number of such links.
     """
     for link in links:
         if from_node != link.from_node:
             continue
-        if from_socket_name != link.from_socket.name:
+        if from_socket_name is not None and from_socket_name != link.from_socket.name:
             continue
 
         yield link
@@ -254,10 +256,18 @@ def is_node_socket_connected_to(
             to_socket_name is None or to_socket_name == link.to_socket.name
         ):
             return True
-        if recursive and is_node_socket_connected_to(
-            links, link.to_node, link.to_socket.name, to_nodes, to_socket_name, True
-        ):
-            return True
+        if not recursive:
+            continue
+        for recursive_link in find_links_connected_from(links, link.to_node):
+            if is_node_socket_connected_to(
+                links,
+                link.to_node,
+                recursive_link.from_socket.name,
+                to_nodes,
+                to_socket_name,
+                True,
+            ):
+                return True
 
     return False
 

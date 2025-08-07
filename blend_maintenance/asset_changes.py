@@ -26,6 +26,47 @@ class AssetPackMigrations(typing.NamedTuple):
 
 
 # versions in the names reflect the last version of asset pack without given changes
+_botaniq_7_0_0_move_pots_to_interniq = {
+    r"^bq_Pot_Amphora-Clay_A_spring-summer-autumn": r"iq_Pot_Amphora-clay",
+    r"^bq_Pot_Amphora-Rusted-Metal_A_spring-summer-autumn": r"iq_Pot_Amphora-ceramic",
+    r"^bq_Pot_Amphora-Rusted-Metal_B_spring-summer-autumn": r"iq_Pot_Amphora-rusty-spots",
+    r"^bq_Pot_Block-Rusted-Metal_A_spring-summer-autumn": r"iq_Pot_Block-rusted",
+    r"^bq_Pot_Circular-Classic-Clay_([ABC])_spring-summer-autumn": r"iq_Pot_Classic-circular-clay_\1",
+    r"^bq_Pot_Circular-Layered-Stone_A_spring-summer-autumn": r"iq_Pot_Circular-layered-stone",
+    r"^bq_Pot_Circular-Simple-Glazed-Ceramics_[AB]_spring-summer-autumn": r"iq_Pot_Simple-circular-glazed",
+    r"^bq_Pot_Circular-Simple-Wooden-Pedestal_[AB]_spring-summer-autumn": r"iq_Pot_Circular-simple-wooden-pedestal",
+    r"^bq_Pot_Circular-Widening-Glazed-Ceramics_[AB]_spring-summer-autumn": r"iq_Pot_Circular-widening-glazed",
+    r"^bq_Pot_Diamond-Pattern-Glazed-Ceramics_[AB]_spring-summer-autumn": r"iq_Pot_Diamond-pattern-glazed",
+    r"^bq_Pot_Hemispheric-Steel-Pedestal_[AB]_spring-summer-autumn": r"iq_Pot_Hemispheric-steel-pedestal",
+    r"^bq_Pot_Rectangular-Classic-Clay_A_spring-summer-autumn": r"iq_Pot_Rectangular-classic-clay",
+    r"^bq_Pot_Tall-Green-Concrete_A_spring-summer-autumn": r"iq_Pot_Tall-green-ceramics",
+    r"^bq_Pot_Twisted-Cube-Grey-Metal_A_spring-summer-autumn": r"iq_Pot_Twisted-cube-grey-metal",
+    r"^bq_Pot_Twisted-Cube-Grey-Metal_B_spring-summer-autumn": r"iq_Pot_Pyramid-cube-grey-metal",
+    r"^bq_Pot_Twisted-Cube-Grey-Metal_C_spring-summer-autumn": r"iq_Pot_Twisted-cube-metal",
+    r"^bq_Pot_Weaved-Wicker-Shell_[AB]_spring-summer-autumn": r"iq_Pot_Ceramic-weaved-rattan",
+}
+
+botaniq_7_0_0_move_pots_to_interniq = AssetPackMigration(
+    [
+        RegexMapping(re.compile(f"{pattern}.blend$"), f"{replacement}.blend")
+        for pattern, replacement in _botaniq_7_0_0_move_pots_to_interniq.items()
+    ],
+    {
+        "collections": [
+            RegexMapping(re.compile(pattern), replacement)
+            for pattern, replacement in _botaniq_7_0_0_move_pots_to_interniq.items()
+        ],
+        "meshes": [
+            RegexMapping(re.compile(pattern), replacement)
+            for pattern, replacement in _botaniq_7_0_0_move_pots_to_interniq.items()
+        ],
+        "objects": [
+            RegexMapping(re.compile(pattern), replacement)
+            for pattern, replacement in _botaniq_7_0_0_move_pots_to_interniq.items()
+        ],
+    },
+)
+
 _botaniq_7_0_0_rename_masks = {
     r"^bq_Noise_High-contrast_Diffuse": r"bq_Noise_High-contrast_Mask",
     r"^bq_Water_Caustics_Diffuse": r"bq_Water_Caustics_Mask",
@@ -442,8 +483,13 @@ ASSET_PACK_MIGRATIONS = [
             traffiq_2_2_1_random_color_nodegroup,
         ],
     ),
+    AssetPackMigrations(
+        pack_name="interniq",
+        migrations=[
+            botaniq_7_0_0_move_pots_to_interniq  # This migration is under interniq, as the new files are in the interniq pack
+        ],
+    ),
 ]
-
 
 MQ4_NODE_TREES_TO_MQ = {
     # category: 0
