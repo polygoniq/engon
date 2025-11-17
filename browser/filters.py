@@ -29,6 +29,7 @@ import typing
 import logging
 import math
 import mathutils
+import numpy as np
 import threading
 import random
 from . import tiled_map
@@ -64,7 +65,7 @@ class DataRepository:
     ):
         self.asset_provider = asset_provider
         self.is_loading = False
-        self.last_view: typing.Optional[mapr.asset_provider.DataView] = None
+        self.last_view: mapr.asset_provider.DataView | None = None
 
         # Number of lazily displayed assets, check lazy_ properties and methods.
         self._lazy_displayed_count = lazy_display_increment
@@ -73,7 +74,7 @@ class DataRepository:
     def query(
         self,
         query: mapr.query.Query,
-        on_complete: typing.Optional[typing.Callable[[mapr.asset_provider.DataView], None]] = None,
+        on_complete: typing.Callable[[mapr.asset_provider.DataView], None] | None = None,
     ) -> None:
         def _query():
             logger.debug(f"Performing query against category {query.category_id}")
@@ -137,7 +138,7 @@ class DataRepository:
         return self._lazy_displayed_count >= len(self.current_assets)
 
     @property
-    def lazy_current_assets(self) -> typing.List[mapr.asset.Asset]:
+    def lazy_current_assets(self) -> list[mapr.asset.Asset]:
         return (
             self.last_view.assets[: self._lazy_displayed_count]
             if self.last_view is not None
@@ -145,7 +146,7 @@ class DataRepository:
         )
 
     @property
-    def current_assets(self) -> typing.List[mapr.asset.Asset]:
+    def current_assets(self) -> list[mapr.asset.Asset]:
         return self.last_view.assets if self.last_view is not None else []
 
     @property
@@ -336,8 +337,8 @@ class BrowserNumericParameterFilter(
 
         return super().filter_(asset)
 
-    def _convert_to_num_type(self, value: typing.Union[int, float]) -> typing.Union[int, float]:
-        return int(value) if self.is_int else float(value)
+    def _convert_to_num_type(self, value: int | float) -> int | float:
+        return int(value) if self.is_int else float(np.float32(value))
 
     def _range_start_name(self) -> str:
         num_type = "int" if self.is_int else "float"
@@ -463,7 +464,7 @@ class BrowserTextParameterFilter(
         for value in sorted_unique_values:
             item = self.param_values.add()
             item.filter_name = parameter_meta.name
-            item.name = value
+            item.name = str(value)
             item.include = False
 
     def draw(self, context: bpy.types.Context, layout: bpy.types.UILayout) -> None:
@@ -684,11 +685,11 @@ class BrowserVectorParameterFilter(
     def _range_end_get(self):
         return self.get("range_end", mathutils.Vector((1.0, 1.0, 1.0)))
 
-    def _range_start_set(self, value: typing.Tuple):
+    def _range_start_set(self, value: tuple):
         self["range_start"] = mathutils.Vector(value)
         _filter_updated_event(self)
 
-    def _range_end_set(self, value: typing.Tuple):
+    def _range_end_set(self, value: tuple):
         self["range_end"] = mathutils.Vector(value)
         _filter_updated_event(self)
 
@@ -766,7 +767,7 @@ class BrowserLocationParameterFilter(
         )
 
     @polib.utils_bpy.cached_property
-    def _get_map_tiles(self) -> typing.List[typing.List[bool]]:
+    def _get_map_tiles(self) -> list[list[bool]]:
         return [row[:] for row in self.map_tiles]
 
     @polib.utils_bpy.cached_property
@@ -789,7 +790,7 @@ class BrowserLocationParameterFilter(
         return super().filter_(asset_)
 
     @property
-    def selected_tiles(self) -> typing.List[typing.List[bool]]:
+    def selected_tiles(self) -> list[list[bool]]:
         # OVERRIDES 'tiles' from 'mapr.filters.LocationParameterFilter'
 
         # we need to return a copy of the map_tiles, the original is bpy_prop that is not serializable
@@ -920,21 +921,13 @@ class BrowserSearchFilter(bpy.types.PropertyGroup, mapr.filters.SearchFilter, Br
         layout.prop_menu_enum(self, "recent_search", text="", icon='DOWNARROW_HLT')
         sub = layout.row(align=True)
         sub.scale_x = 1.2
-        if bpy.app.version < (4, 1, 0):
-            sub.prop(
-                self,
-                "search",
-                text="",
-                icon_value=polib.ui_bpy.icon_manager.get_icon_id("icon_engon_search"),
-            )
-        else:
-            sub.prop(
-                self,
-                "search",
-                text="",
-                icon_value=polib.ui_bpy.icon_manager.get_icon_id("icon_engon_search"),
-                placeholder=self.search_placeholder,
-            )
+        sub.prop(
+            self,
+            "search",
+            text="",
+            icon_value=polib.ui_bpy.icon_manager.get_icon_id("icon_engon_search"),
+            placeholder=self.search_placeholder,
+        )
 
         if self.is_applied():
             layout.operator(
@@ -984,7 +977,7 @@ class BrowserSearchFilter(bpy.types.PropertyGroup, mapr.filters.SearchFilter, Br
 
     def get_recent_search_enum_items(
         self, context: bpy.types.Context
-    ) -> typing.Iterable[typing.Tuple[str, str, str]]:
+    ) -> typing.Iterable[tuple[str, str, str]]:
         ret = []
         for search in reversed(getattr(type(self), "search_history", [])):
             ret.append((search, search, search))
@@ -1024,7 +1017,7 @@ class FilterGroup(bpy.types.PropertyGroup):
         self,
         context: bpy.types.Context,
         layout: bpy.types.UILayout,
-        filters_: typing.List[BrowserFilter],
+        filters_: list[BrowserFilter],
     ) -> None:
         box = layout.box()
         row = box.row()
@@ -1055,8 +1048,8 @@ class GroupedParametrizationFilters:
     """
 
     def __init__(self):
-        self.groups: typing.Dict[FilterGroup, BrowserFilter] = {}
-        self.ungrouped_filters: typing.List[BrowserFilter] = []
+        self.groups: dict[FilterGroup, BrowserFilter] = {}
+        self.ungrouped_filters: list[BrowserFilter] = []
 
     def draw(self, context: bpy.types.Context, layout: bpy.types.UILayout) -> None:
         if len(self.filters) == 0:
@@ -1074,7 +1067,7 @@ class GroupedParametrizationFilters:
                 filter_.draw(context, col.box())
 
     @property
-    def filters(self) -> typing.List[BrowserFilter]:
+    def filters(self) -> list[BrowserFilter]:
         return list(self.groups.values()) + self.ungrouped_filters
 
 
@@ -1224,7 +1217,7 @@ class DynamicFilters(bpy.types.PropertyGroup):
         for filter_ in self.filters.values():
             filter_.reset()
 
-    def get_param_filter(self, filter_name: str) -> typing.Optional[BrowserFilter]:
+    def get_param_filter(self, filter_name: str) -> BrowserFilter | None:
         """Returns a given parameter name by 'filter_name'.
 
         The filter name should be prefixed by the "type:parameter_name", this is done
@@ -1271,7 +1264,7 @@ class DynamicFilters(bpy.types.PropertyGroup):
         return grouped_filters
 
     @property
-    def filters(self) -> typing.Dict[str, BrowserFilter]:
+    def filters(self) -> dict[str, BrowserFilter]:
         return {
             self.asset_types.name: self.asset_types,
             self.search.name: self.search,
@@ -1280,12 +1273,12 @@ class DynamicFilters(bpy.types.PropertyGroup):
         }
 
     @property
-    def used_filters(self) -> typing.Dict[str, BrowserFilter]:
+    def used_filters(self) -> dict[str, BrowserFilter]:
         """Filters that have non default values - were changed by the user."""
         return {k: v for k, v in self.filters.items() if not v.is_default()}
 
     @property
-    def parametrization_filters(self) -> typing.Dict[str, BrowserFilter]:
+    def parametrization_filters(self) -> dict[str, BrowserFilter]:
         return {
             **self.numeric_filters,
             **self.text_filters,
@@ -1344,9 +1337,7 @@ MODULE_CLASSES.append(MAPR_BrowserResetFilter)
 def _draw_tags(context: bpy.types.Context, layout: bpy.types.UILayout):
     """Draws dynamic filter tags to 'layout' as pills that adjust width based on the region size"""
     dyn_filters = get_filters(context)
-    tag_filters: typing.List[BrowserTagFilter] = [
-        x for x in dyn_filters.tag_filters if x.is_drawn()
-    ]
+    tag_filters: list[BrowserTagFilter] = [x for x in dyn_filters.tag_filters if x.is_drawn()]
 
     if len(tag_filters) == 0:
         row = layout.row()
@@ -1397,7 +1388,7 @@ def draw(context: bpy.types.Context, layout: bpy.types.UILayout) -> None:
     parametrization_filters.draw(context, layout)
 
 
-def get_filters(context: typing.Optional[bpy.types.Context] = None) -> DynamicFilters:
+def get_filters(context: bpy.types.Context | None = None) -> DynamicFilters:
     if context is None:
         context = bpy.context
 

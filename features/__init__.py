@@ -40,10 +40,16 @@ from . import traffiq_rigs
 from . import emergency_lights
 from . import license_plates_generator
 
+from . import pictorial_wear
+from . import pictorial_adjustments
+from . import sculpture_wear
+
 from . import road_generator
 from . import vine_generator
 from . import river_generator
 from . import rain_generator
+
+from . import frame_generator
 
 
 def register():
@@ -65,25 +71,35 @@ def register():
     traffiq_wear.register()
     traffiq_lights_settings.register()
     traffiq_rigs.register()
+
+    pictorial_wear.register()
+    pictorial_adjustments.register()
+    sculpture_wear.register()
+
     license_plates_generator.register()
-
     emergency_lights.register()
-
     road_generator.register()
     vine_generator.register()
     river_generator.register()
     rain_generator.register()
 
+    frame_generator.register()
+
 
 def unregister():
+    frame_generator.unregister()
+
     rain_generator.unregister()
     river_generator.unregister()
     vine_generator.unregister()
     road_generator.unregister()
-
     emergency_lights.unregister()
-
     license_plates_generator.unregister()
+
+    sculpture_wear.unregister()
+    pictorial_adjustments.unregister()
+    pictorial_wear.unregister()
+
     traffiq_rigs.unregister()
     traffiq_lights_settings.unregister()
     traffiq_wear.unregister()

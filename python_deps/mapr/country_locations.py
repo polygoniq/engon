@@ -56,6 +56,7 @@ COUNTRY_COORDINATES = {
     "UK": [[54.0, -2.0]],
     "United Kingdom": [[54.0, -2.0]],
     "Great Britain": [[54.0, -2.0]],
+    "England": [[54.0, -2.0]],
     "Russia": [
         [60.0, 25.0],
         [60.0, 50.0],
@@ -73,4 +74,16 @@ COUNTRY_COORDINATES = {
     ],
     "South Korea": [[37.5, 127.5]],
     "Iran": [[32.0, 53.0]],
+    "Egypt": [[26.0, 30.0]],
+    "Myanmar": [[22.0, 96.0]],
+    "Mali": [[17.0, -4.0]],
+    "Norway": [[60.0, 9.0]],
+    "Peru": [[-10.0, -76.0]],
+    "Scotland": [[56.0, -4.0]],
+    "Thailand": [[15.0, 100.0]],
+    "Tibet": [[30.0, 85.0]],
+    "Iceland": [[65.0, -19.0]],
+    # Ancient civilizations from Aesthetiq
+    "Assyria": [[35.0, 40.0]],
+    "Rome": [[40.0, -4.0], [46.0, 2.0], [42.0, 12.0], [39.0, 22.0], [26.0, 30.0], [39.0, 35.0]],
 }

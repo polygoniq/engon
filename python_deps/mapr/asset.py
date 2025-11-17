@@ -4,6 +4,7 @@
 import dataclasses
 import typing
 import functools
+import collections
 from . import file_provider
 from . import asset_data
 from . import known_metadata
@@ -19,19 +20,19 @@ Tag = str
 # numeric parameters have values that can be sorted and compared - e.g. "Car Length" of 4.6 meters
 # then you can query all cars where a parameter is equal to something, in a certain range, lower
 # or higher than something, etc... For example I want a car with "Car Length" < 5 meters.
-NumericParameters = typing.Dict[str, typing.Union[float, int]]
+NumericParameters = dict[str, float | int]
 # vector parameters consist of same-length vector values for each parameter. Can be compared and
 # sorted. For example "released_in" > (5, 4, 0). The vector parameters can also contain
 # color parameters (RGB), sorting for those doesn't make sense, but proximity querying like (give
 # me all assets where color is close to red) does.
-VectorParameters = typing.Dict[str, typing.Union[typing.Tuple[float, ...], typing.Tuple[int, ...]]]
+VectorParameters = dict[str, tuple[float, ...] | tuple[int, ...]]
 # text parameters can have values that can only be compared for equality. for example
 # "Genus" = "Abies concolor", then you can query all assets where Genus = "Abies concolor".
-TextParameters = typing.Dict[str, str]
+TextParameters = dict[str, str]
 # location parameters are a list of tuples, each tuple is a pair of floats. The tuple represents a
 # location in 2D space. For example, "native_observations" = [(43.0, -98.4), (19.3, -70.3)].
 # contains lat/lon pairs of native plant observations.
-LocationParameters = typing.Dict[str, typing.Tuple[typing.Tuple[float, ...], ...]]
+LocationParameters = dict[str, tuple[tuple[float, ...], ...]]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -51,18 +52,18 @@ class Asset:
     title: str = ""
     # TODO: type_ is here as well as in asset_data that's referencing this
     type_: asset_data.AssetDataType = asset_data.AssetDataType.unknown
-    preview_file: typing.Optional[file_provider.FileID] = None
+    preview_file: file_provider.FileID | None = None
 
-    tags: typing.Set[Tag] = dataclasses.field(default_factory=set)
+    tags: set[Tag] = dataclasses.field(default_factory=set)
     numeric_parameters: NumericParameters = dataclasses.field(default_factory=dict)
     vector_parameters: VectorParameters = dataclasses.field(default_factory=dict)
     text_parameters: TextParameters = dataclasses.field(default_factory=dict)
     location_parameters: LocationParameters = dataclasses.field(default_factory=dict)
     # Search matter that's not coming from this asset e.g. category search matter
-    foreign_search_matter: typing.Dict[str, float] = dataclasses.field(default_factory=dict)
+    foreign_search_matter: dict[str, float] = dataclasses.field(default_factory=dict)
 
     @functools.cached_property
-    def parameters(self) -> typing.Dict[str, typing.Any]:
+    def parameters(self) -> dict[str, typing.Any]:
         """Numeric, text, vector and location parameters combined in one dictionary."""
         return {
             **self.numeric_parameters,
@@ -72,7 +73,7 @@ class Asset:
         }
 
     @functools.cached_property
-    def search_matter(self) -> typing.DefaultDict[str, float]:
+    def search_matter(self) -> collections.defaultdict[str, float]:
         """Return a dictionary of lowercase text searchable tokens, each mapped to its search weight
 
         Search weight 0 means excluded from search. Since tokens with weight 0 never contribute to
@@ -80,12 +81,9 @@ class Asset:
         """
         TITLE_DEFAULT_WEIGHT = 2.0
         TAG_DEFAULT_WEIGHT = 1.0
-        TEXT_PARAMETERS_DEFAULT_WEIGHT = 0.5
-        NUMERIC_PARAMETERS_DEFAULT_WEIGHT = 0.5
-        VECTOR_PARAMETERS_DEFAULT_WEIGHT = 0.5
-        LOCATION_PARAMETERS_DEFAULT_WEIGHT = 0.0  # coordinates are practically unsearchable
+        PARAMETERS_DEFAULT_WEIGHT = 0.0
 
-        ret: typing.DefaultDict[str, float] = self.type_.search_matter
+        ret: collections.defaultdict[str, float] = self.type_.search_matter
         ret[self.title.lower()] = max(1.0, ret[self.title.lower()])
 
         # The title tokens are weighted individually
@@ -108,7 +106,7 @@ class Asset:
         for name, value in self.text_parameters.items():
             search_weight = float(
                 known_metadata.TEXT_PARAMETERS.get(name, {}).get(
-                    "search_weight", TEXT_PARAMETERS_DEFAULT_WEIGHT
+                    "search_weight", PARAMETERS_DEFAULT_WEIGHT
                 )
             )
             if search_weight <= 0.0:
@@ -119,7 +117,7 @@ class Asset:
         for name, value in self.numeric_parameters.items():
             search_weight = float(
                 known_metadata.NUMERIC_PARAMETERS.get(name, {}).get(
-                    "search_weight", NUMERIC_PARAMETERS_DEFAULT_WEIGHT
+                    "search_weight", PARAMETERS_DEFAULT_WEIGHT
                 )
             )
             if search_weight <= 0.0:
@@ -130,7 +128,7 @@ class Asset:
         for name, value in self.vector_parameters.items():
             search_weight = float(
                 known_metadata.VECTOR_PARAMETERS.get(name, {}).get(
-                    "search_weight", VECTOR_PARAMETERS_DEFAULT_WEIGHT
+                    "search_weight", PARAMETERS_DEFAULT_WEIGHT
                 )
             )
             if search_weight <= 0.0:
@@ -141,7 +139,7 @@ class Asset:
         for name, value in self.location_parameters.items():
             search_weight = float(
                 known_metadata.LOCATION_PARAMETERS.get(name, {}).get(
-                    "search_weight", LOCATION_PARAMETERS_DEFAULT_WEIGHT
+                    "search_weight", PARAMETERS_DEFAULT_WEIGHT
                 )
             )
             if search_weight <= 0.0:

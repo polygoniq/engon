@@ -25,17 +25,9 @@ logger = logging.getLogger(f"polygoniq.{__name__}")
 
 if not bpy.app.background:
     # Blender 4.0 dropped the 3D_ and 2D_ prefixes from the shader names
-    SHADER_LINE_BUILTIN = (
-        gpu.shader.from_builtin('POLYLINE_UNIFORM_COLOR')
-        if bpy.app.version >= (4, 0, 0)
-        else gpu.shader.from_builtin('3D_POLYLINE_UNIFORM_COLOR')
-    )
+    SHADER_LINE_BUILTIN = gpu.shader.from_builtin('POLYLINE_UNIFORM_COLOR')
 
-    SHADER_2D_UNIFORM_COLOR_BUILTIN = (
-        gpu.shader.from_builtin('UNIFORM_COLOR')
-        if bpy.app.version >= (4, 0, 0)
-        else gpu.shader.from_builtin('2D_UNIFORM_COLOR')
-    )
+    SHADER_2D_UNIFORM_COLOR_BUILTIN = gpu.shader.from_builtin('UNIFORM_COLOR')
 else:
     logger.info(f"'{__name__}' module is not available in background mode!")
 
@@ -45,7 +37,7 @@ VIEWPORT_SIZE = (0, 0)
 DEFAULT_INDICATOR_SIZE = 20.0
 # Default color of the key or mouse indicator, currently a 'engon' color
 DEFAULT_INDICATOR_COLOR = (0, 1.0, 162.0 / 255.0, 1.0)
-Color = typing.Tuple[float, float, float, float]
+Color = tuple[float, float, float, float]
 
 # Key constants used for drawing key symbols
 ESCAPE_KEY = "ESC"
@@ -72,7 +64,7 @@ def line(v1: mathutils.Vector, v2: mathutils.Vector, color: Color, width: float)
     batch.draw(SHADER_LINE_BUILTIN)
 
 
-def rectangle(pos: typing.Tuple[float, float], size: typing.Tuple[float, float], color: Color):
+def rectangle(pos: tuple[float, float], size: tuple[float, float], color: Color):
     """Draws rectangle starting at 'pos' of width and height from 'size' of desired 'color'"""
     batch = gpu_extras.batch.batch_for_shader(
         SHADER_2D_UNIFORM_COLOR_BUILTIN,
@@ -92,7 +84,7 @@ def rectangle(pos: typing.Tuple[float, float], size: typing.Tuple[float, float],
 
 
 def arrow(
-    pos: typing.Tuple[float, float],
+    pos: tuple[float, float],
     color: Color,
     size: float,
     rotation: float = 0.0,
@@ -352,8 +344,8 @@ def rounded_rectangle(
     h: float,
     round_radius: float,
     fill: bool = False,
-    color: typing.Optional[Color] = None,
-    round_corner: typing.Optional[typing.Tuple[bool, bool, bool, bool]] = None,
+    color: Color | None = None,
+    round_corner: tuple[bool, bool, bool, bool] | None = None,
     line_thickness: float = 1.0,
 ):
     if color is None:
@@ -436,7 +428,6 @@ class TextStyle:
     font_id: int = 0
     font_size: float = 15.0
     color: Color = (1.0, 1.0, 1.0, 1.0)
-    dpi: int = 72
     consider_ui_scale: bool = True
     outline: bool = True
 
@@ -447,15 +438,15 @@ class TextStyle:
 
 def text(pos: mathutils.Vector, string: str, style: TextStyle) -> None:
     blf.position(style.font_id, pos[0], pos[1], 0)
-    _set_text_size(style)
+    blf.size(style.font_id, style.font_size)
     blf.color(style.font_id, *style.color)
-    if bpy.app.version >= (4, 2, 0) and style.outline:
+    if style.outline:
         blf.enable(style.font_id, blf.SHADOW)
         blf.shadow(style.font_id, 6, 0, 0, 0, 1.0)
 
     blf.draw(style.font_id, str(string))
 
-    if bpy.app.version >= (4, 2, 0) and style.outline:
+    if style.outline:
         blf.disable(style.font_id, blf.SHADOW)
 
 
@@ -474,8 +465,8 @@ def text_box(
     pos: mathutils.Vector,
     padding: float,
     text_margin: float,
-    background: typing.Optional[Color],
-    texts: typing.List[typing.Tuple[str, TextStyle]],
+    background: Color | None,
+    texts: list[tuple[str, TextStyle]],
 ) -> None:
     height = sum(t[1].font_size for t in texts) + (len(texts) - 1) * text_margin
     width = _calculate_lines_width(texts) + 2 * padding
@@ -617,8 +608,8 @@ def text_box_3d(
     world_pos: mathutils.Vector,
     padding: int,
     text_margin: float,
-    background: typing.Optional[Color],
-    texts: typing.List[typing.Tuple[str, TextStyle]],
+    background: Color | None,
+    texts: list[tuple[str, TextStyle]],
     region: bpy.types.Region,
     rv3d: bpy.types.RegionView3D,
 ) -> None:
@@ -628,22 +619,15 @@ def text_box_3d(
         text_box(pos_2d, padding, text_margin, background, texts)
 
 
-def get_text_size(string: str, style: TextStyle) -> typing.Tuple[float, float]:
+def get_text_size(string: str, style: TextStyle) -> tuple[float, float]:
     """Returns size of the text in pixels"""
-    _set_text_size(style)
+    blf.size(style.font_id, style.font_size)
     return blf.dimensions(style.font_id, string)
 
 
-def _calculate_lines_width(lines: typing.List[typing.Tuple[str, TextStyle]]) -> float:
+def _calculate_lines_width(lines: list[tuple[str, TextStyle]]) -> float:
     max_width = 0
     for string, style in lines:
         width, _ = get_text_size(string, style)
         max_width = max(max_width, width)
     return max_width
-
-
-def _set_text_size(style: TextStyle) -> None:
-    if bpy.app.version >= (4, 0, 0):  # dpi argument has been dropped in Blender 4.0
-        blf.size(style.font_id, style.font_size)
-    else:
-        blf.size(style.font_id, style.font_size, style.dpi)

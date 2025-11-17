@@ -17,7 +17,7 @@ class FileProvider(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def materialize_file(self, file_id: FileID) -> typing.Optional[str]:
+    def materialize_file(self, file_id: FileID) -> str | None:
         """Makes a file represented by the given FileID appear locally on disk
 
         If the file provider is a streaming provider this function can be blocking and take some
@@ -39,7 +39,7 @@ class FileProvider(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_file_id_from_basename(self, basename: str) -> typing.Optional[FileID]:
+    def get_file_id_from_basename(self, basename: str) -> FileID | None:
         """Returns a FileID of a file matching the basename if it is known to the file provider."""
         pass
 
@@ -49,7 +49,7 @@ class FileProviderMultiplexer(FileProvider):
         super().__init__()
 
         # we use list instead of set because we want the file providers to be ordered
-        self._file_providers: typing.List[FileProvider] = []
+        self._file_providers: list[FileProvider] = []
 
     def add_file_provider(self, file_provider: FileProvider) -> None:
         self._file_providers.append(file_provider)
@@ -60,7 +60,7 @@ class FileProviderMultiplexer(FileProvider):
     def clear_providers(self) -> None:
         self._file_providers.clear()
 
-    def materialize_file(self, file_id: FileID) -> typing.Optional[str]:
+    def materialize_file(self, file_id: FileID) -> str | None:
         # TODO: Decide whether we go in order or in reverse order. Should providers added later
         # override previous providers?
         for provider in reversed(self._file_providers):
@@ -70,7 +70,7 @@ class FileProviderMultiplexer(FileProvider):
 
         return None
 
-    def get_file_id_from_basename(self, basename: str) -> typing.Optional[FileID]:
+    def get_file_id_from_basename(self, basename: str) -> FileID | None:
         for provider in reversed(self._file_providers):
             ret = provider.get_file_id_from_basename(basename)
             if ret is not None:

@@ -21,7 +21,7 @@ except ImportError:
     from blender_addons import hatchery
 
 
-def find_bounding_wheels(wheels: typing.List[bpy.types.Object]) -> typing.List[bpy.types.Object]:
+def find_bounding_wheels(wheels: list[bpy.types.Object]) -> list[bpy.types.Object]:
     # we take first front wheels and then find maximum index of rear wheels and return it as a list
     assert len(wheels) > 4
 
@@ -45,8 +45,8 @@ def find_bounding_wheels(wheels: typing.List[bpy.types.Object]) -> typing.List[b
 
 
 def get_wheel_contact_points(
-    wheels: typing.List[bpy.types.Object], instance: bpy.types.Object, debug: bool = False
-) -> typing.List[mathutils.Vector]:
+    wheels: list[bpy.types.Object], instance: bpy.types.Object, debug: bool = False
+) -> list[mathutils.Vector]:
     wheel_contact_points = []
     one_track_vehicle = True if len(wheels) == 2 else False
 
@@ -84,7 +84,7 @@ def get_wheel_contact_points(
 
 
 GetRayCastedPlaneCallable = typing.Callable[
-    [], typing.Tuple[typing.List[mathutils.Vector], typing.Optional[typing.List[mathutils.Vector]]]
+    [], tuple[list[mathutils.Vector], list[mathutils.Vector]] | None
 ]
 
 
@@ -180,10 +180,10 @@ def snap_to_ground_iterate(
 
 def ray_cast_plane(
     ground_objects: typing.Iterable[bpy.types.Object],
-    bottom_corners: typing.List[mathutils.Vector],
+    bottom_corners: list[mathutils.Vector],
     grace_padding: float = 0.1,
     debug: bool = False,
-) -> typing.Tuple[typing.List[mathutils.Vector], typing.Optional[typing.List[mathutils.Vector]]]:
+) -> tuple[list[mathutils.Vector], list[mathutils.Vector]] | None:
     """Raycast from 'bottom_corners' points downwards to 'ground_objects'.
     Return 'bottom_corners' and list of intersection points closest to each bottom_corner point.
     """
@@ -227,15 +227,13 @@ def ray_cast_plane(
 
 def snap_to_ground_separate_wheels(
     instance: bpy.types.Object,
-    wheels: typing.List[bpy.types.Object],
-    ground_objects: typing.List[bpy.types.Object],
+    wheels: list[bpy.types.Object],
+    ground_objects: list[bpy.types.Object],
     debug: bool = False,
 ) -> bool:
     instance_old_matrix_world = copy.deepcopy(instance.matrix_world)
 
-    def get_ray_casted_plane() -> (
-        typing.Tuple[typing.List[mathutils.Vector], typing.Optional[typing.List[mathutils.Vector]]]
-    ):
+    def get_ray_casted_plane() -> tuple[list[mathutils.Vector], list[mathutils.Vector]] | None:
         bottom_corners = get_wheel_contact_points(wheels, instance, debug)
         return ray_cast_plane(ground_objects, bottom_corners)
 
@@ -244,28 +242,43 @@ def snap_to_ground_separate_wheels(
 
 def snap_to_ground_adjust_rotation(
     instance: bpy.types.Object,
-    ground_objects: typing.List[bpy.types.Object],
+    ground_objects: list[bpy.types.Object],
     debug: bool = False,
 ) -> bool:
     instance_old_matrix_world = copy.deepcopy(instance.matrix_world)
 
     # create a bounding box of the instance, including all children
-    full_bbox = hatchery.bounding_box.OrientedBox(instance.matrix_world)
-    full_bbox.extend_by_object(instance, recursive=True)
+    full_bbox = hatchery.bounding_box.BoundingBox(instance.matrix_world)
+    full_bbox.extend_by_object(
+        instance,
+        recursive=True,
+        object_filter=lambda o: o.type
+        in {
+            'MESH',
+            'CURVE',
+            'SURFACE',
+            'META',
+            'FONT',
+            'CURVES',
+            'POINTCLOUD',
+            'VOLUME',
+            'GREASEPENCIL',
+        },
+    )
 
     # make sure the bounding box has some volume
     # (slightly extend the bounding box if it's flat)
-    if math.isclose(full_bbox.min.x, full_bbox.max.x, abs_tol=1e-4):
-        full_bbox.max.x += 0.01
-    if math.isclose(full_bbox.min.y, full_bbox.max.y, abs_tol=1e-4):
-        full_bbox.max.y += 0.01
+    if math.isclose(full_bbox.get_min().x, full_bbox.get_max().x, abs_tol=1e-4):
+        full_bbox.extend_by_local_point(full_bbox.get_max() + mathutils.Vector((0.01, 0, 0)))
+    if math.isclose(full_bbox.get_min().y, full_bbox.get_max().y, abs_tol=1e-4):
+        full_bbox.extend_by_local_point(full_bbox.get_max() + mathutils.Vector((0, 0.01, 0)))
 
     # get bottom corners of the bounding box
     bbox_bottom_corners_local = [
-        full_bbox.min,
-        mathutils.Vector([full_bbox.max.x, full_bbox.min.y, full_bbox.min.z]),
-        mathutils.Vector([full_bbox.max.x, full_bbox.max.y, full_bbox.min.z]),
-        mathutils.Vector([full_bbox.min.x, full_bbox.max.y, full_bbox.min.z]),
+        full_bbox.get_min(),
+        mathutils.Vector([full_bbox.get_max().x, full_bbox.get_min().y, full_bbox.get_min().z]),
+        mathutils.Vector([full_bbox.get_max().x, full_bbox.get_max().y, full_bbox.get_min().z]),
+        mathutils.Vector([full_bbox.get_min().x, full_bbox.get_max().y, full_bbox.get_min().z]),
     ]
 
     # note: ray_cast_plane requires bottom bounding box corners in world space.
@@ -284,12 +297,12 @@ def snap_to_ground_adjust_rotation(
 
 def snap_to_ground_no_rotation(
     instance: bpy.types.Object,
-    ground_objects: typing.List[bpy.types.Object],
+    ground_objects: list[bpy.types.Object],
     debug: bool = False,
 ) -> bool:
     def get_ray_casted_point(
         grace_padding: float = 0.1,
-    ) -> typing.Tuple[mathutils.Vector, mathutils.Vector]:
+    ) -> tuple[mathutils.Vector, mathutils.Vector]:
         if obj.data is None:
             # obj is not 'MESH', it can be 'EMPTY' for example, don't do anything with it
             return None, None

@@ -33,7 +33,7 @@ def get_all_object_ancestors(obj: bpy.types.Object) -> typing.Iterable[bpy.types
 
 def filter_out_descendants_from_objects(
     objects: typing.Iterable[bpy.types.Object],
-) -> typing.Set[bpy.types.Object]:
+) -> set[bpy.types.Object]:
     """Given a list of objects (i.e. selected objects) this function will return only the
     roots. By roots we mean included objects that have no ancestor that is also contained
     in object.
@@ -57,7 +57,7 @@ def filter_out_descendants_from_objects(
 
 def is_polygoniq_object(
     datablock: bpy.types.ID,
-    addon_name_filter: typing.Optional[typing.Callable[[str], bool]] = None,
+    addon_name_filter: typing.Callable[[str], bool] | None = None,
     include_editable: bool = True,
     include_linked: bool = True,
 ) -> bool:
@@ -72,9 +72,9 @@ def is_polygoniq_object(
 
 def find_root_objects(
     objects: typing.Iterable[bpy.types.Object],
-    addon_name: typing.Optional[str] = None,
+    addon_name: str | None = None,
     only_polygoniq: bool = True,
-) -> typing.Set[bpy.types.Object]:
+) -> set[bpy.types.Object]:
     """Finds and returns polygoniq root objects in 'objects'.
 
     'only_polygoniq' parameter can be used to filter out non-polygoniq objects.
@@ -118,7 +118,7 @@ def find_root_objects(
 
 def get_polygoniq_objects(
     objects: typing.Iterable[bpy.types.Object],
-    addon_name: typing.Optional[str] = None,
+    addon_name: str | None = None,
     include_editable: bool = True,
     include_linked: bool = True,
 ) -> typing.Iterable[bpy.types.Object]:
@@ -129,7 +129,7 @@ def get_polygoniq_objects(
             yield obj
 
 
-class TraffiqAssetPart(enum.Enum):
+class TraffiqAssetPart(enum.StrEnum):
     Body = 'Body'
     Door = 'Door'
     Trunk = 'Trunk'
@@ -173,7 +173,7 @@ def is_traffiq_asset_part(obj: bpy.types.Object, part: TraffiqAssetPart) -> bool
             return False
 
         _, obj_part_name, position, number = split_name
-        if obj_part_name != part.name:
+        if obj_part_name != part:
             return False
         if position not in {"FL", "FR", "BL", "BR", "F", "B"}:
             return False
@@ -186,7 +186,7 @@ def is_traffiq_asset_part(obj: bpy.types.Object, part: TraffiqAssetPart) -> bool
             return False
 
         _, obj_part_name, position = split_name
-        if obj_part_name != part.value:
+        if obj_part_name != part:
             return False
         if position not in {"F", "B"}:
             return False
@@ -199,13 +199,13 @@ def is_traffiq_asset_part(obj: bpy.types.Object, part: TraffiqAssetPart) -> bool
 class DecomposedCar:
     root_object: bpy.types.Object
     body: bpy.types.Object
-    doors: typing.List[bpy.types.Object]
-    trunks: typing.List[bpy.types.Object]
-    lights: typing.Optional[bpy.types.Object]
-    wheels: typing.List[bpy.types.Object]
-    brakes: typing.List[bpy.types.Object]
-    front_plate: typing.Optional[bpy.types.Object] = None
-    back_plate: typing.Optional[bpy.types.Object] = None
+    doors: list[bpy.types.Object]
+    trunks: list[bpy.types.Object]
+    lights: bpy.types.Object | None
+    wheels: list[bpy.types.Object]
+    brakes: list[bpy.types.Object]
+    front_plate: bpy.types.Object | None = None
+    back_plate: bpy.types.Object | None = None
 
 
 def is_part_of_decomposed_car(obj: bpy.types.Object, decomposed_car: DecomposedCar) -> bool:
@@ -220,7 +220,7 @@ def is_part_of_decomposed_car(obj: bpy.types.Object, decomposed_car: DecomposedC
     return False
 
 
-def get_root_object_of_asset(asset: bpy.types.Object) -> typing.Optional[bpy.types.Object]:
+def get_root_object_of_asset(asset: bpy.types.Object) -> bpy.types.Object | None:
     """Returns the root linked object if given a linked asset (instanced collection empty).
     Returns the object itself if given an editable asset. In case there are multiple roots
     or no roots at all it returns None and logs a warning.
@@ -274,7 +274,7 @@ def get_entire_object_hierarchy(obj: bpy.types.Object) -> typing.Iterable[bpy.ty
         yield obj
 
 
-def get_root_object_of_traffiq_asset(asset: bpy.types.Object) -> typing.Optional[bpy.types.Object]:
+def get_root_object_of_traffiq_asset(asset: bpy.types.Object) -> bpy.types.Object | None:
     root_object = get_root_object_of_asset(asset)
     if root_object is None:
         return None
@@ -291,7 +291,7 @@ def get_root_object_of_traffiq_asset(asset: bpy.types.Object) -> typing.Optional
     return root_object
 
 
-def decompose_traffiq_vehicle(obj: bpy.types.Object) -> typing.Optional[DecomposedCar]:
+def decompose_traffiq_vehicle(obj: bpy.types.Object) -> DecomposedCar | None:
     root_object = get_root_object_of_traffiq_asset(obj)
     body = None
     doors = []
@@ -353,13 +353,13 @@ def decompose_traffiq_vehicle(obj: bpy.types.Object) -> typing.Optional[Decompos
     )
 
 
-InstancedObjectInfo = typing.Tuple[
-    bpy.types.Object, bpy.types.Collection, str, typing.Tuple[float, float, float, float]
+InstancedObjectInfo = tuple[
+    bpy.types.Object, bpy.types.Collection, str, tuple[float, float, float, float]
 ]
 
 
 def find_instanced_collection_objects(
-    obj: bpy.types.Object, instanced_collection_objects: typing.Dict[str, InstancedObjectInfo]
+    obj: bpy.types.Object, instanced_collection_objects: dict[str, InstancedObjectInfo]
 ) -> None:
     for child in obj.children:
         find_instanced_collection_objects(child, instanced_collection_objects)
@@ -379,7 +379,7 @@ def make_selection_editable(
     delete_base_empty: bool,
     keep_selection: bool = True,
     keep_active: bool = True,
-) -> typing.List[str]:
+) -> list[str]:
     def apply_botaniq_particle_system_modifiers(obj: bpy.types.Object):
         for child in obj.children:
             apply_botaniq_particle_system_modifiers(child)
@@ -434,7 +434,7 @@ def make_selection_editable(
                 return
 
     def get_mesh_to_objects_map(
-        obj: bpy.types.Object, result: typing.DefaultDict[str, typing.List[bpy.types.ID]]
+        obj: bpy.types.Object, result: collections.defaultdict[str, list[bpy.types.ID]]
     ) -> None:
         for child in obj.children:
             get_mesh_to_objects_map(child, result)
@@ -444,7 +444,7 @@ def make_selection_editable(
             result[original_mesh_name].append(obj)
 
     def get_material_to_slots_map(
-        obj: bpy.types.Object, result: typing.DefaultDict[str, typing.List[bpy.types.ID]]
+        obj: bpy.types.Object, result: collections.defaultdict[str, list[bpy.types.ID]]
     ) -> None:
         for child in obj.children:
             get_material_to_slots_map(child, result)
@@ -460,7 +460,7 @@ def make_selection_editable(
                 result[original_material_name].append(material_slot)
 
     def get_armatures_to_objects_map(
-        obj: bpy.types.Object, result: typing.DefaultDict[str, typing.List[bpy.types.ID]]
+        obj: bpy.types.Object, result: collections.defaultdict[str, list[bpy.types.ID]]
     ) -> None:
         for child in obj.children:
             get_armatures_to_objects_map(child, result)
@@ -470,16 +470,16 @@ def make_selection_editable(
             result[original_armature_name].append(obj)
 
     GetNameToUsersMapCallable = typing.Callable[
-        [bpy.types.Object, typing.DefaultDict[str, typing.List[bpy.types.ID]]], None
+        [bpy.types.Object, collections.defaultdict[str, list[bpy.types.ID]]], None
     ]
 
     def make_datablocks_unique_per_object(
         obj: bpy.types.Object,
         get_data_to_struct_map: GetNameToUsersMapCallable,
         datablock_name: str,
-    ) -> typing.Dict[bpy.types.ID, bpy.types.ID]:
+    ) -> dict[bpy.types.ID, bpy.types.ID]:
         old_new_datablock_map = {}
-        datablocks_to_owner_structs: typing.DefaultDict[str, typing.List[bpy.types.ID]] = (
+        datablocks_to_owner_structs: collections.defaultdict[str, list[bpy.types.ID]] = (
             collections.defaultdict(list)
         )
         get_data_to_struct_map(obj, datablocks_to_owner_structs)
@@ -509,7 +509,7 @@ def make_selection_editable(
         for child in obj.children:
             try_make_auto_smooth_modifier_local(child)
 
-        if bpy.app.version < (4, 1, 0) or obj.type != 'MESH':
+        if obj.type != 'MESH':
             return
 
         auto_smooth_mod = obj.modifiers.get("Auto Smooth", None)
@@ -520,7 +520,7 @@ def make_selection_editable(
             auto_smooth_mod.node_group.make_local()
 
     def update_geometry_node_materials(
-        obj: bpy.types.Object, old_new_material_map: typing.Dict[bpy.types.ID, bpy.types.ID]
+        obj: bpy.types.Object, old_new_material_map: dict[bpy.types.ID, bpy.types.ID]
     ) -> None:
         """If geometry nodes reference material, use local version instead of linked.
 
@@ -551,7 +551,7 @@ def make_selection_editable(
     def copy_constraints_from_instance_to_realized(
         source_obj: bpy.types.Object,
         target_obj: bpy.types.Object,
-        instanced_to_realized_name_map: typing.Dict[bpy.types.Object, bpy.types.Object],
+        instanced_to_realized_name_map: dict[bpy.types.Object, bpy.types.Object],
     ) -> None:
         """Copy constraints from 'source_obj' to 'target_obj' recursively.
 
@@ -620,7 +620,7 @@ def make_selection_editable(
 
     def get_instance_object_to_realized_object_map(
         root: bpy.types.Object, instance_collection: bpy.types.Collection
-    ) -> typing.Dict[bpy.types.Object, bpy.types.Object]:
+    ) -> dict[bpy.types.Object, bpy.types.Object]:
         """Returns a dictionary mapping the original objects to the realized.
 
         During realization of instanced objects, duplicate suffixes might be added.
@@ -649,7 +649,7 @@ def make_selection_editable(
     selected_objects_names = [obj.name for obj in context.selected_objects]
     prev_active_object_name = context.active_object.name if context.active_object else None
 
-    instanced_collection_objects: typing.Dict[str, InstancedObjectInfo] = {}
+    instanced_collection_objects: dict[str, InstancedObjectInfo] = {}
     for obj in context.selected_objects:
         find_instanced_collection_objects(obj, instanced_collection_objects)
 
@@ -801,18 +801,16 @@ def make_selection_editable(
     return selected_objects
 
 
-HierarchyNameComparator = typing.Callable[
-    [bpy.types.Object, typing.Optional[bpy.types.Object]], bool
-]
+HierarchyNameComparator = typing.Callable[[bpy.types.Object, bpy.types.Object | None], bool]
 
 
 def find_object_in_hierarchy(
     root_obj: bpy.types.Object,
     name_comparator: HierarchyNameComparator,
-) -> typing.Optional[bpy.types.Object]:
+) -> bpy.types.Object | None:
     # We don't use get_hierarchy function, because here we can return the desired
     # object before going through the whole hierarchy
-    def search_hierarchy(parent_obj: bpy.types.Object) -> typing.Optional[bpy.types.Object]:
+    def search_hierarchy(parent_obj: bpy.types.Object) -> bpy.types.Object | None:
         if name_comparator(parent_obj, root_obj):
             return parent_obj
 
@@ -830,7 +828,7 @@ def get_root_objects_with_matched_child(
     objects: typing.Iterable[bpy.types.Object],
     comparator: HierarchyNameComparator,
     only_polygoniq=True,
-) -> typing.Iterable[typing.Tuple[bpy.types.Object, bpy.types.Object]]:
+) -> typing.Iterable[tuple[bpy.types.Object, bpy.types.Object]]:
     """Searches hierarchies of objects and returns objects that satisfy the 'comparator', and their root objects.
 
     'only_polygoniq' parameter can be used to filter out non-polygoniq objects.
@@ -841,7 +839,7 @@ def get_root_objects_with_matched_child(
             yield (root_obj, searched_obj)
 
 
-def get_hierarchy(root: bpy.types.ID) -> typing.List[bpy.types.ID]:
+def get_hierarchy(root: bpy.types.ID) -> list[bpy.types.ID]:
     """Gathers children of 'root' recursively"""
 
     assert hasattr(root, "children")
@@ -853,7 +851,7 @@ def get_hierarchy(root: bpy.types.ID) -> typing.List[bpy.types.ID]:
 
 
 def collection_get(
-    context: bpy.types.Context, name: str, parent: typing.Optional[bpy.types.Collection] = None
+    context: bpy.types.Context, name: str, parent: bpy.types.Collection | None = None
 ) -> bpy.types.Collection:
     scene_collections = get_hierarchy(context.scene.collection)
     for coll in scene_collections:
@@ -925,7 +923,7 @@ def collection_unlink_hierarchy(
 
 def find_layer_collection(
     view_layer_root: bpy.types.LayerCollection, target: bpy.types.Collection
-) -> typing.Optional[bpy.types.LayerCollection]:
+) -> bpy.types.LayerCollection | None:
     """Finds corresponding LayerCollection from 'view_layer_coll' hierarchy
     which contains 'target' collection.
     """

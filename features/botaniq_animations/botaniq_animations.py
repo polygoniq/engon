@@ -36,14 +36,20 @@ logger = logging.getLogger(f"polygoniq.{__name__}")
 MODULE_CLASSES = []
 
 
-class WindPreset(enum.Enum):
+class OperatorTarget(enum.StrEnum):
+    SELECTED = 'Selected Objects'
+    SCENE = 'Scene Objects'
+    ALL = 'All Objects'
+
+
+class WindPreset(enum.StrEnum):
     BREEZE = "Breeze"
     WIND = "Wind"
     STORM = "Storm"
     UNKNOWN = "Unknown"
 
 
-class AnimationType(enum.Enum):
+class AnimationType(enum.StrEnum):
     WIND_BEST_FIT = "Wind-Best-Fit"
     WIND_TREE = "Wind-Tree"
     WIND_PALM = "Wind-Palm"
@@ -53,7 +59,7 @@ class AnimationType(enum.Enum):
     UNKNOWN = "Unknown"
 
 
-class WindStyle(enum.Enum):
+class WindStyle(enum.StrEnum):
     LOOP = "Loop"
     PROCEDURAL = "Procedural"
     UNKNOWN = "Unknown"
@@ -73,43 +79,43 @@ class WindAnimationProperties(bpy.types.PropertyGroup):
         "This changes the animation and animation modifier stack",
         items=(
             (
-                AnimationType.WIND_BEST_FIT.value,
-                AnimationType.WIND_BEST_FIT.value,
+                AnimationType.WIND_BEST_FIT,
+                AnimationType.WIND_BEST_FIT,
                 "Different animation types based on the selection",
                 'SHADERFX',
                 0,
             ),
             (
-                AnimationType.WIND_TREE.value,
-                AnimationType.WIND_TREE.value,
+                AnimationType.WIND_TREE,
+                AnimationType.WIND_TREE,
                 "Animation mostly suited for tree assets",
                 'BLANK1',
                 1,
             ),
             (
-                AnimationType.WIND_PALM.value,
-                AnimationType.WIND_PALM.value,
+                AnimationType.WIND_PALM,
+                AnimationType.WIND_PALM,
                 "Animation mostly suited for palm assets",
                 'BLANK1',
                 2,
             ),
             (
-                AnimationType.WIND_LOW_VEGETATION.value,
-                AnimationType.WIND_LOW_VEGETATION.value,
+                AnimationType.WIND_LOW_VEGETATION,
+                AnimationType.WIND_LOW_VEGETATION,
                 "Animation mostly suited for low vegetation assets",
                 'BLANK1',
                 3,
             ),
             (
-                AnimationType.WIND_LOW_VEGETATION_PLANTS.value,
-                AnimationType.WIND_LOW_VEGETATION_PLANTS.value,
+                AnimationType.WIND_LOW_VEGETATION_PLANTS,
+                AnimationType.WIND_LOW_VEGETATION_PLANTS,
                 "Animation mostly suited for low vegetation plant assets",
                 'BLANK1',
                 4,
             ),
             (
-                AnimationType.WIND_SIMPLE.value,
-                AnimationType.WIND_SIMPLE.value,
+                AnimationType.WIND_SIMPLE,
+                AnimationType.WIND_SIMPLE,
                 "Simple animation, works only on assets with Leaf_ or Grass_ materials",
                 'BLANK1',
                 5,
@@ -122,9 +128,9 @@ class WindAnimationProperties(bpy.types.PropertyGroup):
         description="Select one of predefined animations presets."
         "This changes detail of animation and animation modifier stack",
         items=(
-            (WindPreset.BREEZE.value, WindPreset.BREEZE.value, "Light breeze wind", 'BOIDS', 0),
-            (WindPreset.WIND.value, WindPreset.WIND.value, "Moderate wind", 'CURVES_DATA', 1),
-            (WindPreset.STORM.value, WindPreset.STORM.value, "Strong storm wind", 'MOD_NOISE', 2),
+            (WindPreset.BREEZE, WindPreset.BREEZE, "Light breeze wind", 'BOIDS', 0),
+            (WindPreset.WIND, WindPreset.WIND, "Moderate wind", 'CURVES_DATA', 1),
+            (WindPreset.STORM, WindPreset.STORM, "Strong storm wind", 'MOD_NOISE', 2),
         ),
     )
 
@@ -158,11 +164,11 @@ class WindAnimationProperties(bpy.types.PropertyGroup):
         name="Target",
         description="Choose to what objects the operator should apply",
         items=[
-            ('SELECTED', "Selected Objects", "All selected objects"),
-            ('SCENE', "Scene Objects", "All objects in current scene"),
-            ('ALL', "All Objects", "All objects in the .blend file"),
+            (OperatorTarget.SELECTED, OperatorTarget.SELECTED, "All selected objects"),
+            (OperatorTarget.SCENE, OperatorTarget.SCENE, "All objects in current scene"),
+            (OperatorTarget.ALL, OperatorTarget.ALL, "All objects in the .blend file"),
         ],
-        default='SCENE',
+        default=OperatorTarget.SCENE,
     )
 
 
@@ -239,6 +245,7 @@ class AnimationsPanel(feature_utils.EngonAssetFeatureControlPanelMixin, bpy.type
             )
 
         action = animated_object.animation_data.action
+        assert action is not None
         animation_type, preset = animations.parse_action_name(action)
         animation_style = animations.get_wind_style(action)
 
@@ -257,7 +264,7 @@ class AnimationsPanel(feature_utils.EngonAssetFeatureControlPanelMixin, bpy.type
         # Style
         split = col.split(factor=split_factor, align=True)
         split.label(text="Style:")
-        split.label(text=str(animation_style.value))
+        split.label(text=str(animation_style))
 
         # Strength
         wind_strength = animations.infer_strength_from_action(action)
@@ -267,28 +274,28 @@ class AnimationsPanel(feature_utils.EngonAssetFeatureControlPanelMixin, bpy.type
             split.label(text=f"{wind_strength:.3f}x")
 
         if animation_style == WindStyle.LOOP:
-            frame_range = animations.get_frame_range(action)
-            if frame_range is not None:
-                # Loop Interval
-                loop_interval = frame_range[1] - frame_range[0]
-                split = col.split(factor=split_factor, align=True)
-                split.label(text="Loop Interval:")
-                split.label(text=f"{round(loop_interval)} frames")
+            frame_range = action.frame_range
 
-                # Duration
-                scene_interval = context.scene.frame_end - context.scene.frame_start
-                scene_fps = animations.get_scene_fps(
-                    context.scene.render.fps, context.scene.render.fps_base
-                )
-                split = col.split(factor=split_factor, align=True)
-                split.label(text="Duration:")
-                split.label(text=f"{scene_interval / scene_fps:.1f} s")
+            # Loop Interval
+            loop_interval = frame_range[1] - frame_range[0]
+            split = col.split(factor=split_factor, align=True)
+            split.label(text="Loop Interval:")
+            split.label(text=f"{round(loop_interval)} frames")
 
-                # Speed
-                speed = loop_interval / animations.get_scene_fps_adjusted_interval(scene_fps)
-                split = col.split(factor=split_factor, align=True)
-                split.label(text="Speed:")
-                split.label(text=f"{speed:.1f}x")
+            # Duration
+            scene_interval = context.scene.frame_end - context.scene.frame_start
+            scene_fps = animations.get_scene_fps(
+                context.scene.render.fps, context.scene.render.fps_base
+            )
+            split = col.split(factor=split_factor, align=True)
+            split.label(text="Duration:")
+            split.label(text=f"{scene_interval / scene_fps:.1f} s")
+
+            # Speed
+            speed = loop_interval / animations.get_scene_fps_adjusted_interval(scene_fps)
+            split = col.split(factor=split_factor, align=True)
+            split.label(text="Speed:")
+            split.label(text=f"{speed:.1f}x")
 
     def draw(self, context: bpy.types.Context):
         wind_properties = preferences.prefs_utils.get_preferences(

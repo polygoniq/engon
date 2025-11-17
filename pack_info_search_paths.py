@@ -30,7 +30,7 @@ from . import polib
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-MODULE_CLASSES: typing.List[typing.Type] = []
+MODULE_CLASSES: list[type] = []
 
 
 # ~/polygoniq_asset_packs
@@ -44,67 +44,86 @@ class PackInfoSearchPathType:
     GLOB = "glob"
 
 
-class PackInfoSearchPath(bpy.types.PropertyGroup):
-    bl_idname = "engon.PackInfoSearchPath"
-
-    enabled: bpy.props.BoolProperty(
-        name="Enabled",
-        default=True,
-        description="If set to false this path will be entirely skipped",
+@polib.serialization_bpy.serializable_class
+class PackInfoSearchPathMixin:
+    enabled: polib.serialization_bpy.Serialize(
+        bpy.props.BoolProperty(
+            name="Enabled",
+            default=True,
+            description="If set to false this path will be entirely skipped",
+        )
     )
 
-    path_type: bpy.props.EnumProperty(
-        name="Type",
-        items=(
-            (
-                PackInfoSearchPathType.INSTALL_DIRECTORY,
-                "Install Directory",
-                "Path to a directory containing Asset Pack folders. Only direct child folders are checked!",
-                'ANIM_DATA',
-                1,
+    blender_asset_library: polib.serialization_bpy.Serialize(
+        bpy.props.BoolProperty(
+            name="Register in Blender Asset Library",
+            description="Add packs in this path to Blender Asset Library File Paths",
+            default=True,
+        )
+    )
+
+    path_type: polib.serialization_bpy.Serialize(
+        bpy.props.EnumProperty(
+            name="Type",
+            items=(
+                (
+                    PackInfoSearchPathType.INSTALL_DIRECTORY,
+                    "Install Directory",
+                    "Path to a directory containing Asset Pack folders. Only direct child folders are checked!",
+                    'ANIM_DATA',
+                    1,
+                ),
+                (
+                    PackInfoSearchPathType.RECURSIVE_SEARCH,
+                    "Recursive Search",
+                    "Finds all Asset Packs inside the path's folder hierarchy",
+                    'INFO',
+                    2,
+                ),
+                (
+                    PackInfoSearchPathType.SINGLE_FILE,
+                    "Single File",
+                    "Direct path to an Asset Pack's '.pack-info' file",
+                    'DUPLICATE',
+                    3,
+                ),
+                (
+                    PackInfoSearchPathType.GLOB,
+                    "Glob Expression",
+                    "Glob for matching '.pack-info' files of Asset Packs. For power users only!",
+                    'TRASH',
+                    4,
+                ),
             ),
-            (
-                PackInfoSearchPathType.RECURSIVE_SEARCH,
-                "Recursive Search",
-                "Finds all Asset Packs inside the path's folder hierarchy",
-                'INFO',
-                2,
-            ),
-            (
-                PackInfoSearchPathType.SINGLE_FILE,
-                "Single File",
-                "Direct path to an Asset Pack's '.pack-info' file",
-                'DUPLICATE',
-                3,
-            ),
-            (
-                PackInfoSearchPathType.GLOB,
-                "Glob Expression",
-                "Glob for matching '.pack-info' files of Asset Packs. For power users only!",
-                'TRASH',
-                4,
-            ),
-        ),
-        default=PackInfoSearchPathType.INSTALL_DIRECTORY,
+            default=PackInfoSearchPathType.INSTALL_DIRECTORY,
+        )
     )
 
-    file_path: bpy.props.StringProperty(
-        name="file path",
-        subtype="FILE_PATH",
-        default=os.path.join(DEFAULT_PACK_INSTALL_PATH, "botaniq", "botaniq_full.pack-info"),
+    file_path: polib.serialization_bpy.Serialize(
+        bpy.props.StringProperty(
+            name="file path",
+            subtype="FILE_PATH",
+            default=os.path.join(DEFAULT_PACK_INSTALL_PATH, "botaniq", "botaniq_full.pack-info"),
+        )
     )
 
-    directory_path: bpy.props.StringProperty(
-        name="directory path", subtype="DIR_PATH", default=DEFAULT_PACK_INSTALL_PATH
+    directory_path: polib.serialization_bpy.Serialize(
+        bpy.props.StringProperty(
+            name="directory path", subtype="DIR_PATH", default=DEFAULT_PACK_INSTALL_PATH
+        )
     )
 
-    glob_expression: bpy.props.StringProperty(
-        name="glob expression", default=os.path.join(DEFAULT_PACK_INSTALL_PATH, "*", "*.pack-info")
+    glob_expression: polib.serialization_bpy.Serialize(
+        bpy.props.StringProperty(
+            name="glob expression",
+            default=os.path.join(DEFAULT_PACK_INSTALL_PATH, "*", "*.pack-info"),
+        )
     )
 
-    def as_dict(self) -> typing.Dict[str, str]:
+    def as_dict(self) -> dict[str, str]:
         ret = {}
         ret["enabled"] = self.enabled
+        ret["blender_asset_library"] = self.blender_asset_library
         ret["path_type"] = self.path_type
         ret["file_path"] = self.file_path
         ret["directory_path"] = self.directory_path
@@ -112,7 +131,7 @@ class PackInfoSearchPath(bpy.types.PropertyGroup):
 
         return ret
 
-    def load_from_dict(self, info_dict: typing.Dict[str, str]) -> None:
+    def load_from_dict(self, info_dict: dict[str, str]) -> None:
         enabled = info_dict.get("enabled", None)
         if enabled is None:
             raise ValueError("Given json dict does not contain a required key 'enabled'!")
@@ -122,6 +141,16 @@ class PackInfoSearchPath(bpy.types.PropertyGroup):
                 f"instead of the expected 'bool'!"
             )
         self.enabled = enabled
+
+        # This field was added after the initial release, so we are lenient to its absence
+        # and default it to True if not present.
+        blender_asset_library = info_dict.get("blender_asset_library", True)
+        if not isinstance(blender_asset_library, bool):
+            raise ValueError(
+                f"Given json dict contains blender_asset_library but its type is '{type(blender_asset_library)}' "
+                f"instead of the expected 'bool'!"
+            )
+        self.blender_asset_library = blender_asset_library
 
         path_type = info_dict.get("path_type", None)
         if path_type is None:
@@ -175,7 +204,7 @@ class PackInfoSearchPath(bpy.types.PropertyGroup):
         else:
             raise ValueError(f"Unknown Pack Info Search Path Type {self.path_type}")
 
-    def get_discovered_asset_packs(self) -> typing.List[asset_registry.AssetPack]:
+    def get_discovered_asset_packs(self) -> list[asset_registry.AssetPack]:
         if not self.enabled:
             return []
         return PackInfoSearchPath._get_discovered_asset_packs(
@@ -204,8 +233,8 @@ class PackInfoSearchPath(bpy.types.PropertyGroup):
     @functools.lru_cache(maxsize=100)
     def _get_discovered_asset_packs(
         path_type: str, file_path: str, directory_path: str, glob_expression: str
-    ) -> typing.List[asset_registry.AssetPack]:
-        discovered_packs: typing.List[asset_registry.AssetPack] = []
+    ) -> list[asset_registry.AssetPack]:
+        discovered_packs: list[asset_registry.AssetPack] = []
         generated_glob = PackInfoSearchPath._generate_glob(
             path_type, file_path, directory_path, glob_expression
         )
@@ -229,7 +258,23 @@ class PackInfoSearchPath(bpy.types.PropertyGroup):
         return discovered_packs
 
 
+# Version with property update propagation for Preferences
+@polib.serialization_bpy.preferences_propagate_property_update(
+    lambda context: context.preferences.addons[__package__].preferences.general_preferences
+)
+class PackInfoSearchPath(bpy.types.PropertyGroup, PackInfoSearchPathMixin):
+    bl_idname = "engon.PackInfoSearchPath"
+
+
 MODULE_CLASSES.append(PackInfoSearchPath)
+
+
+# Version without property update propagation for Operators
+class PackInfoSearchPathForOP(bpy.types.PropertyGroup, PackInfoSearchPathMixin):
+    bl_idname = "engon.PackInfoSearchPathForOP"
+
+
+MODULE_CLASSES.append(PackInfoSearchPathForOP)
 
 
 @polib.log_helpers_bpy.logged_operator
@@ -238,7 +283,7 @@ class ShowDiscoveredPacks(bpy.types.Operator):
     bl_label = "Show Discovered Packs"
     bl_description = "Show Asset Packs Discovered in this Search Path"
 
-    pack_info_search_path: bpy.props.PointerProperty(type=PackInfoSearchPath)
+    pack_info_search_path: bpy.props.PointerProperty(type=PackInfoSearchPathForOP)
 
     def execute(self, context: bpy.types.Context):
         discovered_packs = self.pack_info_search_path.get_discovered_asset_packs()
@@ -286,45 +331,46 @@ class MY_UL_PackInfoSearchPathList(bpy.types.UIList):
         active_propname,
         index,
     ):
-
-        if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            split = layout.split(factor=0.35, align=True)
-            row = split.row(align=True)
-            row.prop(item, "enabled", text="")
-            row.prop(item, "path_type", text="")
-            split = split.split(factor=0.75, align=True)
-            if item.path_type == PackInfoSearchPathType.SINGLE_FILE:
-                split.prop(item, "file_path", text="")
-            elif item.path_type in {
-                PackInfoSearchPathType.INSTALL_DIRECTORY,
-                PackInfoSearchPathType.RECURSIVE_SEARCH,
-            }:
-                split.prop(item, "directory_path", text="")
-            elif item.path_type == PackInfoSearchPathType.GLOB:
-                split.prop(item, "glob_expression", text="")
-            else:
-                raise ValueError(f"Unknown Pack Info Search Path Type {self.path_type}")
-            row = split.row(align=True)
-            if not item.enabled:
-                return
-            discovered_packs_count = len(item.get_discovered_asset_packs())
-            label_text = "Pack"
-            if discovered_packs_count != 1:
-                label_text += "s"
-            row.label(text=f"{str(discovered_packs_count)} {label_text}")
-            op = row.operator(ShowDiscoveredPacks.bl_idname, icon='PRESET', text="")
-            # We cannot assign the whole item into pack_info_search_path
-            # because PointerProperty inside an Operator is read-only
-            # We have to assign each property manually
-            op.pack_info_search_path.enabled = item.enabled
-            op.pack_info_search_path.path_type = item.path_type
-            op.pack_info_search_path.file_path = item.file_path
-            op.pack_info_search_path.directory_path = item.directory_path
-            op.pack_info_search_path.glob_expression = item.glob_expression
-
-        elif self.layout_type == 'GRID':
-            layout.alignment = 'CENTER'
-            layout.label(text="")
+        split = layout.split(factor=0.35, align=True)
+        row = split.row(align=True)
+        row.prop(item, "enabled", text="")
+        row.prop(
+            item,
+            "blender_asset_library",
+            text="Blender Asset Browser",
+            icon='ASSET_MANAGER',
+            toggle=True,
+        )
+        row.prop(item, "path_type", text="")
+        split = split.split(factor=0.75, align=True)
+        if item.path_type == PackInfoSearchPathType.SINGLE_FILE:
+            split.prop(item, "file_path", text="")
+        elif item.path_type in {
+            PackInfoSearchPathType.INSTALL_DIRECTORY,
+            PackInfoSearchPathType.RECURSIVE_SEARCH,
+        }:
+            split.prop(item, "directory_path", text="")
+        elif item.path_type == PackInfoSearchPathType.GLOB:
+            split.prop(item, "glob_expression", text="")
+        else:
+            raise ValueError(f"Unknown Pack Info Search Path Type {self.path_type}")
+        row = split.row(align=True)
+        if not item.enabled:
+            return
+        discovered_packs_count = len(item.get_discovered_asset_packs())
+        label_text = "Pack"
+        if discovered_packs_count != 1:
+            label_text += "s"
+        row.label(text=f"{str(discovered_packs_count)} {label_text}")
+        op = row.operator(ShowDiscoveredPacks.bl_idname, icon='PRESET', text="")
+        # We cannot assign the whole item into pack_info_search_path
+        # because PointerProperty inside an Operator is read-only
+        # We have to assign each property manually
+        op.pack_info_search_path.enabled = item.enabled
+        op.pack_info_search_path.path_type = item.path_type
+        op.pack_info_search_path.file_path = item.file_path
+        op.pack_info_search_path.directory_path = item.directory_path
+        op.pack_info_search_path.glob_expression = item.glob_expression
 
 
 MODULE_CLASSES.append(MY_UL_PackInfoSearchPathList)

@@ -31,14 +31,14 @@ from .. import utils
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-MODULE_CLASSES: typing.List[typing.Type] = []
+MODULE_CLASSES: list[type] = []
 
 
 FRONT_PLATE_PARENT_NAME_SUFFIX = "_License-Plate_F"
 BACK_PLATE_PARENT_NAME_SUFFIX = "_License-Plate_B"
 
 
-def get_license_plate_modifier(obj: bpy.types.Object) -> typing.Optional[bpy.types.NodesModifier]:
+def get_license_plate_modifier(obj: bpy.types.Object) -> bpy.types.NodesModifier | None:
     mods = polib.geonodes_mod_utils_bpy.get_geometry_nodes_modifiers_by_node_group(
         obj,
         asset_helpers.TQ_LICENSE_PLATE_NODE_GROUP_NAME_PREFIX,

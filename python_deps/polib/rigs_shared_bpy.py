@@ -55,7 +55,7 @@ class RigDrivers:
         self,
         constraint: bpy.types.CopyLocationConstraint,
         driver_data_path: str,
-        base_influence: typing.Optional[float] = 1.0,
+        base_influence: float | None = 1.0,
     ) -> None:
         fcurve = constraint.driver_add("influence")
         drv = fcurve.driver

@@ -29,7 +29,7 @@ from .. import asset_registry
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-MODULE_CLASSES: typing.List[typing.Any] = []
+MODULE_CLASSES: list[typing.Any] = []
 
 
 @polib.log_helpers_bpy.logged_operator
@@ -80,7 +80,7 @@ def draw_category_pills_header(
     right.alignment = 'LEFT'
 
     # Draw non-embossed clickable operator buttons of 'current_category' and parent categories
-    category_parts: typing.List[str] = list(filter(None, current_category.split("/")))
+    category_parts: list[str] = list(filter(None, current_category.split("/")))
     # Always insert empty entry so the join starts with "/"
     category_parts.insert(0, "")
 
@@ -125,7 +125,7 @@ def draw_tree_category_navigation(
     )
 
     # Draw non-embossed clickable operator buttons of 'current_category' and parent categories
-    category_parts: typing.List[str] = list(filter(None, current_category.split("/")))
+    category_parts: list[str] = list(filter(None, current_category.split("/")))
     # Always insert empty entry so the join starts with "/"
     category_parts.insert(0, "")
     max_nesting = len(category_parts)
@@ -133,20 +133,7 @@ def draw_tree_category_navigation(
     separator_factor = 1.0
     col = layout.box().column(align=True)
     master_provider = asset_registry.instance.master_asset_provider
-
-    asset_packs = asset_registry.instance.get_registered_packs()
-    category_to_icon_id: typing.Dict[str, int] = {}
-    for asset_pack in asset_packs:
-        # Theoretically asset packs may override icons registered by the previous pack in this loop
-        # if they have the same file_id_prefix. We don't have any way how to find the best icon
-        # in that case, so the last one is as good as any.
-        # TODO: Currently file_id_prefix is the same as main asset pack category. But it doesn't
-        # need to hold in the future. E.g. when someone would release asset pack with
-        # file_id_prefix="coniferous" we would display their icon also for botaniq/coniferous.
-        category_name = asset_pack.file_id_prefix.strip("/")
-        asset_pack_icon_id = asset_pack.get_pack_icon_id()
-        if asset_pack_icon_id is not None:
-            category_to_icon_id[category_name] = asset_pack_icon_id
+    category_to_icon_id = asset_registry.instance.get_category_icons_map()
 
     for i, category_part in enumerate(category_parts):
         category = master_provider.get_category_safe(
@@ -181,11 +168,200 @@ def draw_tree_category_navigation(
         ).category_id = category.id_
 
 
+def draw_ui_list_tree_category_navigation(
+    context: bpy.types.Context, layout: bpy.types.UILayout
+) -> None:
+    layout.template_list(
+        MAPR_UL_CategoryNavigationList.__name__,
+        "",
+        get_category_navigation(context),
+        "categories",
+        get_category_navigation(context),
+        "active_category_index",
+        rows=10,
+    )
+
+
+@polib.log_helpers_bpy.logged_operator
+class ExpandCategory(bpy.types.Operator):
+    bl_idname = "engon.browser_expand_category"
+    bl_description = "Expand the category to show content inside"
+    bl_label = "Expand Category"
+    bl_options = {'REGISTER'}
+
+    category_id: bpy.props.StringProperty(
+        default="/",
+        options={'HIDDEN'},
+    )
+
+    def execute(self, context: bpy.types.Context):
+        get_category_navigation(context).toggle_expand_category(self.category_id)
+        return {'FINISHED'}
+
+
+MODULE_CLASSES.append(ExpandCategory)
+
+
+class CategoryNavigationEntry(bpy.types.PropertyGroup):
+    """Entry in category navigation list, used by Category_UL_NavigationList.
+
+    This data is not directly presented to the user, but is used to render the UI list.
+    """
+
+    # the default bpy.types.PropertyGroup.name is used as the category ID
+    title: bpy.props.StringProperty()
+    level: bpy.props.IntProperty()
+    is_expanded: bpy.props.BoolProperty()
+    is_leaf: bpy.props.BoolProperty(default=False)
+    icon_id: bpy.props.IntProperty(default=-1)
+
+
+MODULE_CLASSES.append(CategoryNavigationEntry)
+
+
+class MAPR_UL_CategoryNavigationList(bpy.types.UIList):
+    """Displays single entry in the category navigation list."""
+
+    def draw_item(
+        self,
+        context: bpy.types.Context,
+        layout: bpy.types.UILayout,
+        data: typing.Any,
+        item: CategoryNavigationEntry,
+        icon: int,
+        active_data: typing.Any,
+        active_propname: str,
+        index: int,
+        flt_flag: int,
+    ) -> None:
+        self.use_filter_show = False
+
+        row = layout.row(align=True)
+        row.alignment = 'LEFT'
+        padding = " " * (item.level * 2)
+        # Root doesn't have any padding
+        if item.level != 0:
+            row.label(text=padding)
+
+        if not item.is_leaf:
+            row.operator(
+                ExpandCategory.bl_idname,
+                text="",
+                icon='TRIA_DOWN' if item.is_expanded else 'TRIA_RIGHT',
+                emboss=False,
+            ).category_id = item.name
+        else:
+            # blank icon to keep alignment
+            row.label(icon='BLANK1')
+
+        if item.icon_id != -1:
+            row.label(text=f"{item.title}", icon_value=item.icon_id)
+        else:
+            row.label(text=f"{item.title}", icon='FILE_FOLDER')
+
+
+MODULE_CLASSES.append(MAPR_UL_CategoryNavigationList)
+
+
+class CategoryNavigation(bpy.types.PropertyGroup):
+    """Holds the state for category navigation UI list.
+
+    The categories collection needs to be rebuild whenever category is expanded as the collection
+    has to contain only currently visible categories, because the UIList draws each item in the
+    collection. First level is always expanded.
+    """
+
+    categories: bpy.props.CollectionProperty(type=CategoryNavigationEntry)
+    active_category_index: bpy.props.IntProperty(
+        name="Enter Category",
+        update=lambda self, context: self.category_index_changed(context),
+    )
+
+    def category_index_changed(self, context: bpy.types.Context) -> None:
+        if self.active_category_index < 0 or self.active_category_index >= len(self.categories):
+            return
+        category_id = self.categories[self.active_category_index].name
+        MAPR_BrowserEnterCategory.enter_category(context, category_id)
+
+    def toggle_expand_category(self, category_id: str) -> None:
+        category_item = self.categories.get(category_id)
+        category_item.is_expanded = not category_item.is_expanded
+        self.rebuild_categories()
+
+    def rebuild_categories(self) -> None:
+        # save the state of expanded categories
+        previously_expanded_categories = {item.name for item in self.categories if item.is_expanded}
+        previous_active_category = (
+            self.categories[self.active_category_index].name
+            if (0 <= self.active_category_index < len(self.categories))
+            else None
+        )
+
+        self.categories.clear()
+        master_provider = asset_registry.instance.master_asset_provider
+        category_to_icon_id = asset_registry.instance.get_category_icons_map()
+
+        def build_category(category_id: str, level: int) -> None:
+            # Recursively build the list of categories to display. Include the category and
+            # include it's children if the category is expanded.
+            category = master_provider.get_category_safe(category_id)
+            child_categories = list(master_provider.list_sorted_categories(category_id))
+            is_leaf = len(child_categories) == 0
+            item = self.categories.add()
+            item.name = category.id_
+            item.title = category.title
+            item.level = level
+            item.is_leaf = is_leaf
+            item.is_expanded = category.id_ in previously_expanded_categories or level == 0
+            item.icon_id = category_to_icon_id.get(category_id.strip("/"), -1)
+            if item.is_expanded and not is_leaf:
+                for child_category in child_categories:
+                    build_category(child_category.id_, level + 1)
+
+        build_category("/", 0)
+
+        # Ensure correct category is still active even when the list was rebuilt
+        if previous_active_category is not None and previous_active_category in self.categories:
+            for i, item in enumerate(self.categories):
+                if item.name == previous_active_category:
+                    self.active_category_index = i
+                    break
+        else:
+            # The previously active category is no longer visible
+            self.active_category_index = -1
+
+
+MODULE_CLASSES.append(CategoryNavigation)
+
+
+def get_category_navigation(context: bpy.types.Context) -> CategoryNavigation:
+    return context.window_manager.pq_category_navigation
+
+
+def on_registry_refreshed() -> None:
+    get_category_navigation(bpy.context).rebuild_categories()
+
+
+@bpy.app.handlers.persistent
+def on_post_load(_) -> None:
+    get_category_navigation(bpy.context).rebuild_categories()
+
+
 def register():
     for cls in MODULE_CLASSES:
         bpy.utils.register_class(cls)
 
+    bpy.types.WindowManager.pq_category_navigation = bpy.props.PointerProperty(
+        type=CategoryNavigation
+    )
+    asset_registry.instance.on_refresh.append(on_registry_refreshed)
+    bpy.app.handlers.load_post.append(on_post_load)
+
 
 def unregister():
+    bpy.app.handlers.load_post.remove(on_post_load)
+    asset_registry.instance.on_refresh.remove(on_registry_refreshed)
+
+    del bpy.types.WindowManager.pq_category_navigation
     for cls in reversed(MODULE_CLASSES):
         bpy.utils.unregister_class(cls)

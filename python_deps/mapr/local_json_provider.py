@@ -23,7 +23,7 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
         index_file_path: str,
         file_id_folder_path: str,
         file_id_prefix: str,
-        index_json_override: typing.Optional[typing.Dict] = None,
+        index_json_override: dict | None = None,
     ):
         """Dual purpose asset and file provider, index is loaded from JSON, all files from disk
 
@@ -42,31 +42,31 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
         self.index_json_override = index_json_override
 
         # maps category ID to IDs of its child categories
-        self.child_categories: typing.DefaultDict[
-            category.CategoryID, typing.List[category.CategoryID]
+        self.child_categories: collections.defaultdict[
+            category.CategoryID, list[category.CategoryID]
         ] = collections.defaultdict(list)
         # maps category ID to IDs of its child assets
-        self.child_assets: typing.DefaultDict[category.CategoryID, typing.List[asset.AssetID]] = (
+        self.child_assets: collections.defaultdict[category.CategoryID, list[asset.AssetID]] = (
             collections.defaultdict(list)
         )
 
         # maps asset ID to IDs of categories it is in (including parents recursively)
-        self.asset_categories: typing.DefaultDict[
-            asset.AssetID, typing.Set[category.CategoryID]
-        ] = collections.defaultdict(set)
+        self.asset_categories: collections.defaultdict[asset.AssetID, set[category.CategoryID]] = (
+            collections.defaultdict(set)
+        )
 
         # maps category ID to its metadata
-        self.categories: typing.Dict[category.CategoryID, category.Category] = {}
+        self.categories: dict[category.CategoryID, category.Category] = {}
         # maps asset ID to its metadata
-        self.assets: typing.Dict[asset.AssetID, asset.Asset] = {}
+        self.assets: dict[asset.AssetID, asset.Asset] = {}
         # maps asset data ID to its data
-        self.asset_data: typing.Dict[asset_data.AssetDataID, asset_data.AssetData] = {}
+        self.asset_data: dict[asset_data.AssetDataID, asset_data.AssetData] = {}
         # maps datablock basename to its FileID
-        self.basenames_to_file_ids: typing.Dict[str, file_provider.FileID] = {}
+        self.basenames_to_file_ids: dict[str, file_provider.FileID] = {}
 
         self.load_index()
 
-    def materialize_file(self, file_id: file_provider.FileID) -> typing.Optional[str]:
+    def materialize_file(self, file_id: file_provider.FileID) -> str | None:
         if not file_id.startswith(f"{self.file_id_prefix}:"):
             return None
 
@@ -81,8 +81,8 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
         )
         return None
 
-    def get_file_id_from_basename(self, basename: str) -> typing.Optional[file_provider.FileID]:
-        file_id: typing.Optional[file_provider.FileID] = None
+    def get_file_id_from_basename(self, basename: str) -> file_provider.FileID | None:
+        file_id: file_provider.FileID | None = None
 
         # Our texture compression pipeline may have switched from jpg to png or vice versa.
         if basename.endswith((".jpg", ".png")):
@@ -118,7 +118,7 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
                 preview_file=category_metadata_json.get("preview_file", None),
             )
 
-        asset_to_category_id: typing.Dict[str, str] = {}
+        asset_to_category_id: dict[str, str] = {}
         for child_category_id, asset_ids in self.child_assets.items():
             for asset_id in asset_ids:
                 asset_to_category_id[asset_id] = child_category_id
@@ -131,7 +131,7 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
             vector_parameters = asset_metadata_json.get("vector_parameters", {})
             vector_parameters.update(asset_metadata_json.get("color_parameters", {}))
 
-            foreign_search_matter: typing.Dict[str, float] = {}
+            foreign_search_matter: dict[str, float] = {}
             foreign_search_matter.update(
                 {
                     self.categories[category_id].title: category.TITLE_SEARCH_WEIGHT
@@ -180,9 +180,7 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
             self.assets[asset_id] = asset_metadata
 
         for asset_data_id, asset_data_json in index_json.get("asset_data", {}).items():
-            asset_data_class: typing.Optional[typing.Type[blender_asset_data.BlenderAssetData]] = (
-                None
-            )
+            asset_data_class: type[blender_asset_data.BlenderAssetData] | None = None
             asset_data_type = asset_data_json.get("type")
             if asset_data_type == "blender_model":
                 asset_data_class = blender_asset_data.BlenderModelAssetData
@@ -244,27 +242,25 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
     ) -> typing.Iterable[asset_data.AssetDataID]:
         yield from self.child_asset_data.get(asset_id, [])
 
-    def get_category(self, category_id: category.CategoryID) -> typing.Optional[category.Category]:
+    def get_category(self, category_id: category.CategoryID) -> category.Category | None:
         return self.categories.get(category_id, None)
 
-    def get_asset(self, asset_id: asset.AssetID) -> typing.Optional[asset.Asset]:
+    def get_asset(self, asset_id: asset.AssetID) -> asset.Asset | None:
         return self.assets.get(asset_id, None)
 
-    def get_asset_data(
-        self, asset_data_id: asset_data.AssetDataID
-    ) -> typing.Optional[asset_data.AssetData]:
+    def get_asset_data(self, asset_data_id: asset_data.AssetDataID) -> asset_data.AssetData | None:
         return self.asset_data.get(asset_data_id, None)
 
     def map_assets_to_categories(
         self,
-    ) -> typing.DefaultDict[asset.AssetID, typing.Set[category.CategoryID]]:
+    ) -> collections.defaultdict[asset.AssetID, set[category.CategoryID]]:
         """Returns a mapping of asset ID to category IDs it is in, including parent categories.
 
         Constructed based on 'child_asset_data' and 'child_categories' mappings. These
         should be populated prior to calling this method.
         """
         # Reverse mapping of child to parent categories
-        category_parent_mapping: typing.Dict[category.CategoryID, category.CategoryID] = {}
+        category_parent_mapping: dict[category.CategoryID, category.CategoryID] = {}
         for parent, children in self.child_categories.items():
             category_parent_mapping.update({child: parent for child in children})
 
@@ -275,7 +271,7 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
                 all_parents.add(parent)
                 find_parents(parent, all_parents)
 
-        asset_to_categories: typing.DefaultDict[asset.AssetID, typing.Set[category.CategoryID]] = (
+        asset_to_categories: collections.defaultdict[asset.AssetID, set[category.CategoryID]] = (
             collections.defaultdict(set)
         )
         for category_id, asset_ids in self.child_assets.items():

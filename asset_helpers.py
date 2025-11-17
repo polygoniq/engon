@@ -83,6 +83,12 @@ TQ_COLOR_DISTRIBUTION = (
     (0.8, (0.004, 0.004, 0.004)),  # 0E0E0E
 )
 
+# aesthetiq constants
+SQ_PICTORAL_MATERIALS_LIBRARY_BLEND = "sq_Library_Pictoral-Materials.blend"
+SQ_PICTORIAL_MATERIAL_PREFIX = "sq_Pictoral_"  # todo: fix typo in "Pictoral" in material names
+SQ_FRAME_GENERATOR_LIBRARY_BLEND = "sq_Library_Frame-Generator-Geonodes.blend"
+SQ_FRAME_GENERATOR_MODIFIER = "sq_Frame-Generator"
+SQ_FRAME_GENERATOR_OBJECT = "sq_Frame-generator"
 
 PARTICLE_SYSTEM_PREFIX = f"engon_{polib.asset_pack.PARTICLE_SYSTEM_TOKEN}_"
 
@@ -144,7 +150,7 @@ def is_obj_with_engon_feature(
     return feature in asset_pack.engon_features
 
 
-def is_object_from_seasons(obj: bpy.types.Object, seasons: typing.Set[str]) -> bool:
+def is_object_from_seasons(obj: bpy.types.Object, seasons: set[str]) -> bool:
     pure_name = polib.utils_bpy.remove_object_duplicate_suffix(obj.name)
     name_split = pure_name.rsplit("_", 3)
     if len(name_split) != 4:
@@ -185,9 +191,7 @@ def get_materialiq_texture_sizes_enum_items():
     return [(str(size), str(size), f"materialiq texture size: {size}") for size in texture_sizes]
 
 
-def get_asset_pack_library_path(
-    engon_feature: str, library_blend_name: str
-) -> typing.Optional[str]:
+def get_asset_pack_library_path(engon_feature: str, library_blend_name: str) -> str | None:
     for pack in asset_registry.instance.get_packs_by_engon_feature(engon_feature):
         for lib in glob.iglob(
             os.path.join(pack.install_path, "blends", "**", library_blend_name), recursive=True
@@ -213,17 +217,15 @@ def exclude_variant_from_asset_name(asset_name: str) -> str:
     return "_".join([category, name, seasons])
 
 
-class ObjectSource(enum.Enum):
-    editable = (0,)
-    instanced = (1,)
-    particles = (2,)
+class ObjectSource(enum.StrEnum):
+    EDITABLE = "EDITABLE"
+    INSTANCED = "INSTANCED"
+    PARTICLES = "PARTICLES"
 
 
 ObjectSourceMap = typing.Mapping[
     str,
-    typing.List[
-        typing.Tuple[ObjectSource, typing.Union[bpy.types.Object, bpy.types.ParticleSystem]]
-    ],
+    list[tuple[ObjectSource, bpy.types.Object | bpy.types.ParticleSystem]],
 ]
 
 
@@ -257,15 +259,15 @@ def get_obj_source_map(objs: typing.Iterable[bpy.types.Object]) -> ObjectSourceM
             and obj.instance_collection is not None
         ):
             for o in obj.instance_collection.all_objects:
-                m[o.name].append((ObjectSource.instanced, obj))
+                m[o.name].append((ObjectSource.INSTANCED, obj))
 
         elif obj.type == 'MESH':
             for ps in obj.particle_systems:
                 if ps.settings.instance_collection is not None:
                     for o in ps.settings.instance_collection.all_objects:
-                        m[o.name].append((ObjectSource.particles, ps))
+                        m[o.name].append((ObjectSource.PARTICLES, ps))
 
-            m[obj.name].append((ObjectSource.editable, obj))
+            m[obj.name].append((ObjectSource.EDITABLE, obj))
     return m
 
 
@@ -332,7 +334,7 @@ def gather_curves_instanced_objects(
                 yield from instance_collection.collection.all_objects
 
 
-def get_car_color() -> typing.Tuple[float, float, float]:
+def get_car_color() -> tuple[float, float, float]:
     value = random.random()
     idx = bisect.bisect(TQ_COLOR_DISTRIBUTION, value, key=lambda x: x[0]) - 1
     return TQ_COLOR_DISTRIBUTION[idx][1]

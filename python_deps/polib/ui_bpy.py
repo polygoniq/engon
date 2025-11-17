@@ -2,7 +2,6 @@
 # copyright (c) 2018- polygoniq xyz s.r.o.
 
 import bpy
-import bpy_extras.io_utils
 import sys
 import typing
 import re
@@ -33,9 +32,7 @@ class SocialMediaURL:
     GUMROAD = "https://gumroad.com/polygoniq"
 
 
-def get_asset_pack_icon_parameters(
-    icon_id: typing.Optional[int], bpy_icon_name: str
-) -> typing.Dict:
+def get_asset_pack_icon_parameters(icon_id: int | None, bpy_icon_name: str) -> dict:
     """Returns dict of parameters that can be expanded in UILayout.label()
 
     Uses our icon with given 'icon_id' and populates the 'icon_value',
@@ -95,7 +92,7 @@ def draw_settings_footer(layout: bpy.types.UILayout):
 
 
 def draw_message_in_lines(
-    layout: bpy.types.UILayout, message: str, max_chars: typing.Optional[int] = None
+    layout: bpy.types.UILayout, message: str, max_chars: int | None = None
 ) -> None:
     lines = message.split("\n")
     for line in lines:
@@ -110,7 +107,7 @@ def draw_message_in_lines(
 
 
 def show_message_box(
-    message: str, title: str, icon: str = 'INFO', max_chars: typing.Optional[int] = None
+    message: str, title: str, icon: str = 'INFO', max_chars: int | None = None
 ) -> None:
     if bpy.app.background:
         logger.warning(
@@ -128,8 +125,8 @@ def show_message_box(
 
 
 def multi_column(
-    layout: bpy.types.UILayout, column_sizes: typing.List[float], align: bool = False
-) -> typing.List[bpy.types.UILayout]:
+    layout: bpy.types.UILayout, column_sizes: list[float], align: bool = False
+) -> list[bpy.types.UILayout]:
     columns = []
     for i in range(len(column_sizes)):
         # save first column, create split from the other with recalculated size
@@ -174,7 +171,7 @@ def collapsible_box(
     show_prop_name: str,
     title: str,
     content_draw: typing.Callable[[bpy.types.UILayout], None],
-    docs_module: typing.Optional[str] = None,
+    docs_module: str | None = None,
     docs_rel_url: str = "",
 ) -> bpy.types.UILayout:
     """Creates a collapsible box with 'title' and 'content' inside, based on 'layout'.
@@ -208,7 +205,7 @@ def collapsible_box(
 
 def get_mouseovered_region(
     context: bpy.types.Context, event: bpy.types.Event
-) -> typing.Tuple[typing.Optional[bpy.types.Area], typing.Optional[bpy.types.Region]]:
+) -> tuple[bpy.types.Area | None, bpy.types.Region | None]:
     """Returns tuple (area, region) of underlying area and region in mouse event 'event'"""
 
     # Method taken from the 'Screencast Keys' addon
@@ -227,11 +224,11 @@ def get_mouseovered_region(
 
 
 def get_area_region_space(
-    context: bpy.types.Context, area_type: str, region_type: str, space_type: typing.Optional[str]
-) -> typing.Tuple[
-    typing.Optional[bpy.types.Area],
-    typing.Optional[bpy.types.Region],
-    typing.Optional[bpy.types.Space],
+    screen: bpy.types.Screen, area_type: str, region_type: str, space_type: str | None
+) -> tuple[
+    bpy.types.Area | None,
+    bpy.types.Region | None,
+    bpy.types.Space | None,
 ]:
     """Returns tuple (area, region, space) of area, region and space based on their types
 
@@ -239,7 +236,7 @@ def get_area_region_space(
     If any of the input types is not found, (None, None, None) is returned.
     """
 
-    for area in context.screen.areas:
+    for area in screen.areas:
         if area.type == area_type:
             break
     else:
@@ -260,21 +257,19 @@ def get_area_region_space(
     return None, None, None
 
 
-def tag_areas_redraw(
-    context: bpy.types.Context, area_types: typing.Optional[typing.Set[str]] = None
-) -> None:
+def tag_areas_redraw(context: bpy.types.Context, area_types: set[str] | None = None) -> None:
     for window in context.window_manager.windows:
         for area in window.screen.areas:
             if area_types is None or area.type in area_types:
                 area.tag_redraw()
 
 
-def get_all_space_types() -> typing.Dict[str, bpy.types.Space]:
+def get_all_space_types() -> dict[str, bpy.types.Space]:
     """Returns mapping of space type to its class - 'VIEW_3D -> bpy.types.SpaceView3D"""
 
     # Code taken and adjusted from ScreenCastKeys addon -> https://github.com/nutti/Screencast-Keys/
     def add_if_exist(
-        cls_name: str, space_name: str, space_types: typing.Dict[str, bpy.types.Space]
+        cls_name: str, space_name: str, space_types: dict[str, bpy.types.Space]
     ) -> None:
         cls = getattr(sys.modules["bpy.types"], cls_name, None)
         if cls is not None:
@@ -376,7 +371,7 @@ def show_release_notes_popup(
             row.scale_y = 1.2
             row.operator(update_operator_bl_idname, text="Update", icon='IMPORT')
 
-    if bpy.app.version >= (4, 2, 0) and not bpy.app.online_access:
+    if not bpy.app.online_access:
         show_message_box(
             "This requires online access. You have to \"Allow Online Access\" in "
             "\"Preferences -> System -> Network\" to proceed",
@@ -416,7 +411,7 @@ def show_release_notes_popup(
 
 
 def draw_conflicting_addons(
-    layout: bpy.types.UILayout, module_name: str, conflicts: typing.List[str]
+    layout: bpy.types.UILayout, module_name: str, conflicts: list[str]
 ) -> None:
     """Draws a list of conflicting addons based on the 'module_name' name in 'layout'."""
     if len(conflicts) == 0:
@@ -440,55 +435,3 @@ def draw_conflicting_addons(
         text="This message will disappear after RESTARTING Blender with the conflicting addons removed!"
     )
     sub.label(text="Click documentation button in the corner for more info.", icon='HELP')
-
-
-class SelectFolderPathMixin(bpy_extras.io_utils.ImportHelper):
-    """Mixin class for directory properties that can be used in operator dialogs.
-
-    We have to use a custom operator for this because opening a file dialog inside an operator dialog
-    makes it crash. This behavior is fixed in Blender 4.1 but we have to support Blender 3.6.
-
-    If used in a classic UILayout, just point the folder property to the 'self.filepath'. If used inside
-    an operator dialog, do the same but return that operator's `bpy.ops` call with 'INVOKE_DEFAULT'
-    at the end of its execute.
-    """
-
-    bl_label = "Select Path"
-    bl_options = {'REGISTER', 'INTERNAL'}
-
-    # Empty filer_glob to show folders only
-    filter_glob: bpy.props.StringProperty(default="", options={'HIDDEN'})
-
-
-BpyOperator = typing.TypeVar("BpyOperator", bound=bpy.types.Operator)
-
-
-class OperatorButtonLoader(typing.Generic[BpyOperator]):
-    """Helper class for assigning properties to an operator that will be used as a button.
-
-    How to use:
-    For an operator that would be used as a button like this:
-        op = layout.operator(SomeOperator.bl_idname, text="Push me", icon='NONE')
-        op.some_property = 42
-        op.another_property = "Hello"
-
-    We can use this class to package the properties to be assigned while still
-    being able to change the text, icon, etc. of the button:
-        loader = OperatorButtonLoader(SomeOperator, some_property=42, another_property="Hello")
-        loader.draw_button(layout, text="Push me", icon='NONE')
-
-    This way we can prepare what properties we want to assign to the operator and then pass
-    this information to other functions that will draw the button.
-    """
-
-    def __init__(self, operator: typing.Type[BpyOperator], **operator_props):
-        self.bl_idname = operator.bl_idname
-        self.operator_props = operator_props
-
-    def draw_button(
-        self, layout: bpy.types.UILayout, **operator_kwargs
-    ) -> bpy.types.OperatorProperties:
-        op = layout.operator(self.bl_idname, **operator_kwargs)
-        for prop, value in self.operator_props.items():
-            setattr(op, prop, value)
-        return op

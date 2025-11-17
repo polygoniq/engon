@@ -26,7 +26,7 @@ from .. import polib
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-MODULE_CLASSES: typing.List[typing.Any] = []
+MODULE_CLASSES: list[typing.Any] = []
 
 
 @polib.log_helpers_bpy.logged_operator
@@ -39,6 +39,7 @@ class ReplaceMaterial(bpy.types.Operator):
     mat_orig_name: bpy.props.StringProperty(
         name="Original Material Name",
         maxlen=63,
+        options={'SKIP_SAVE'},
     )
     mat_rep_name: bpy.props.StringProperty(
         name="Replacement Material Name",
@@ -77,7 +78,7 @@ class ReplaceMaterial(bpy.types.Operator):
         mat_orig = bpy.data.materials.get(self.mat_orig_name, None)
         mat_rep = bpy.data.materials.get(self.mat_rep_name, None)
 
-        errors_messages: typing.List[str] = []
+        errors_messages: list[str] = []
 
         if mat_orig is None:
             errors_messages.append(f"Material '{self.mat_orig_name}' does not exist!")

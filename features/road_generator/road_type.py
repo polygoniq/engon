@@ -50,34 +50,34 @@ class RoadType:
         name: str,
         filepath: str,
         main_obj: bpy.types.Object,
-        mods_input_map: typing.Dict[str, polib.geonodes_mod_utils_bpy.NodesModifierInput],
+        mods_input_map: dict[str, polib.geonodes_mod_utils_bpy.NodesModifierInput],
     ):
         self.name = name
         self.filepath = filepath
         self.source_obj = main_obj
-        self.curve_obj: typing.Optional[bpy.types.Object] = None
+        self.curve_obj: bpy.types.Object | None = None
         self.mods_input_map = mods_input_map
         self.total_width = 0.0
         self.road_surface_width = 0.0
         self.road_surface_height = 0.0
         # Mappings for each modifier and each of its input and values for profiles, outer profiles
         # and road markings. The inputs are 1:1 to the library.
-        self.profiles: typing.List[typing.Dict[str, typing.Any]] = []
-        self.road_markings: typing.List[typing.Dict[str, typing.Any]] = []
-        self.first_road_surface_material: typing.Optional[bpy.types.Material] = None
+        self.profiles: list[dict[str, typing.Any]] = []
+        self.road_markings: list[dict[str, typing.Any]] = []
+        self.first_road_surface_material: bpy.types.Material | None = None
 
         for mod_name in mods_input_map:
             mod_input = mods_input_map[mod_name]
-            if mod_input.node_group.name == asset_helpers.RoadNodegroup.RoadProfile.value:
+            if mod_input.node_group.name == asset_helpers.RoadNodegroup.RoadProfile:
                 self._parse_profile_input(mod_input.inputs)
-            if mod_input.node_group.name == asset_helpers.RoadNodegroup.Markings.value:
+            if mod_input.node_group.name == asset_helpers.RoadNodegroup.Markings:
                 self._parse_road_mark_input(mod_input.inputs)
 
         self.half_width = self.total_width / 2.0
         self._calculate_road_surface_properties()
 
         # Outer profiles are the last ones after road surface in horizontal cut
-        self.outer_profiles: typing.List[typing.Dict[str, typing.Any]] = []
+        self.outer_profiles: list[dict[str, typing.Any]] = []
         for profile in reversed(self.profiles):
             # Skip profiles excluded from width stack that are offset by less than road width
             if (
@@ -125,9 +125,7 @@ class RoadType:
             # to a boolean type input above 3.6.
             mod.node_group = mod_input.node_group
 
-    def get_curve_obj(
-        self, collection: typing.Optional[bpy.types.Collection] = None
-    ) -> bpy.types.Object:
+    def get_curve_obj(self, collection: bpy.types.Collection | None = None) -> bpy.types.Object:
         """Returns curve object for this road type.
 
         If no object is present the object is created and linked into 'collection'."""
@@ -228,7 +226,7 @@ class RoadTypeBlendLoader:
     """Loads RoadType(s) from .blend files and stores them."""
 
     def __init__(self):
-        self.road_type_data: typing.Dict[str, RoadType] = {}
+        self.road_type_data: dict[str, RoadType] = {}
 
     def load_dir(self, dir_path: str) -> None:
         """Load road types from 'dir_path'
@@ -281,13 +279,13 @@ class RoadTypeBlendLoader:
             polib.geonodes_mod_utils_bpy.get_modifiers_inputs_map(main_obj.modifiers),
         )
 
-    def get_road_type_by_name(self, name: str) -> typing.Optional[RoadType]:
+    def get_road_type_by_name(self, name: str) -> RoadType | None:
         return self.road_type_data.get(name, None)
 
-    def get_road_types(self) -> typing.List[RoadType]:
+    def get_road_types(self) -> list[RoadType]:
         return list(self.road_type_data.values())
 
-    def get_road_types_as_enum_items(self) -> typing.List[typing.Tuple[str, str, str]]:
+    def get_road_types_as_enum_items(self) -> list[tuple[str, str, str]]:
         enum_items = []
         for name, data in self.road_type_data.items():
             nice_name = name.replace("tq_", "").replace("_", " ")

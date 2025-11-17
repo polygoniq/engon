@@ -5,6 +5,7 @@ import os
 import json
 import re
 import typing
+import collections.abc
 import pathlib
 import sys
 import logging
@@ -14,7 +15,7 @@ logger = logging.getLogger(f"polygoniq.{__name__}")
 
 BLENDER_VERSION_RE = re.compile(r"^(\d+)\.(\d+)$")
 
-CONFIG_EXT = ".confiq"
+CONFIG_EXT = ".json"
 
 
 def get_global_config_dir(addon_name: str, create: bool = False) -> pathlib.Path:
@@ -48,19 +49,19 @@ def get_config_file_name(config_name: str) -> str:
     return f"{config_name}{CONFIG_EXT}"
 
 
-def save_config(path: pathlib.Path, data: typing.Dict, pretty_print: bool = False) -> None:
+def save_config(path: pathlib.Path, data: typing.Any, pretty_print: bool = False) -> None:
     with path.open("w", encoding="utf-8") as f:
         json.dump(data, f, indent=4 if pretty_print else None)
 
 
-def load_config(path: pathlib.Path) -> typing.Dict:
+def load_config(path: pathlib.Path) -> typing.Any:
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
 
 
 def list_versions_with_config(
     addon_name: str, config_name: str, exclude_current: bool = False
-) -> typing.Iterator[typing.Tuple[str, pathlib.Path]]:
+) -> collections.abc.Iterator[tuple[str, pathlib.Path]]:
     """Search for the config file in 'config' folder of other Blender versions.
 
     Returns an iterator of all Blender versions where the config file was found
@@ -102,15 +103,23 @@ class Savable:
     - `_deserialize`: Method that converts a json-compatible dictionary to the object state.
 
     For saving and loading `bpy.types.PropertyGroup` objects, use this in combination
-    with `serializable_class` decorator and `Serialize()` wrapper.
+    with `serializable_class` decorator and `Serialize()` wrapper. `serializable_class` will
+    automatically implement `_serialize` and `_deserialize` methods for you.
 
     Variables/methods/properties that you might want to override:
     - `get_default_dir`: Directory for saving and loading the config file.
     - `auto_save`: Whether to automatically save the config on property update.
     - `auto_save_debounce`: Debounce time for auto-saving in seconds.
+    - `force_pretty_print`: Whether to always pretty print the config file when saving (mainly for debugging).
     - `on_serialized_property_update`: Callback that is called every time a serialized property is
                                        updated. If overridden, you must call the base class method
                                        for the autosaving to work correctly.
+    - `strict_mode`: Whether to use strict mode for deserialization. If `True`, any properties
+                     missing in the loaded config will raise an error. If `False`, missing
+                     properties will be ignored and left unchanged.
+    - `migrate_config_data`: Method to migrate loaded config data from an older version to the
+                             current version. You have to override this method if changes to the
+                             config would break the loading (e.g., renaming properties, changing types, etc.).
 
     Example:
     ```
@@ -133,6 +142,8 @@ class Savable:
     addon_name: str = NotImplemented  # Name of the addon this config belongs to
     save_version: int = NotImplemented  # Version of the saved file format
     auto_save_debounce: float = 0.5  # Debounce time for auto-saving in seconds
+    strict_mode: bool = True  # Whether to use strict mode for deserialization
+    force_pretty_print: bool = False  # Whether to always pretty print the config file
 
     @property
     def config_name(self) -> str:
@@ -143,6 +154,11 @@ class Savable:
     def auto_save(self) -> bool:
         """Whether to automatically save the config on property update."""
         return False
+
+    @property
+    def qualified_name(self) -> str:
+        """Full name including addon name and config name."""
+        return f"{type(self).addon_name}.{self.config_name}"
 
     @classmethod
     def get_default_dir(cls) -> pathlib.Path:
@@ -180,14 +196,16 @@ class Savable:
             "version": type(self).save_version,
             "data": data,
         }
-        save_config(path, versioned_data, pretty_print=pretty_print)
+        save_config(
+            path, versioned_data, pretty_print=pretty_print or type(self).force_pretty_print
+        )
 
     def save(self, pretty_print: bool = False) -> None:
         """Save the current state of the object to a predefined config file."""
         self.save_custom(self._get_config_path(create_dir=True), pretty_print=pretty_print)
 
-    def load_custom(self, path: pathlib.Path) -> None:
-        """Save the current state of the object to a config file at the given path.
+    def load_custom(self, path: pathlib.Path, ignore_version: bool = False) -> None:
+        """Load data from the given path and set the state of this object.
 
         This method will ignore all path related properties of the class
         and load the config from the given path instead.
@@ -202,39 +220,65 @@ class Savable:
 
         # load and deserialize the data into a dictionary
         versioned_data = load_config(path)
-        if "version" not in versioned_data:
-            raise errors.InvalidConfigError("Version not found in the config")
-        loaded_version = versioned_data["version"]
+        if not isinstance(versioned_data, dict):
+            raise errors.InvalidConfigError(
+                type(self),
+                f"Invalid config format. Expected dict, got {type(versioned_data)}",
+            )
+
+        # check that data field exists and is a dictionary
+        data = versioned_data.get("data", None)
+        if data is None:
+            raise errors.InvalidConfigError(type(self), "Data not found in the loaded config")
+        if not isinstance(data, dict):
+            raise errors.InvalidConfigError(
+                type(self),
+                f"Invalid data format. Expected dict, got {type(data)}",
+            )
+
+        # check version of the loaded data
+        loaded_version = versioned_data.get("version", None)
+        if loaded_version is None:
+            raise errors.InvalidConfigError(type(self), "Version not found in the loaded config")
         if not isinstance(loaded_version, int):
             raise errors.InvalidConfigError(
-                f"Invalid version format. Expected int, got {type(loaded_version)}"
+                type(self),
+                "Invalid version format. Expected int, "
+                f"got {type(loaded_version)} ({loaded_version})",
             )
-        if loaded_version > type(self).save_version:
+        # migrate data to the current version if needed
+        migrated = False
+        if loaded_version < type(self).save_version:
+            self.migrate_config_data(versioned_data, type(self).save_version)
+            migrated = True
+            loaded_version = versioned_data.get("version", None)
+            assert (
+                loaded_version is not None
+            ), "migrate_config_data must set the version to the target version"
+        # now the versions must match (or we are in ignore_version mode)
+        if not ignore_version and loaded_version != type(self).save_version:
             raise errors.UnsupportedVersionError(
-                f"Version of the loaded config ({loaded_version}) is higher than the currently "
-                f"supported version ({type(self).save_version})"
+                type(self),
+                type(self).save_version,
+                loaded_version,
             )
 
-        if "data" not in versioned_data:
-            raise errors.InvalidConfigError("Data not found in the config")
-        if not isinstance(versioned_data["data"], dict):
-            raise errors.InvalidConfigError("Data must be a dictionary")
-
-        # override auto-save so the loading does not trigger it
-        autosave_override[self] = True
+        # deserializing the data will trigger auto-save by default
+        # we auto-save only when migrating, otherwise we would store the same data
+        autosave_override[self] = not migrated
         try:
-            self._deserialize(versioned_data["data"])  # type: ignore
+            self._deserialize(data, type(self).strict_mode)  # type: ignore
         finally:
             autosave_override[self] = False
 
-    def load(self) -> None:
+    def load(self, ignore_version: bool = False) -> None:
         """Load state of this object from a predefined config file."""
-        self.load_custom(self._get_config_path())
+        self.load_custom(self._get_config_path(), ignore_version=ignore_version)
 
     def _auto_save(self) -> None:
-        logger.info(f"Auto-saving '{type(self).addon_name}.{self.config_name}'")
+        logger.info(f"Auto-saving '{self.qualified_name}'")
         self.save()
-        logger.info(f"Auto-saved '{type(self).addon_name}.{self.config_name}'")
+        logger.info(f"Auto-saved '{self.qualified_name}'")
 
     def on_serialized_property_update(self, context: bpy.types.Context, property_name: str) -> None:
         """Callback that is called every time a serialized property is updated.
@@ -256,10 +300,19 @@ class Savable:
                 autosave_func, first_interval=self.auto_save_debounce, persistent=True  # type: ignore
             )
 
+    def migrate_config_data(self, versioned_data: dict, to_version: int) -> None:
+        """Migrate loaded config data from an older version to the current version.
+
+        This method is called during loading when the loaded config version is
+        lower than the current `save_version`. The default implementation doesn't change
+        the data and just updates the version number.
+        """
+        versioned_data["version"] = to_version
+
 
 # These dictionaries are used to store values for `Savable` instances.
 # Ideally, you could use, e.g., `self.autosave_timer_callback` inside the `Savable`,
 # but `Savable` can be used on `AddonPreferences` which does not support
 # attributes on `self`. To overcome this, we can use `autosave_timer_callbacks[self]`.
-autosave_timer_callbacks: typing.Dict[Savable, typing.Callable[[], None]] = {}
-autosave_override: typing.Dict[Savable, bool] = {}
+autosave_timer_callbacks: dict[Savable, collections.abc.Callable[[], None]] = {}
+autosave_override: dict[Savable, bool] = {}

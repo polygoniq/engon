@@ -71,9 +71,9 @@ class BuildRoads(bpy.types.Operator):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.mouse_point: typing.Optional[road_builder.BuildPoint] = None
-        self.first_point: typing.Optional[road_builder.BuildPoint] = None
-        self.first_point_position: typing.Optional[mathutils.Vector] = None
+        self.mouse_point: road_builder.BuildPoint | None = None
+        self.first_point: road_builder.BuildPoint | None = None
+        self.first_point_position: mathutils.Vector | None = None
         self.snapped_point = None
 
         self.grid_snap = False
@@ -83,7 +83,7 @@ class BuildRoads(bpy.types.Operator):
         self.road_type_idx = -1
         self.road_types_len = 1
 
-        self.curves: typing.Dict[str, bpy.types.Object] = {}
+        self.curves: dict[str, bpy.types.Object] = {}
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
@@ -267,8 +267,8 @@ class BuildRoads(bpy.types.Operator):
     def _cleanup(
         self,
         context: bpy.types.Context,
-        event: typing.Optional[bpy.types.Event] = None,
-        exception: typing.Optional[Exception] = None,
+        event: bpy.types.Event | None = None,
+        exception: Exception | None = None,
     ) -> None:
         BuildRoads.remove_draw_handlers()
         context.area.tag_redraw()

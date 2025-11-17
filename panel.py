@@ -21,11 +21,13 @@
 from . import addon_updater
 from . import addon_updater_ops
 import bpy
+import bmesh
 import enum
 import math
 import mathutils
 import typing
 import logging
+import collections
 import random
 from . import polib
 from . import hatchery
@@ -43,7 +45,7 @@ class EngonPanelMixin:
     bl_category = "polygoniq"
 
 
-MODULE_CLASSES: typing.List[typing.Any] = []
+MODULE_CLASSES: list[typing.Any] = []
 
 
 @polib.log_helpers_bpy.logged_operator
@@ -241,7 +243,7 @@ class SpreadObjects(bpy.types.Operator):
     bl_description = "Spreads selected objects into a grid"
     bl_options = {'REGISTER', 'UNDO'}
 
-    class DistributionType(enum.Enum):
+    class DistributionType(enum.StrEnum):
         LINE = "Line"
         ROWS = "Rows"
         SQUARE_GRID = "Square Grid"
@@ -250,19 +252,19 @@ class SpreadObjects(bpy.types.Operator):
         name="Distribution Type",
         description="How to spread the objects",
         items=[
-            (DistributionType.LINE.value, DistributionType.LINE.value, "Spread assets in one line"),
+            (DistributionType.LINE, DistributionType.LINE, "Spread assets in one line"),
             (
-                DistributionType.ROWS.value,
-                DistributionType.ROWS.value,
+                DistributionType.ROWS,
+                DistributionType.ROWS,
                 "Spread assets in rows and colums",
             ),
             (
-                DistributionType.SQUARE_GRID.value,
-                DistributionType.SQUARE_GRID.value,
+                DistributionType.SQUARE_GRID,
+                DistributionType.SQUARE_GRID,
                 "Spread assets in grid",
             ),
         ],
-        default=DistributionType.LINE.value,
+        default=DistributionType.LINE,
     )
 
     use_bounding_box_for_offset: bpy.props.BoolProperty(
@@ -314,16 +316,16 @@ class SpreadObjects(bpy.types.Operator):
         row.label(text="Distribution Type")
         row.prop(self, "distribution_type", text="")
 
-        if self.distribution_type == self.DistributionType.ROWS.value:
+        if self.distribution_type == self.DistributionType.ROWS:
             row = layout.row(align=False)
             row.prop(self, "objects_in_a_row", text="")
 
     def execute(self, context: bpy.types.Context):
-        if self.distribution_type == self.DistributionType.LINE.value:
+        if self.distribution_type == self.DistributionType.LINE:
             row_size = len(context.selected_objects)
-        elif self.distribution_type == self.DistributionType.ROWS.value:
+        elif self.distribution_type == self.DistributionType.ROWS:
             row_size = self.objects_in_a_row
-        elif self.distribution_type == self.DistributionType.SQUARE_GRID.value:
+        elif self.distribution_type == self.DistributionType.SQUARE_GRID:
             row_size = math.ceil(math.sqrt(len(context.selected_objects)))
         else:
             raise ValueError("Invalid distribution option")
@@ -341,29 +343,29 @@ class SpreadObjects(bpy.types.Operator):
             future_row_y = current_row_y
             for obj in objects_in_row:
                 obj.matrix_world.translation = mathutils.Vector((0.0, 0.0, 0.0))
-                bbox_at_origin = hatchery.bounding_box.AlignedBox()
+                bbox_at_origin = hatchery.bounding_box.BoundingBox()
                 bbox_at_origin.extend_by_object(obj)
 
                 if not bbox_at_origin.is_valid():
-                    bbox_at_origin.extend_by_point(mathutils.Vector((0.0, 0.0, 0.0)))
+                    bbox_at_origin.extend_by_world_point(mathutils.Vector((0.0, 0.0, 0.0)))
 
                 obj.matrix_world.translation = mathutils.Vector(
                     (current_column_x, current_row_y, cursor_location[2])
                 )
 
                 if self.use_bounding_box_for_offset:
-                    min_offset = bbox_at_origin.min
+                    min_offset = bbox_at_origin.get_min()
                     min_offset[2] = 0.0
                     obj.matrix_world.translation -= min_offset
 
-                    bbox_placed = hatchery.bounding_box.AlignedBox()
+                    bbox_placed = hatchery.bounding_box.BoundingBox()
                     bbox_placed.extend_by_object(obj)
 
                     if not bbox_placed.is_valid():
-                        bbox_placed.extend_by_point(obj.location)
+                        bbox_placed.extend_by_world_point(obj.location)
 
-                    current_column_x = bbox_placed.max.x
-                    future_row_y = max(future_row_y, bbox_placed.max.y)
+                    current_column_x = bbox_placed.get_max().x
+                    future_row_y = max(future_row_y, bbox_placed.get_max().y)
 
                 current_column_x += self.column_x_offset
 
@@ -373,6 +375,191 @@ class SpreadObjects(bpy.types.Operator):
 
 
 MODULE_CLASSES.append(SpreadObjects)
+
+
+@polib.log_helpers_bpy.logged_operator
+class MakeObjectsInstanced(bpy.types.Operator):
+    bl_idname = "engon.tools_make_objects_instances"
+    bl_label = "Make Objects Instanced"
+    bl_description = (
+        "Makes selected objects with the same mesh data instanced using collection instances"
+    )
+    bl_options = {'UNDO', 'REGISTER'}
+
+    INSTANCES_COLL_NAME = "instances"
+    INSTANCES_COLL_COLOR = 'COLOR_07'
+
+    use_common_collection: bpy.props.BoolProperty(
+        name="Use Common Collection",
+        description="If True new instances are created in one common collection, otherwise active "
+        "collection is used",
+        default=True,
+    )
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        return (
+            next(
+                filter(
+                    lambda obj: obj.type == 'MESH' and obj.data is not None,
+                    context.selected_objects,
+                ),
+                None,
+            )
+            is not None
+        )
+
+    @polib.utils_bpy.blender_cursor('WAIT')
+    def execute(self, context: bpy.types.Context):
+        mesh_data_obj_map: collections.defaultdict[bpy.types.Mesh, set[bpy.types.Object]] = (
+            collections.defaultdict(set)
+        )
+
+        for obj in context.selected_objects:
+            if obj.type != 'MESH' or obj.data is None:
+                continue
+
+            assert isinstance(obj.data, bpy.types.Mesh)
+            mesh_data_obj_map[obj.data].update({obj})
+
+        for mesh in mesh_data_obj_map:
+            obj_users = list(mesh_data_obj_map[mesh])
+            matrices = [o.matrix_world.copy() for o in obj_users]
+
+            first_obj: bpy.types.Object = obj_users[0]
+            # Reset first object transform with identity matrix
+            first_obj.matrix_world = mathutils.Matrix()
+
+            for coll in first_obj.users_collection:
+                coll.objects.unlink(first_obj)
+
+            instance_coll = bpy.data.collections.new("Instance_" + mesh.name)
+
+            if self.use_common_collection:
+                instances_master_coll = polib.asset_pack_bpy.collection_get(
+                    context, self.INSTANCES_COLL_NAME
+                )
+                instances_master_coll.color_tag = self.INSTANCES_COLL_COLOR
+                instances_master_coll.children.link(instance_coll)
+            else:
+                context.scene.collection.children.link(instance_coll)
+
+            instance_coll.objects.link(first_obj)
+            layer_collection = polib.asset_pack_bpy.find_layer_collection(
+                context.view_layer.layer_collection, instance_coll
+            )
+            if layer_collection is not None:
+                layer_collection.exclude = True
+
+            for matrix in matrices:
+                empty: bpy.types.Object = bpy.data.objects.new(mesh.name, None)
+                empty.matrix_world = matrix
+                empty.instance_collection = instance_coll
+                empty.instance_type = 'COLLECTION'
+                context.scene.collection.objects.link(empty)
+                empty.select_set(True)
+
+            for obj in obj_users[1:]:
+                bpy.data.objects.remove(obj)
+
+        return {'FINISHED'}
+
+
+MODULE_CLASSES.append(MakeObjectsInstanced)
+
+
+@polib.log_helpers_bpy.logged_operator
+class GroupObjects(bpy.types.Operator):
+    bl_idname = "engon.group_objects"
+    bl_label = "Group Selected Objects"
+    bl_description = (
+        "Surround selected objects with a mesh bounding box and parent them to it."
+        "That makes them easily movable together while keeping everything editable"
+    )
+    bl_options = {'UNDO', 'REGISTER'}
+
+    BBOX_NAME = "grouped_objects_bbox"
+
+    axis_aligned_bbox: bpy.props.BoolProperty(
+        name="Axis Aligned Bounding Box",
+        description=(
+            "If enabled, bounding box will be created as an axis-aligned box. "
+            "If disabled, bounding box will be created with the orientation of the active object."
+        ),
+        default=True,
+    )
+
+    only_mesh: bpy.props.BoolProperty(
+        name="Only Mesh Objects",
+        description="If enabled, only mesh objects are considered for bounding box calculation",
+        default=False,
+    )
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        return len(context.selected_objects) > 0
+
+    def execute(self, context: bpy.types.Context):
+        assert len(context.selected_objects) > 0
+
+        # We need to force-update matrix world of all selected objects
+        # they are reset to identity matrix when the operator is called from redo panel
+        context.view_layer.update()
+
+        if not self.axis_aligned_bbox and context.active_object is not None:
+            _, bbox_rot, _ = context.active_object.matrix_world.decompose()
+            bbox_matrix = context.active_object.matrix_world
+        else:
+            bbox_rot = mathutils.Quaternion()
+            bbox_matrix = mathutils.Matrix.Identity(4)
+
+        bbox = hatchery.bounding_box.BoundingBox(bbox_matrix)
+        object_filter = lambda o: o.type == 'MESH' if self.only_mesh else lambda o: True
+        for obj in context.selected_objects:
+            bbox.extend_by_object(obj, object_filter=object_filter)
+
+        bbox_center = bbox.get_center(world=True)
+        bbox_dimensions = bbox.get_size(world=True)
+
+        bbox_bmesh = bmesh.new()
+        bbox_mesh = bpy.data.meshes.new(self.BBOX_NAME)
+        # Create a cube with correct scale
+        bmesh.ops.create_cube(
+            bbox_bmesh, size=1, matrix=mathutils.Matrix.Diagonal((*bbox_dimensions, 1))
+        )
+        bbox_bmesh.to_mesh(bbox_mesh)
+        bbox_bmesh.free()
+        bbox_obj = bpy.data.objects.new(self.BBOX_NAME, bbox_mesh)
+        bbox_obj.location = bbox_center
+        rot_mode = bbox_obj.rotation_mode
+        bbox_obj.rotation_mode = 'QUATERNION'
+        bbox_obj.rotation_quaternion = bbox_rot
+        bbox_obj.rotation_mode = rot_mode
+        bbox_obj.hide_render = True
+        context.scene.collection.objects.link(bbox_obj)
+
+        bbox_obj.display_type = 'BOUNDS'
+
+        ancestors = polib.asset_pack_bpy.filter_out_descendants_from_objects(
+            context.selected_objects
+        )
+
+        # NOTE: Typically using an operator is not desired,
+        # but in this case the parent_set operator handles for us complicated transformations
+        # and edge cases in existing parenting relations of ancestors
+        with context.temp_override(
+            selected_objects=ancestors, active_object=bbox_obj, object=bbox_obj
+        ):
+            bpy.ops.object.parent_set(type='OBJECT', keep_transform=True)
+
+        context.view_layer.objects.active = bbox_obj
+        bbox_obj.select_set(True)
+        surrounding_object_names = ", ".join(o.name for o in context.selected_objects)
+        logger.info(f"Bounding box surrounding objects {surrounding_object_names} created")
+        return {'FINISHED'}
+
+
+MODULE_CLASSES.append(GroupObjects)
 
 
 @polib.log_helpers_bpy.logged_panel
@@ -451,8 +638,11 @@ class EngonPanel(EngonPanelMixin, bpy.types.Panel):
         row.operator(RandomizeTransform.bl_idname, text="Random", icon='ORIENTATION_GIMBAL')
         row.operator(ResetTransform.bl_idname, text="", icon='LOOP_BACK')
         col.separator()
-        row = col.row()
-        row.operator(SpreadObjects.bl_idname, icon='IMGDISPLAY')
+
+        col.label(text="Object tools:")
+        col.operator(SpreadObjects.bl_idname, icon='IMGDISPLAY')
+        col.operator(MakeObjectsInstanced.bl_idname, icon='OUTLINER_OB_GROUP_INSTANCE')
+        col.operator(GroupObjects.bl_idname, icon='SELECT_SET')
 
 
 MODULE_CLASSES.append(EngonPanel)

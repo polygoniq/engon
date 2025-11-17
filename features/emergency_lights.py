@@ -32,7 +32,7 @@ MODULE_CLASSES = []
 
 def get_emergency_lights_container_from_hierarchy_with_root(
     obj: bpy.types.Object,
-) -> typing.Tuple[typing.Optional[bpy.types.Object], typing.Optional[bpy.types.Object]]:
+) -> tuple[bpy.types.Object | None, bpy.types.Object | None]:
     """Returns the first object in the hierarchy that contains emergency lights and the root of the hierarchy
 
     Returns None if no such object is found in the hierarchy of the given object.
@@ -120,7 +120,7 @@ class EmergencyLightsPanel(
     def draw(self, context: bpy.types.Context) -> None:
         col = self.layout.column()
 
-        emergency_lights: typing.Optional[bpy.types.Object] = None
+        emergency_lights: bpy.types.Object | None = None
         if self.conditionally_draw_warning_no_adjustable_active_object(
             context,
             col,

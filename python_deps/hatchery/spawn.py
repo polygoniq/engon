@@ -38,19 +38,17 @@ class DatablockSpawnOptions:
 
 
 class SpawnedData(abc.ABC):
-    def __init__(self, datablocks: typing.Set[bpy.types.ID]):
+    def __init__(self, datablocks: set[bpy.types.ID]):
         self.datablocks = datablocks
 
 
 @dataclasses.dataclass
 class ModelSpawnOptions(DatablockSpawnOptions):
-    collection_factory_method: typing.Optional[
-        typing.Callable[[], typing.Optional[bpy.types.Collection]]
-    ] = None
+    collection_factory_method: typing.Callable[[], bpy.types.Collection | None] | None = None
     # If present the spawned model instancer is selected, other objects are deselected
     select_spawned: bool = False
-    location_override: typing.Optional[mathutils.Vector] = None
-    rotation_euler_override: typing.Optional[mathutils.Euler] = None
+    location_override: mathutils.Vector | None = None
+    rotation_euler_override: mathutils.Euler | None = None
 
 
 class ModelSpawnedData(SpawnedData):
@@ -81,7 +79,7 @@ def spawn_model(
             "The object wouldn't be present in the View Layer!"
         )
 
-    root_collection = load.load_master_collection(path)
+    root_collection = load.load_master_collection(path, link=True)
     root_empty = bpy.data.objects.new(root_collection.name, None)
     root_empty.instance_type = 'COLLECTION'
     root_empty.instance_collection = root_collection
@@ -120,13 +118,11 @@ def spawn_model(
 
 @dataclasses.dataclass
 class MaterialSpawnOptions(DatablockSpawnOptions):
-    collection_factory_method: typing.Optional[
-        typing.Callable[[], typing.Optional[bpy.types.Collection]]
-    ] = None
+    collection_factory_method: typing.Callable[[], bpy.types.Collection | None] | None = None
     texture_size: int = 2048
     use_displacement: bool = False
     select_spawned: bool = True
-    target_objects: typing.Set[bpy.types.Object] = dataclasses.field(default_factory=set)
+    target_objects: set[bpy.types.Object] = dataclasses.field(default_factory=set)
 
 
 class MaterialSpawnedData(SpawnedData):
@@ -231,12 +227,10 @@ def spawn_material(
 
 @dataclasses.dataclass
 class ParticleSystemSpawnOptions(DatablockSpawnOptions):
-    collection_factory_method: typing.Optional[
-        typing.Callable[[], typing.Optional[bpy.types.Collection]]
-    ] = None
+    collection_factory_method: typing.Callable[[], bpy.types.Collection | None] | None = None
     display_type: str = 'TEXTURED'
     display_percentage: float = 100.0
-    instance_layer_collection_parent: typing.Optional[bpy.types.LayerCollection] = None
+    instance_layer_collection_parent: bpy.types.LayerCollection | None = None
     # 'enable_instance_collection' is only used when 'instance_layer_collection_parent' is not None
     enable_instance_collection: bool = False
     include_base_material: bool = True
@@ -245,14 +239,14 @@ class ParticleSystemSpawnOptions(DatablockSpawnOptions):
     count: int = 1000
     preserve_density: bool = True
     select_spawned: bool = True
-    target_objects: typing.Set[bpy.types.Object] = dataclasses.field(default_factory=set)
+    target_objects: set[bpy.types.Object] = dataclasses.field(default_factory=set)
 
 
 class ParticlesSpawnedData(SpawnedData):
     def __init__(
         self,
         particles: typing.Iterable[bpy.types.ParticleSettings],
-        material: typing.Optional[bpy.types.Material] = None,
+        material: bpy.types.Material | None = None,
     ):
         self.particles = particles
         self.material = material
@@ -401,13 +395,11 @@ def spawn_scene(
 
 @dataclasses.dataclass
 class GeometryNodesSpawnOptions(DatablockSpawnOptions):
-    collection_factory_method: typing.Optional[
-        typing.Callable[[], typing.Optional[bpy.types.Collection]]
-    ] = None
+    collection_factory_method: typing.Callable[[], bpy.types.Collection | None] | None = None
     select_spawned: bool = True
-    target_objects: typing.Set[bpy.types.Object] = dataclasses.field(default_factory=set)
+    target_objects: set[bpy.types.Object] = dataclasses.field(default_factory=set)
     parent_targets_layer_collection_factory_method: typing.Optional[
-        typing.Callable[[], typing.Optional[bpy.types.LayerCollection]]
+        typing.Callable[[], bpy.types.LayerCollection | None]
     ] = None
     # 'enable_target_collections' is only used when 'parent_targets_layer_collection_factory_method' is not None
     enable_target_collections: bool = False
@@ -416,7 +408,7 @@ class GeometryNodesSpawnOptions(DatablockSpawnOptions):
 class GeometryNodesSpawnedData(SpawnedData):
     def __init__(
         self,
-        container_objs_to_mods_map: typing.Dict[bpy.types.Object, typing.Set[bpy.types.Modifier]],
+        container_objs_to_mods_map: dict[bpy.types.Object, set[bpy.types.Modifier]],
     ):
         self.container_objs_to_mods_map = container_objs_to_mods_map
         node_groups = set()
@@ -448,7 +440,7 @@ def spawn_geometry_nodes(
         if mod.type == 'NODES':
             mod.node_group = mod.node_group
 
-    container_objs_to_mods_map: typing.Dict[bpy.types.Object, typing.Set[bpy.types.Modifier]] = (
+    container_objs_to_mods_map: dict[bpy.types.Object, set[bpy.types.Modifier]] = (
         collections.defaultdict(set)
     )
     target_objects = set(options.target_objects)

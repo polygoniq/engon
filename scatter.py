@@ -36,7 +36,7 @@ from . import preferences
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-MODULE_CLASSES: typing.List[typing.Type] = []
+MODULE_CLASSES: list[type] = []
 
 WEIGHT_PAINT_VERTICES_WARNING_THRESHOLD = 16
 
@@ -490,8 +490,8 @@ class RemoveParticleSystem(bpy.types.Operator):
 
         # We remove only from scatter and botaniq animation collections,
         # we don't want to delete other user's setup
-        collection_candidates: typing.Set[bpy.types.Collection] = set()
-        hierarchies: typing.List[typing.List[bpy.types.ID]] = []
+        collection_candidates: set[bpy.types.Collection] = set()
+        hierarchies: list[list[bpy.types.ID]] = []
         if instance_collection is not None:
             collection_candidates.add(instance_collection)
 
@@ -621,7 +621,7 @@ class ParticleSystemRemoveAsset(bpy.types.Operator):
         assert root_object_to_unlink_name in bpy.data.objects
         root_object_to_unlink = bpy.data.objects.get(root_object_to_unlink_name)
         hierarchy = polib.asset_pack_bpy.get_hierarchy(root_object_to_unlink)
-        unlinked_object_names: typing.Set[str] = set()
+        unlinked_object_names: set[str] = set()
         for obj in reversed(hierarchy):
             unlinked_object_names.add(obj.name)
             if obj.name in instance_collection.objects:
@@ -778,7 +778,7 @@ class ParticlesChangeDisplay(bpy.types.Operator):
         layout.prop(props, "display_type")
         layout.prop(props, "display_percentage", text="Viewport Display Percentage")
 
-    def find_particle_systems(self, obj: bpy.types.Object) -> typing.List[bpy.types.ParticleSystem]:
+    def find_particle_systems(self, obj: bpy.types.Object) -> list[bpy.types.ParticleSystem]:
         if self.all_systems:
             return list(
                 filter(
@@ -833,7 +833,7 @@ class SCATTER_MT_Utilities(bpy.types.Menu):
     bl_label = "Scatter Utilities"
     bl_idname = "SCATTER_MT_Utilities"
 
-    def draw(self, context: typing.Optional[bpy.types.Context]) -> None:
+    def draw(self, context: bpy.types.Context | None) -> None:
         layout = self.layout
         layout.operator(RenameParticleSystem.bl_idname, text="Rename", icon='GREASEPENCIL')
         layout.operator("particle.duplicate_particle_system", text="Duplicate", icon='DUPLICATE')

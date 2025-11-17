@@ -38,7 +38,7 @@ logger = logging.getLogger(f"polygoniq.{__name__}")
 SPAWN_ALL_DISPLAYED_ASSETS_WARNING_LIMIT = 30
 
 
-MODULE_CLASSES: typing.List[typing.Any] = []
+MODULE_CLASSES: list[typing.Any] = []
 
 
 class MAPR_SpawnAssetBase(bpy.types.Operator):
@@ -49,15 +49,13 @@ class MAPR_SpawnAssetBase(bpy.types.Operator):
         context: bpy.types.Context,
         asset: mapr.asset.Asset,
         spawn_options: hatchery.spawn.DatablockSpawnOptions,
-    ) -> typing.Optional[hatchery.spawn.SpawnedData]:
+    ) -> hatchery.spawn.SpawnedData | None:
         asset_provider = asset_registry.instance.master_asset_provider
         file_provider = asset_registry.instance.master_file_provider
         spawner = mapr.blender_asset_spawner.AssetSpawner(asset_provider, file_provider)
         return spawner.spawn(context, asset, spawn_options)
 
-    def _spawn_multiple(
-        self, context: bpy.types.Context, assets: typing.List[mapr.asset.Asset]
-    ) -> None:
+    def _spawn_multiple(self, context: bpy.types.Context, assets: list[mapr.asset.Asset]) -> None:
         """Spawns multiple assets at once into the scene.
 
         Adjust spawning options so this creates desirable result and doesn't spawn e. g. all
@@ -107,7 +105,7 @@ class MAPR_SpawnSingleAssetBase(MAPR_SpawnAssetBase):
         if asset is None:
             return f"Asset with id {props.asset_id} cannot be spawned"
 
-        type_ = str(asset.type_).replace("AssetDataType.blender_", "").replace("_", " ")
+        type_ = str(asset.type_).replace("blender_", "").replace("_", " ")
         return f"Spawn {type_}: '{asset.title}'"
 
     def draw(self, context: bpy.types.Context) -> None:
@@ -143,7 +141,7 @@ class MAPR_SpawnSingleAssetBase(MAPR_SpawnAssetBase):
         else:
             return context.window_manager.invoke_popup(self, width=500)
 
-    def _get_asset(self) -> typing.Optional[mapr.asset.Asset]:
+    def _get_asset(self) -> mapr.asset.Asset | None:
         return asset_registry.instance.master_asset_provider.get_asset(self.asset_id)
 
 
@@ -304,9 +302,9 @@ class MAPR_BrowserDrawGeometryNodesAsset(MAPR_SpawnSingleAssetBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.original_tool_idname: typing.Optional[str] = None
-        self.original_curve_paint_depth_mode: typing.Optional[str] = None
-        self.original_curve_paint_surface_offset: typing.Optional[float] = None
+        self.original_tool_idname: str | None = None
+        self.original_curve_paint_depth_mode: str | None = None
+        self.original_curve_paint_surface_offset: float | None = None
 
     @staticmethod
     def remove_draw_handler() -> None:
@@ -318,8 +316,8 @@ class MAPR_BrowserDrawGeometryNodesAsset(MAPR_SpawnSingleAssetBase):
     def _cleanup(
         self,
         context: bpy.types.Context,
-        event: typing.Optional[bpy.types.Event] = None,
-        exception: typing.Optional[Exception] = None,
+        event: bpy.types.Event | None = None,
+        exception: Exception | None = None,
     ) -> None:
         MAPR_BrowserDrawGeometryNodesAsset.remove_draw_handler()
         MAPR_BrowserDrawGeometryNodesAsset.is_running = False
@@ -568,7 +566,7 @@ class MAPR_BrowserReplaceSelected(MAPR_SpawnSingleAssetBase):
         )
 
     @classmethod
-    def get_objects_to_replace(cls, context: bpy.types.Context) -> typing.Set[bpy.types.Object]:
+    def get_objects_to_replace(cls, context: bpy.types.Context) -> set[bpy.types.Object]:
         return {
             obj
             for obj in context.selected_objects
@@ -664,11 +662,11 @@ class MAPR_BrowserReplaceActiveMaterials(MAPR_SpawnSingleAssetBase):
         return message
 
     @classmethod
-    def get_materials_to_replace(cls, context: bpy.types.Context) -> typing.Set[bpy.types.Material]:
+    def get_materials_to_replace(cls, context: bpy.types.Context) -> set[bpy.types.Material]:
         return {obj.active_material for obj in cls.get_affected_objects(context)}
 
     @classmethod
-    def get_affected_objects(cls, context: bpy.types.Context) -> typing.Set[bpy.types.Object]:
+    def get_affected_objects(cls, context: bpy.types.Context) -> set[bpy.types.Object]:
         return {
             obj
             for obj in context.selected_objects

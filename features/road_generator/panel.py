@@ -54,7 +54,7 @@ class ConvertToMesh(bpy.types.Operator):
             cleanup_candidates = [
                 mod
                 for mod in obj.modifiers
-                if mod.node_group.name.startswith(asset_helpers.RoadNodegroup.Cleanup.value)
+                if mod.node_group.name.startswith(asset_helpers.RoadNodegroup.Cleanup)
             ]
             if len(cleanup_candidates) == 0:
                 continue
@@ -105,13 +105,13 @@ class MassChangeResample(bpy.types.Operator):
         resample_props = props.get_rg_props(context).resample
         resample_targets = set()
         if resample_props.include_input:
-            resample_targets.add(asset_helpers.RoadNodegroup.Input.value)
+            resample_targets.add(asset_helpers.RoadNodegroup.Input)
         if resample_props.include_markings:
-            resample_targets.add(asset_helpers.RoadNodegroup.Markings.value)
+            resample_targets.add(asset_helpers.RoadNodegroup.Markings)
         if resample_props.include_profile:
-            resample_targets.add(asset_helpers.RoadNodegroup.RoadProfile.value)
+            resample_targets.add(asset_helpers.RoadNodegroup.RoadProfile)
         if resample_props.include_register:
-            resample_targets.add(asset_helpers.CrossroadNodegroup.Register.value)
+            resample_targets.add(asset_helpers.CrossroadNodegroup.Register)
 
         changed_inputs = []
         resample_targets = tuple(resample_targets)
@@ -174,7 +174,7 @@ class MassChangeFillet(bpy.types.Operator):
 
             for mod in obj.modifiers:
                 mod_named_view = polib.geonodes_mod_utils_bpy.NodesModifierInputsNameView(mod)
-                if not mod.node_group.name.startswith(asset_helpers.RoadNodegroup.Input.value):
+                if not mod.node_group.name.startswith(asset_helpers.RoadNodegroup.Input):
                     continue
 
                 if "Fillet Radius" in mod_named_view:
@@ -339,7 +339,7 @@ class RoadGeneratorInputCurvePanel(RoadGeneratorPanelMixin, bpy.types.Panel):
     bl_parent_id = RoadGeneratorPanel.bl_idname
     bl_label = "Input Curve"
 
-    template = polib.node_utils_bpy.NodeSocketsDrawTemplate(asset_helpers.RoadNodegroup.Input.value)
+    template = polib.node_utils_bpy.NodeSocketsDrawTemplate(asset_helpers.RoadNodegroup.Input)
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
@@ -373,7 +373,7 @@ class RoadGeneratorProfilePanel(RoadGeneratorPanelMixin, bpy.types.Panel):
     bl_options = {'DEFAULT_CLOSED'}
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
-        asset_helpers.RoadNodegroup.RoadProfile.value,
+        asset_helpers.RoadNodegroup.RoadProfile,
         socket_names_drawn_first=["Profile Object", "Material"],
     )
 
@@ -411,7 +411,7 @@ class RoadGeneratorRoadMarkingPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
     bl_options = {'DEFAULT_CLOSED'}
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
-        asset_helpers.RoadNodegroup.Markings.value, socket_names_drawn_first=["Material"]
+        asset_helpers.RoadNodegroup.Markings, socket_names_drawn_first=["Material"]
     )
 
     @classmethod
@@ -448,7 +448,7 @@ class RoadGeneratorDistributePanel(RoadGeneratorPanelMixin, bpy.types.Panel):
     bl_options = {'DEFAULT_CLOSED'}
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
-        asset_helpers.RoadNodegroup.Distribute.value, socket_names_drawn_first=["Collection"]
+        asset_helpers.RoadNodegroup.Distribute, socket_names_drawn_first=["Collection"]
     )
 
     @classmethod
@@ -485,7 +485,7 @@ class RoadGeneratorCrosswalkPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
     bl_options = {'DEFAULT_CLOSED'}
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
-        asset_helpers.RoadNodegroup.Crosswalk.value, socket_names_drawn_first=["Material"]
+        asset_helpers.RoadNodegroup.Crosswalk, socket_names_drawn_first=["Material"]
     )
 
     @classmethod
@@ -522,7 +522,7 @@ class RoadGeneratorScatterPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
     bl_options = {'DEFAULT_CLOSED'}
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
-        asset_helpers.RoadNodegroup.Scatter.value,
+        asset_helpers.RoadNodegroup.Scatter,
         socket_names_drawn_first=["Instance Collection", "Proximity Objects"],
     )
 
@@ -559,9 +559,7 @@ class RoadGeneratorCleanupPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
     bl_label = "Cleanup"
     bl_options = {'DEFAULT_CLOSED'}
 
-    template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
-        asset_helpers.RoadNodegroup.Cleanup.value
-    )
+    template = polib.node_utils_bpy.NodeSocketsDrawTemplate(asset_helpers.RoadNodegroup.Cleanup)
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:

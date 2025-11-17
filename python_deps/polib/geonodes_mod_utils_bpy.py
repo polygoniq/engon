@@ -2,12 +2,13 @@
 # Functionalities to work with geometry nodes modifiers
 import bpy
 import typing
+import logging
 from . import node_utils_bpy
 
+logger = logging.getLogger(f"polygoniq.{__name__}")
+
 # Mapping of input.identifier to (input.name, input.value)
-NodeGroupInputs = typing.Dict[
-    str, typing.Tuple[node_utils_bpy.NodeSocketInterfaceCompat, typing.Any]
-]
+NodeGroupInputs = dict[str, tuple[bpy.types.NodeTreeInterfaceSocket, typing.Any]]
 
 
 class NodesModifierInput:
@@ -25,9 +26,9 @@ class NodesModifierInput:
 
 def get_modifiers_inputs_map(
     modifiers: typing.Iterable[bpy.types.Modifier],
-) -> typing.Dict[str, NodesModifierInput]:
+) -> dict[str, NodesModifierInput]:
     """Returns mapping of geometry nodes modifiers to their respective inputs"""
-    ret: typing.Dict[str, NodesModifierInput] = {}
+    ret: dict[str, NodesModifierInput] = {}
     for mod in modifiers:
         if mod.type != 'NODES':
             continue
@@ -85,7 +86,7 @@ class NodesModifierInputsNameView:
         # Collections reference has to be set directly from bpy.data.collections
         self.mod[identifier] = bpy.data.collections[collection_name]
 
-    def set_array_input_value(self, input_name: str, value: typing.List[typing.Any]) -> None:
+    def set_array_input_value(self, input_name: str, value: list[typing.Any]) -> None:
         identifier = self.name_to_identifier_map.get(input_name)
         for i, v in enumerate(value):
             self.mod[identifier][i] = v
@@ -171,8 +172,8 @@ class GeoNodesModifierInputsPanelMixin:
 
 def get_geometry_nodes_modifiers_by_node_group(
     obj: bpy.types.Object, node_group_name_prefix: str, exact_match: bool = True
-) -> typing.List[bpy.types.NodesModifier]:
-    output: typing.List[bpy.types.NodesModifier] = []
+) -> list[bpy.types.NodesModifier]:
+    output: list[bpy.types.NodesModifier] = []
     for mod in obj.modifiers:
         if mod.type == 'NODES' and mod.node_group is not None:
             if (exact_match and mod.node_group.name == node_group_name_prefix) or (
@@ -180,3 +181,46 @@ def get_geometry_nodes_modifiers_by_node_group(
             ):
                 output.append(mod)
     return output
+
+
+def copy_geometry_nodes_modifier_inputs(
+    src_mod: bpy.types.NodesModifier, dst_mod: bpy.types.NodesModifier
+) -> bool:
+    assert src_mod.node_group is not None
+    assert dst_mod.node_group is not None
+    src_input_map = node_utils_bpy.get_node_tree_inputs_map(src_mod.node_group)
+    dst_input_map = node_utils_bpy.get_node_tree_inputs_map(dst_mod.node_group)
+    if len(src_input_map) != len(dst_input_map):
+        logger.error(
+            f"Different count of modifier inputs {len(src_input_map)} != {len(dst_input_map)}, cannot copy."
+        )
+        return False
+
+    any_input_incorrect = False
+    for src_identifier, src_input in src_input_map.items():
+        dst_input = dst_input_map.get(src_identifier)
+        if dst_input is None:
+            any_input_incorrect = True
+            break
+
+        # TODO: Check the type of the input whether it matches. Should we also check the name?
+        if node_utils_bpy.get_socket_type(src_input) != node_utils_bpy.get_socket_type(dst_input):
+            logger.info(f"Input types don't match: {src_input} != {dst_input}")
+            any_input_incorrect = True
+            break
+
+    if any_input_incorrect:
+        logger.error("Modifier inputs don't match, cannot copy.")
+        return False
+
+    # If all inputs match, we can copy the values
+    # If we don't materialize the .keys(), blender complaints about the dict changing size during iteration
+    for input_ in list(src_mod.keys()):
+        # setting these utility attributes causes issues with, e.g., the attribute subtype
+        # it should be safe to assume they are set correctly in the destination modifier
+        if input_.endswith("_use_attribute") or input_.endswith("_attribute_name"):
+            continue
+
+        dst_mod[input_] = src_mod[input_]
+
+    return True

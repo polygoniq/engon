@@ -70,7 +70,7 @@ def join_splines(
 
 def split_spline(
     curve: bpy.types.Curve, spline: bpy.types.Spline, split_idx: int
-) -> typing.Tuple[bpy.types.Spline, bpy.types.Spline]:
+) -> tuple[bpy.types.Spline, bpy.types.Spline]:
     """Splits bezier spline 'spline' into two splines inside 'curve' on 'split_idx'
 
     Point on 'split_idx' will become present on both splines. Original spline has to be removed
@@ -95,7 +95,7 @@ def split_spline(
 
 def new_bezier_spline(
     curve_obj: bpy.types.Object, position: mathutils.Vector, handle_type: str
-) -> typing.Tuple[bpy.types.Spline, bpy.types.BezierSplinePoint]:
+) -> tuple[bpy.types.Spline, bpy.types.BezierSplinePoint]:
     """Creates new spline on 'curve_obj', returns new spline and its first bezier point
 
     Arguments 'position' and 'handle_type' apply to the 0th created point that's in each

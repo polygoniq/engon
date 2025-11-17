@@ -45,7 +45,7 @@ from .. import asset_helpers
 from .. import __package__ as base_package
 
 
-MODULE_CLASSES: typing.List[typing.Any] = []
+MODULE_CLASSES: list[typing.Any] = []
 
 
 # Thresholds to convert float value of mapping to enum values
@@ -201,7 +201,7 @@ class ToolsPanel(MaterialiqPanelMixin, bpy.types.Panel):
             textures.ChangeTextureSizeGlobal.bl_idname,
             property="max_size",
             text="All Materials",
-            icon='LIGHTPROBE_GRID' if bpy.app.version < (4, 1, 0) else 'LIGHTPROBE_VOLUME',
+            icon='LIGHTPROBE_VOLUME',
         )
 
         row = box.column()
@@ -838,20 +838,14 @@ class DisplaySettingsPanel(MaterialiqPanelMixin, bpy.types.Panel):
             row = layout.row()
             row.enabled = False
             row.label(text="Cycles")
-            if bpy.app.version < (4, 1, 0):
-                layout.prop(mat.cycles, "displacement_method", text="Displacement")
-            else:
-                layout.prop(mat, "displacement_method", text="Displacement")
+            layout.prop(mat, "displacement_method", text="Displacement")
             return
 
         row = layout.row()
         row.enabled = False
         row.label(text="Cycles Surface")
         layout.prop(mat.cycles, "use_transparent_shadow")
-        if bpy.app.version < (4, 1, 0):
-            layout.prop(mat.cycles, "displacement_method", text="Displacement")
-        else:
-            layout.prop(mat, "displacement_method", text="Displacement")
+        layout.prop(mat, "displacement_method", text="Displacement")
         layout.separator()
         row = layout.row()
         row.enabled = False

@@ -31,7 +31,7 @@ from .. import asset_helpers
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-MODULE_CLASSES: typing.List[typing.Type] = []
+MODULE_CLASSES: list[type] = []
 
 
 def ensure_puddles_nodegroup(context: bpy.types.Context) -> None:
@@ -52,7 +52,7 @@ def ensure_puddles_nodegroup(context: bpy.types.Context) -> None:
         data_to.node_groups = [asset_helpers.AQ_PUDDLES_NODEGROUP_NAME]
 
 
-def can_material_have_effect(mat: bpy.types.Material) -> typing.Tuple[bool, str]:
+def can_material_have_effect(mat: bpy.types.Material) -> tuple[bool, str]:
     """Checks if material can have effects applied, if not it returns False and reason why not
     for user report, otherwise returns True and empty string.
     """
@@ -71,7 +71,7 @@ def can_material_have_effect(mat: bpy.types.Material) -> typing.Tuple[bool, str]
 
 def get_active_material_output(
     mat: bpy.types.Material,
-) -> typing.Optional[bpy.types.ShaderNodeOutputMaterial]:
+) -> bpy.types.ShaderNodeOutputMaterial | None:
     material_outputs = polib.node_utils_bpy.find_nodes_by_bl_idname(
         mat.node_tree.nodes, "ShaderNodeOutputMaterial", recursive=False
     )
@@ -82,7 +82,7 @@ def get_active_material_output(
     return None
 
 
-def get_displacement_node_input(node: bpy.types.Node) -> typing.Optional[bpy.types.NodeSocket]:
+def get_displacement_node_input(node: bpy.types.Node) -> bpy.types.NodeSocket | None:
     if isinstance(node, bpy.types.ShaderNodeDisplacement):
         return node.inputs["Height"]
 

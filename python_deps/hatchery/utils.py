@@ -99,7 +99,7 @@ def ensure_particle_naming_consistency(
 
 def get_area_based_particle_count(
     obj: bpy.types.Object, density: float, max_particle_count: int, include_weights: bool = False
-) -> typing.Tuple[int, int]:
+) -> tuple[int, int]:
     mesh_area = calculate_mesh_area(obj, include_weights)
     particle_count = int(mesh_area * density)
     if particle_count > max_particle_count:
@@ -167,7 +167,7 @@ def get_empty_display_size(obj: bpy.types.Object) -> float:
     if obj.instance_collection is None or obj.instance_type != 'COLLECTION':
         raise RuntimeError("Passed empty object has to be a collection instance!")
 
-    bbox = bounding_box.AlignedBox()
+    bbox = bounding_box.BoundingBox()
     for obj in obj.instance_collection.all_objects:
         bbox.extend_by_object(obj)
 

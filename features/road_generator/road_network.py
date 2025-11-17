@@ -69,9 +69,7 @@ class RoadSegment:
 class SegmentAdjacency:
     """Represents adjacency of stored segment endpoint to a crossroad"""
 
-    def __init__(
-        self, segment: RoadSegment, point_idx: int = 0, first_point: typing.Optional[bool] = None
-    ):
+    def __init__(self, segment: RoadSegment, point_idx: int = 0, first_point: bool | None = None):
         self.segment = segment
         if first_point is not None:
             self.is_first_point = first_point
@@ -116,7 +114,7 @@ class Crossroad:
     id_: int
     collection: bpy.types.Collection
     obj: bpy.types.Object
-    adjacencies: typing.Set[SegmentAdjacency]
+    adjacencies: set[SegmentAdjacency]
     position: mathutils.Vector
     radius: float = dataclasses.field(init=False)
 
@@ -149,9 +147,9 @@ class RoadNetwork:
     """
 
     def __init__(self):
-        self._crossroads: typing.Set[Crossroad] = set()
-        self._segments: typing.Set[RoadSegment] = set()
-        self._endpoint_cx_map: typing.Dict[SegmentAdjacency, Crossroad] = {}
+        self._crossroads: set[Crossroad] = set()
+        self._segments: set[RoadSegment] = set()
+        self._endpoint_cx_map: dict[SegmentAdjacency, Crossroad] = {}
 
     def add_segment(self, segment: RoadSegment) -> None:
         if segment not in self._segments:
@@ -172,7 +170,7 @@ class RoadNetwork:
 
     def get_endpoints_connections(
         self, segment: RoadSegment
-    ) -> typing.Tuple[typing.Optional[Crossroad], typing.Optional[Crossroad]]:
+    ) -> tuple[Crossroad | None, Crossroad | None]:
         return (
             self._endpoint_cx_map.get(SegmentAdjacency(segment, first_point=True), None),
             self._endpoint_cx_map.get(SegmentAdjacency(segment, first_point=False), None),

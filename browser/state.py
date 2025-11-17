@@ -27,7 +27,7 @@ from .. import asset_registry
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-MODULE_CLASSES: typing.List[typing.Any] = []
+MODULE_CLASSES: list[typing.Any] = []
 
 
 class BrowserAssetState(bpy.types.PropertyGroup):

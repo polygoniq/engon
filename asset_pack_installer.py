@@ -40,28 +40,24 @@ logger = logging.getLogger(f"polygoniq.{__name__}")
 DEFAULT_PACK_INSTALL_PATH = os.path.expanduser(os.path.join("~", "polygoniq_asset_packs"))
 
 
-class InstallerOperation(enum.Enum):
+class InstallerOperation(enum.StrEnum):
     INSTALL = "Installation"
     UNINSTALL = "Uninstallation"
     UPDATE = "Update"
 
 
-class InstallerStatus(enum.Enum):
+class InstallerStatus(enum.StrEnum):
     READY = "Ready"
     NOT_FOUND = "Not Found"
     ABORTED = "Aborted"
     FINISHED = "Finished"
     NOT_READY = "Not Ready"
     EXIT = "Exit"
-    # This status serves for our custom cancel button in versions before 4.1.0
-    # TODO: Remove this status when we drop support for Blender versions before 4.1.0
-    CANCELED = "Canceled"
 
 
-INSTALLER_OPERATION_DESCRIPTIONS: typing.Dict[InstallerStatus, str] = {
+INSTALLER_OPERATION_DESCRIPTIONS: dict[InstallerStatus, str] = {
     InstallerStatus.READY: "Ready to start _ACTION_.",
     InstallerStatus.NOT_FOUND: "No Asset Pack was found.",
-    InstallerStatus.CANCELED: "_ACTION_ was canceled.",
     InstallerStatus.ABORTED: "_ACTION_ was unsuccessful.",
     InstallerStatus.FINISHED: "_ACTION_ was successful.",
     InstallerStatus.NOT_READY: "_ACTION_ is not ready to proceed. Resolve the issue(s) below.",
@@ -73,8 +69,8 @@ class AssetPackInstaller:
     def __init__(self):
         self._operation: InstallerOperation = InstallerOperation.INSTALL
         self._status: InstallerStatus = InstallerStatus.NOT_READY
-        self._warning_messages: typing.List[str] = []
-        self._error_messages: typing.List[str] = []
+        self._warning_messages: list[str] = []
+        self._error_messages: list[str] = []
 
         # Asset Pack Metadata
         self.full_name: str = ""
@@ -103,7 +99,7 @@ class AssetPackInstaller:
 
         # Asset Pack to be used during installation
         # Used mainly for comparing if it is already installed or if it is a different version
-        self._loaded_asset_pack: typing.Optional['asset_registry.AssetPack'] = None
+        self._loaded_asset_pack: 'asset_registry.AssetPack' | None = None
 
         # Flags for switching to another update from installation
         self._update_available: bool = False
@@ -119,6 +115,9 @@ class AssetPackInstaller:
         # from the same pack-info file already present in the install directory
         self._reregister_available: bool = False
         self._try_reregistering: bool = False
+
+        # Flag to determine whether the pack should be registered as a Blender Asset Library
+        self._register_blender_asset_library: bool = True
 
     @property
     def status(self) -> InstallerStatus:
@@ -181,6 +180,15 @@ class AssetPackInstaller:
         return polib.utils_bpy.convert_size(self._free_space)
 
     @property
+    def register_blender_asset_library(self) -> bool:
+        return self._register_blender_asset_library
+
+    @register_blender_asset_library.setter
+    def register_blender_asset_library(self, value: bool) -> None:
+        """Sets whether the Asset Pack should be registered as a Blender Asset Library."""
+        self._register_blender_asset_library = value
+
+    @property
     def is_update_available(self) -> bool:
         return self._update_available
 
@@ -225,7 +233,7 @@ class AssetPackInstaller:
         description = INSTALLER_OPERATION_DESCRIPTIONS.get(self.status, None)
         if description is None:
             raise AttributeError("Provided Status does not have a description!")
-        return description.replace("_ACTION_", self._operation.value)
+        return description.replace("_ACTION_", self._operation)
 
     @property
     def is_ready(self) -> bool:
@@ -256,7 +264,7 @@ class AssetPackInstaller:
         self._reinstall_available = False
         self._reregister_available = False
         free_space = 0
-        closest_existing_directory: typing.Optional[str] = (
+        closest_existing_directory: str | None = (
             polib.utils_bpy.get_first_existing_ancestor_directory(
                 self._install_path, whitelist={DEFAULT_PACK_INSTALL_PATH}
             )
@@ -340,11 +348,6 @@ class AssetPackInstaller:
             self.record_error_message(message)
         self._warning_messages.clear()
 
-    def cancel_installer_operation(self) -> None:
-        self._warning_messages.clear()
-        self._error_messages.clear()
-        self.status = InstallerStatus.CANCELED
-
     def exit_installer_operation(self) -> None:
         self._warning_messages.clear()
         self._error_messages.clear()
@@ -353,7 +356,7 @@ class AssetPackInstaller:
     def get_installer_status_description(self) -> str:
         """Return the status description containing the current operation name."""
 
-        return self._status.value.replace("_ACTION_", self._operation.value)
+        return self._status.replace("_ACTION_", self._operation)
 
     def record_warning_message(self, warning_message: str) -> None:
         """Record issues that are not critical to the operation.
@@ -382,7 +385,7 @@ class AssetPackInstaller:
     def load_update(self, filepath: str, update_filepath: str) -> None:
         self._load_installer(InstallerOperation.UPDATE, filepath, update_file_path=update_filepath)
 
-    def get_paq_file_sources(self, file_path: str) -> typing.Optional[typing.List[str]]:
+    def get_paq_file_sources(self, file_path: str) -> list[str] | None:
         """Returns all file sources needed to open a paq archive, or None if encountering an error.
 
         The input can either be:
@@ -400,7 +403,7 @@ class AssetPackInstaller:
             return [file_path]
 
         if file_path.endswith(".paq.001"):
-            file_sources: typing.List[str] = []
+            file_sources: list[str] = []
             no_suffix = file_path[:-4]
             # find all paq.xxx files
             file_sources.extend(glob.glob(f"{no_suffix}.[0-9][0-9][1-9]"))
@@ -423,15 +426,15 @@ class AssetPackInstaller:
 
     def _get_asset_pack_and_size_from_filepath(
         self, file_path: str
-    ) -> typing.Tuple[typing.Optional[asset_registry.AssetPack], int, str]:
+    ) -> tuple[asset_registry.AssetPack | None, int, str]:
         """Recursively searches for an Asset Pack from a provided path.
 
         After successfully finding an Asset Pack, this method returns a tuple
         of the Asset Pack, it's size and the real path it was loaded from.
         """
 
-        asset_pack: typing.Optional[asset_registry.AssetPack] = None
-        pack_info_files: typing.List[str] = []
+        asset_pack: asset_registry.AssetPack | None = None
+        pack_info_files: list[str] = []
         pack_filepath = file_path
         pack_size = 0
         NO_RESULT = None, 0, ""
@@ -480,7 +483,7 @@ class AssetPackInstaller:
 
         return asset_pack, pack_size, pack_filepath
 
-    def _check_only_one_info_file(self, pack_info_files: typing.List[str]) -> bool:
+    def _check_only_one_info_file(self, pack_info_files: list[str]) -> bool:
         pack_info_files_count = len(pack_info_files)
         if pack_info_files_count != 1:
             self.status = InstallerStatus.NOT_FOUND
@@ -517,16 +520,16 @@ class AssetPackInstaller:
         self,
         operation: InstallerOperation,
         file_path: str,
-        update_file_path: typing.Optional[str] = None,
+        update_file_path: str | None = None,
     ) -> None:
         self._clear_installer()
         self._operation = operation
 
-        pack: typing.Optional[asset_registry.AssetPack] = None
+        pack: asset_registry.AssetPack | None = None
         pack_size: int = 0
-        update_pack: typing.Optional[asset_registry.AssetPack] = None
+        update_pack: asset_registry.AssetPack | None = None
         update_pack_size: int = 0
-        uninstall_pack: typing.Optional[asset_registry.AssetPack] = None
+        uninstall_pack: asset_registry.AssetPack | None = None
 
         logger.info(f"Loading Asset Pack from '{file_path}'")
         pack, pack_size, file_path = self._get_asset_pack_and_size_from_filepath(file_path)
@@ -619,7 +622,7 @@ class AssetPackInstaller:
     def check_asset_pack_already_installed(self) -> bool:
         return asset_registry.instance.get_pack_by_full_name(self.full_name) is not None
 
-    def execute_update(self) -> typing.Optional[typing.Tuple[str, str]]:
+    def execute_update(self) -> tuple[str, str] | None:
         """Successful update returns a tuple of the old and new .pack-info path of the updated Asset Pack."""
 
         old_pack_info_path = self.execute_uninstallation()
@@ -629,7 +632,7 @@ class AssetPackInstaller:
             return (old_pack_info_path, new_pack_info_path)
         return None
 
-    def execute_installation(self) -> typing.Optional[str]:
+    def execute_installation(self) -> str | None:
         """Successful installation returns the .pack-info path of the installed Asset Pack."""
 
         def install_from_paq_file(
@@ -697,7 +700,7 @@ class AssetPackInstaller:
 
         return None
 
-    def execute_uninstallation(self) -> typing.Optional[str]:
+    def execute_uninstallation(self) -> str | None:
         """Successful uninstallation returns the .pack-info path of the uninstalled Asset Pack."""
 
         if self._status != InstallerStatus.READY:
@@ -732,7 +735,7 @@ class AssetPackInstaller:
 
         return None
 
-    def _get_direct_child_pack_info_files(self, parent_dir: str) -> typing.List[str]:
+    def _get_direct_child_pack_info_files(self, parent_dir: str) -> list[str]:
         if not os.path.exists(parent_dir):
             return []
         elif os.path.isfile(parent_dir):
@@ -743,10 +746,10 @@ class AssetPackInstaller:
             if name.endswith(".pack-info")
         ]
 
-    def _get_pack_info_files_from_ancestor_directory(self, current_dir: str) -> typing.List[str]:
+    def _get_pack_info_files_from_ancestor_directory(self, current_dir: str) -> list[str]:
         if not os.path.exists(current_dir):
             return []
-        pack_info_files: typing.List[str] = self._get_direct_child_pack_info_files(current_dir)
+        pack_info_files: list[str] = self._get_direct_child_pack_info_files(current_dir)
         while current_dir != os.path.dirname(current_dir) and len(pack_info_files) == 0:
             current_dir = os.path.dirname(current_dir)
             pack_info_files = self._get_direct_child_pack_info_files(current_dir)
@@ -762,20 +765,11 @@ class AssetPackInstallerDialogMixin:
     This class is used by Instal/Uninstall/Update Asset Pack operators in preferences.
     """
 
-    def _update_cancel_installer_operation(self, _) -> None:
-        if self.canceled:
-            instance.cancel_installer_operation()
-
     def _set_install_path(self, install_path: str) -> None:
         instance.install_path = install_path
 
     def _get_install_path(self) -> str:
         return instance.install_path
-
-    # Setting to True changes status to 'CANCELED'
-    canceled: bpy.props.BoolProperty(
-        name="Cancel Installer Operation", default=False, update=_update_cancel_installer_operation
-    )
 
     # Used during Installation and Update
     # Should contain the path without the Asset Pack's root folder
@@ -784,8 +778,15 @@ class AssetPackInstallerDialogMixin:
         description="Select Asset Pack Install Path",
         set=_set_install_path,
         get=_get_install_path,
-        # We use custom file browser in lower versions
-        subtype='DIR_PATH' if bpy.app.version >= (4, 1, 0) else 'NONE',
+        subtype='DIR_PATH',
+    )
+
+    blender_asset_library: bpy.props.BoolProperty(
+        name="Register in Blender Asset Library",
+        description="Register this Asset Pack as a Blender Asset Library",
+        default=True,
+        get=lambda self: instance.register_blender_asset_library,
+        set=lambda self, value: setattr(instance, "register_blender_asset_library", value),
     )
 
     # Used for passing to operators when offering to switch operation
@@ -855,6 +856,10 @@ class AssetPackInstallerDialogMixin:
             label_col.label(text=f"Free Disk Space:")
             value_col.label(text=instance.free_space)
 
+        if instance._operation in {InstallerOperation.INSTALL, InstallerOperation.UPDATE}:
+            row = layout.row(align=True)
+            row.prop(self, "blender_asset_library", toggle=True, icon='ASSET_MANAGER')
+
     def check_should_dialog_close(self) -> bool:
         return not instance.can_installer_proceed
 
@@ -864,8 +869,5 @@ class AssetPackInstallerDialogMixin:
             return context.window_manager.invoke_popup(self, width=550)
         return context.window_manager.invoke_props_dialog(self, width=550)
 
-    # Since Blender 4.1.0 there is a cancel button in the dialog window
-    # This method is called when the cancel button is clicked
-    # This method is also called when user clicks outside of the operator dialog window
     def cancel(self, context: bpy.types.Context):
         instance.exit_installer_operation()

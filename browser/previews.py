@@ -32,7 +32,7 @@ preview_manager = polib.preview_manager_bpy.PreviewManager(blocking_load=False)
 def asset_registry_changed(
     asset_pack: asset_registry.AssetPack, change: asset_registry.AssetPackChange
 ) -> None:
-    previews_id_to_full_path: typing.Dict[str, str] = {}
+    previews_id_to_full_path: dict[str, str] = {}
     asset_provider = asset_pack.asset_multiplexer
     file_provider = asset_pack.file_multiplexer
     for asset in asset_provider.list_assets(

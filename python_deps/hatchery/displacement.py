@@ -12,7 +12,7 @@ import typing
 
 def _get_top_level_material_outputs(
     node_tree: bpy.types.NodeTree,
-) -> typing.Set[bpy.types.ShaderNodeOutputMaterial]:
+) -> set[bpy.types.ShaderNodeOutputMaterial]:
     ret = set()
     for node in node_tree.nodes:
         if isinstance(node, bpy.types.ShaderNodeOutputMaterial):
@@ -23,7 +23,7 @@ def _get_top_level_material_outputs(
 
 def _get_displacement_nodegroups(
     node_tree: bpy.types.NodeTree,
-) -> typing.Set[bpy.types.ShaderNodeGroup]:
+) -> set[bpy.types.ShaderNodeGroup]:
     ret = set()
     for node in node_tree.nodes:
         if not hasattr(node, "node_tree"):

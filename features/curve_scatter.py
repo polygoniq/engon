@@ -30,7 +30,7 @@ from .. import asset_helpers
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-MODULE_CLASSES: typing.List[typing.Type] = []
+MODULE_CLASSES: list[type] = []
 
 
 @feature_utils.register_feature

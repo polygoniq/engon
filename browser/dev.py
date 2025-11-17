@@ -30,7 +30,7 @@ from .. import asset_registry
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-MODULE_CLASSES: typing.List[typing.Any] = []
+MODULE_CLASSES: list[typing.Any] = []
 
 # Top secret path to the dev location
 EXPECTED_DEV_PATH = os.path.realpath(os.path.expanduser("~/polygoniq/"))
@@ -98,14 +98,14 @@ class MAPR_BrowserOpenAssetSourceBlend(bpy.types.Operator):
 
         return context.window_manager.invoke_props_dialog(self, width=800)
 
-    def _get_asset_dev_path(self) -> typing.Optional[str]:
+    def _get_asset_dev_path(self) -> str | None:
         asset_provider = asset_registry.instance.master_asset_provider
         asset = asset_provider.get_asset(self.asset_id)
         if asset is None:
             self.report({'ERROR'}, f"No asset found for '{self.asset_id}'")
             return None
 
-        first_asset_data: typing.Optional[mapr.asset_data.AssetData] = None
+        first_asset_data: mapr.asset_data.AssetData | None = None
         for asset_data_id in asset_provider.list_asset_data_ids(asset.id_):
             asset_data = asset_provider.get_asset_data(asset_data_id)
             if asset_data is not None:

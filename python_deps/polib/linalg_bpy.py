@@ -12,7 +12,7 @@ import typing
 
 def plane_from_points(
     points: typing.Iterable[mathutils.Vector],
-) -> typing.Tuple[mathutils.Vector, float, mathutils.Vector]:
+) -> tuple[mathutils.Vector, float, mathutils.Vector]:
     points = tuple(points)
     if len(points) != 3:
         raise ValueError("Exactly three points are required to define a plane")
@@ -48,11 +48,11 @@ RaycastHit = collections.namedtuple("RaycastHit", ["object", "position", "normal
 
 def raycast_screen_to_world(
     context: bpy.types.Context,
-    screen_position: typing.Tuple[int, int],
-    excluded_objects_names: typing.Optional[typing.Set[str]] = None,
-    raycast_collection: typing.Optional[bpy.types.Collection] = None,
+    screen_position: tuple[int, int],
+    excluded_objects_names: set[str] | None = None,
+    raycast_collection: bpy.types.Collection | None = None,
     skip_particle_instances: bool = True,
-) -> typing.Optional[RaycastHit]:
+) -> RaycastHit | None:
     """Get the 3D position of the mouse cursor in the scene based on 'context' and 'screen_position'.
 
     Use 'excluded_objects_names' to provide a set of object names to exclude from the raycast
@@ -82,7 +82,7 @@ def raycast_screen_to_world(
     ray_target = ray_origin + view_vector
 
     def get_visible_objects_and_instances() -> (
-        typing.Iterable[typing.Tuple[bpy.types.Object, mathutils.Matrix]]
+        typing.Iterable[tuple[bpy.types.Object, mathutils.Matrix]]
     ):
         """Get (Object, Matrix) pairs of all the objects and instanced objects in the scene"""
         depsgraph = context.evaluated_depsgraph_get()
@@ -128,7 +128,7 @@ def raycast_screen_to_world(
 
     def obj_ray_cast(
         obj: bpy.types.Object, matrix: mathutils.Matrix
-    ) -> typing.Tuple[typing.Optional[mathutils.Vector], typing.Optional[mathutils.Vector]]:
+    ) -> tuple[mathutils.Vector | None, mathutils.Vector | None]:
         """Raycasts a ray in object's local space, returns result in world space."""
 
         # get the ray relative to the object

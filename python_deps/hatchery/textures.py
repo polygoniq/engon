@@ -56,9 +56,7 @@ def change_texture_size(max_size: int, image: bpy.types.Image):
     image.name = os.path.basename(new_path)
 
 
-def change_texture_sizes(
-    max_size: int, only_textures: typing.Optional[typing.Set[bpy.types.Image]] = None
-):
+def change_texture_sizes(max_size: int, only_textures: set[bpy.types.Image] | None = None):
     logger.debug(f"mq: changing textures to {max_size}...")
 
     if only_textures is not None:
@@ -69,7 +67,7 @@ def change_texture_sizes(
             change_texture_size(max_size, image)
 
 
-def get_used_textures_in_node(node: bpy.types.Node) -> typing.Set[bpy.types.Image]:
+def get_used_textures_in_node(node: bpy.types.Node) -> set[bpy.types.Image]:
     ret = set()
 
     if hasattr(node, "node_tree"):
@@ -83,7 +81,7 @@ def get_used_textures_in_node(node: bpy.types.Node) -> typing.Set[bpy.types.Imag
     return ret
 
 
-def get_used_textures(material: bpy.types.Material) -> typing.Set[bpy.types.Image]:
+def get_used_textures(material: bpy.types.Material) -> set[bpy.types.Image]:
     if material is None:
         return set()
 

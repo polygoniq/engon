@@ -17,7 +17,7 @@ except ImportError:
 @dataclasses.dataclass(frozen=True)
 class BlenderAssetData(asset_data.AssetData, abc.ABC):
     primary_blend_file: file_provider.FileID = ""
-    dependency_files: typing.Set[file_provider.FileID] = dataclasses.field(default_factory=set)
+    dependency_files: set[file_provider.FileID] = dataclasses.field(default_factory=set)
 
     @abc.abstractmethod
     def spawn(

@@ -30,7 +30,7 @@ from .. import polib
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-MODULE_CLASSES: typing.List[typing.Type] = []
+MODULE_CLASSES: list[type] = []
 
 
 class MaterialWarning:
@@ -50,7 +50,7 @@ MATERIAL_WARNING_MAP = {
 }
 
 
-def get_material_warnings_obj_based(obj: bpy.types.Object, material_name: str) -> typing.Set[str]:
+def get_material_warnings_obj_based(obj: bpy.types.Object, material_name: str) -> set[str]:
 
     warnings = MATERIAL_WARNING_MAP.get(material_name, None)
     if warnings is None:
@@ -74,7 +74,7 @@ class AquatiqMaterialLimitationsPanel(feature_utils.EngonFeaturePanelMixin, bpy.
     feature_name = "aquatiq_material_limitation_warning"
 
     @classmethod
-    def get_material_limitations(cls, obj: typing.Optional[bpy.types.Object]) -> typing.Set[str]:
+    def get_material_limitations(cls, obj: bpy.types.Object | None) -> set[str]:
         if obj is None:
             return set()
 
@@ -98,9 +98,7 @@ class AquatiqMaterialLimitationsPanel(feature_utils.EngonFeaturePanelMixin, bpy.
         self.layout.alert = True
         self.layout.label(text="", icon='ERROR')
 
-    def draw_material_limitations(
-        self, layout: bpy.types.UILayout, obj: typing.Optional[bpy.types.Object]
-    ):
+    def draw_material_limitations(self, layout: bpy.types.UILayout, obj: bpy.types.Object | None):
         warnings = self.get_material_limitations(obj)
 
         if len(warnings) == 0:

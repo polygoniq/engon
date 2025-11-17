@@ -28,7 +28,7 @@ import logging
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-MODULE_CLASSES: typing.List[typing.Type] = []
+MODULE_CLASSES: list[type] = []
 
 
 class AssetPackPanelMixin(feature_utils.EngonFeaturePanelMixin):
@@ -117,6 +117,22 @@ class AquatiqPanel(AssetPackPanelMixin, bpy.types.Panel):
 
 
 MODULE_CLASSES.append(AquatiqPanel)
+
+
+@feature_utils.register_feature
+@polib.log_helpers_bpy.logged_panel
+class AesthetiqPanel(AssetPackPanelMixin, bpy.types.Panel):
+    bl_idname = "VIEW_3D_PT_engon_aesthetiq"
+    bl_label = "aesthetiq"
+    bl_order = 15
+
+    feature_name = "aesthetiq"
+
+    def draw(self, context: bpy.types.Context):
+        pass
+
+
+MODULE_CLASSES.append(AesthetiqPanel)
 
 
 def register():

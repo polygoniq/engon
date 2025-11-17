@@ -52,30 +52,24 @@ class CrossroadBuilder:
     ):
         self.main_collection = main_collection
         asset_helpers.load_geometry_nodes(
-            cx_geonodes_lib_path, {x.value for x in asset_helpers.CrossroadNodegroup}
+            cx_geonodes_lib_path, {x for x in asset_helpers.CrossroadNodegroup}
         )
         asset_helpers.load_geometry_nodes(
-            geonodes_lib_path, {x.value for x in asset_helpers.RoadNodegroup}
+            geonodes_lib_path, {x for x in asset_helpers.RoadNodegroup}
         )
 
-        self.cx_register_ng = bpy.data.node_groups.get(
-            asset_helpers.CrossroadNodegroup.Register.value
-        )
-        self.cx_profile_ng = bpy.data.node_groups.get(
-            asset_helpers.CrossroadNodegroup.Profile.value
-        )
-        self.cx_build_ng = bpy.data.node_groups.get(asset_helpers.CrossroadNodegroup.Build.value)
-        self.cx_instance_ng = bpy.data.node_groups.get(
-            asset_helpers.CrossroadNodegroup.Instance.value
-        )
-        self.road_markings_ng = bpy.data.node_groups.get(asset_helpers.RoadNodegroup.Markings.value)
-        self.crosswalk_ng = bpy.data.node_groups.get(asset_helpers.RoadNodegroup.Crosswalk.value)
-        self.cleanup_ng = bpy.data.node_groups.get(asset_helpers.RoadNodegroup.Cleanup.value)
+        self.cx_register_ng = bpy.data.node_groups.get(asset_helpers.CrossroadNodegroup.Register)
+        self.cx_profile_ng = bpy.data.node_groups.get(asset_helpers.CrossroadNodegroup.Profile)
+        self.cx_build_ng = bpy.data.node_groups.get(asset_helpers.CrossroadNodegroup.Build)
+        self.cx_instance_ng = bpy.data.node_groups.get(asset_helpers.CrossroadNodegroup.Instance)
+        self.road_markings_ng = bpy.data.node_groups.get(asset_helpers.RoadNodegroup.Markings)
+        self.crosswalk_ng = bpy.data.node_groups.get(asset_helpers.RoadNodegroup.Crosswalk)
+        self.cleanup_ng = bpy.data.node_groups.get(asset_helpers.RoadNodegroup.Cleanup)
 
     def build_crossroad(
         self,
-        input_adjacencies: typing.List[road_network.SegmentAdjacency],
-        position: typing.Optional[mathutils.Vector] = None,
+        input_adjacencies: list[road_network.SegmentAdjacency],
+        position: mathutils.Vector | None = None,
     ) -> road_network.Crossroad:
         """Builds crossroad geometry out of 'input_adjacencies'
 
@@ -147,8 +141,8 @@ class CrossroadBuilder:
         return crossroad
 
     def _sort_adjacencies_ccw(
-        self, adjacencies: typing.List[road_network.SegmentAdjacency]
-    ) -> typing.List[road_network.SegmentAdjacency]:
+        self, adjacencies: list[road_network.SegmentAdjacency]
+    ) -> list[road_network.SegmentAdjacency]:
         """Sorts segment adjacencies counter-clockwise based on their mean position"""
 
         X = mathutils.Vector((1, 0, 0))
@@ -231,7 +225,7 @@ class CrossroadBuilder:
 
     def _add_road_markings(
         self,
-        ccw_adjacencies: typing.List[road_network.SegmentAdjacency],
+        ccw_adjacencies: list[road_network.SegmentAdjacency],
         base_segment: road_network.RoadSegment,
         cx_root_obj: bpy.types.Object,
     ) -> None:
@@ -279,7 +273,7 @@ class CrossroadBuilder:
     def _create_signs(
         self,
         cx_root_obj: bpy.types.Object,
-        adjacencies: typing.List[road_network.SegmentAdjacency],
+        adjacencies: list[road_network.SegmentAdjacency],
         cx_type: props.CrossroadType,
         yield_method: props.CrossroadYieldMethod,
     ) -> None:

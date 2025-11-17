@@ -1,10 +1,11 @@
 # copyright (c) 2018- polygoniq xyz s.r.o.
-
+import typing
 from . import country_locations
 
 # Definition of tags that can be manually added to the asset in grumpy_cat. Each tag maps to a
 # dictionary where more details can be specified. Including a description that is used as a tooltip.
 # Keep in mind that in addition to these, assets can have tags not on this list!
+# Default tags search weight: 1.0
 TAGS = {
     "Bathroom": {"description": ""},
     "Bedroom": {"description": ""},
@@ -41,10 +42,10 @@ TAGS = {
     "Photoscan": {"description": "Assets created using photogrammetry"},
 }
 
-
 # Which numeric parameters can be added to assets in grumpy_cat. Each maps to a dictionary with more
 # info about each parameter. Keep in mind that in addition to these, assets can have parameters not
 # on this list!
+# Default search weight for all parameters: 0.0
 NUMERIC_PARAMETERS = {
     "model_year": {
         "description": "When was this man-made object made",
@@ -52,7 +53,6 @@ NUMERIC_PARAMETERS = {
     },
     "price_usd": {
         "description": "Price in USD for which this man-made object was typically sold in $model_year year",
-        "search_weight": 0.0,
         "unit": "$",
     },
     "width": {
@@ -87,6 +87,25 @@ NUMERIC_PARAMETERS = {
         "description": "Number of triangles used in the asset after applying modifiers",
         "type": "int",
     },
+    "original_width": {
+        "description": "Original width of the real world object in meters, if known",
+        "unit": "m",
+        "show_filter": False,
+    },
+    "original_height": {
+        "description": "Original height of the real world object in meters, if known",
+        "unit": "m",
+        "show_filter": False,
+    },
+    "original_depth": {
+        "description": "Original depth of the real world object in meters, if known",
+        "unit": "m",
+        "show_filter": False,
+    },
+    "dated_to": {
+        "description": "Approximate date when the artwork was created",
+        "type": "int",
+    },
 }
 
 # Order matters! From least to most permissive.
@@ -99,34 +118,28 @@ TEXT_PARAMETERS = {
         "description": "What license applies to this asset",
         "is_required": True,
         "choices": LICENSE_TYPES,
-        "search_weight": 0.0,
     },
     "mapr_asset_id": {
         "description": "UUID of the asset in the MAPR index, internal use only",
         "is_required": True,
-        "search_weight": 0.0,
         "show_filter": False,
     },
     # This is used for transferring the asset id from the recipe to the deserialized .blend file
     "mapr_asset_data_id": {
         "description": "UUID of the asset data in the MAPR index, internal use only",
-        "search_weight": 0.0,
         "show_filter": False,
     },
     "bpy.data.version": {
         "description": "Which version of the .blend format was used for this asset",
         "show_filter": False,
-        "search_weight": 0.0,
     },
     "copyright": {
         "description": "Who holds the copyright of this asset",
         "show_filter": False,
-        "search_weight": 0.0,
     },
     "polygoniq_addon": {
         "description": "Which asset pack is this asset from, internal use only",
         "show_filter": False,
-        "search_weight": 0.0,
     },
     "bq_animation_type": {
         "choices": [
@@ -138,11 +151,14 @@ TEXT_PARAMETERS = {
         ],
         "description": "Animation type that is the most suitable for this asset",
         "show_filter": False,
-        "search_weight": 0.0,
     },
-    "brand": {"description": "What is the brand of the man-made object"},
+    "brand": {
+        "description": "What is the brand of the man-made object",
+        "search_weight": 0.5,
+    },
     "model": {
-        "description": "What does the manufacturer call this man-made object in marketing materials"
+        "description": "What does the manufacturer call this man-made object in marketing materials",
+        "search_weight": 0.5,
     },
     "country_of_origin": {
         "description": "Where is this man-made object usually made",
@@ -150,6 +166,7 @@ TEXT_PARAMETERS = {
             country_locations.COUNTRY_COORDINATES.keys(),
             key=lambda country: country.lower(),
         ),
+        "search_weight": 0.5,
     },
     "furniture_style": {
         "choices": [
@@ -167,25 +184,41 @@ TEXT_PARAMETERS = {
             "Vintage/Old",
         ],
         "description": "Most fitting style for this piece of furniture or room",
+        "search_weight": 0.5,
     },
-    "species": {"description": "Scientific (usually Latin) taxonomy name for the species"},
+    "species": {
+        "description": "Scientific (usually Latin) taxonomy name for the species",
+        "search_weight": 0.5,
+    },
     "species_en": {"description": "English common name for the species", "search_weight": 1.0},
-    "class": {"description": "Scientific (usually Latin) taxonomy class name for the species"},
+    "class": {
+        "description": "Scientific (usually Latin) taxonomy class name for the species",
+        "search_weight": 0.5,
+    },
     "class_en": {
         "description": "English common name for class of the species",
         "search_weight": 1.0,
     },
-    "order": {"description": "Scientific (usually Latin) taxonomy order name for the species"},
+    "order": {
+        "description": "Scientific (usually Latin) taxonomy order name for the species",
+        "search_weight": 0.5,
+    },
     "order_en": {
         "description": "English common name for order of the species",
         "search_weight": 1.0,
     },
-    "family": {"description": "Scientific (usually Latin) taxonomy family name for the species"},
+    "family": {
+        "description": "Scientific (usually Latin) taxonomy family name for the species",
+        "search_weight": 0.5,
+    },
     "family_en": {
         "description": "English common name for family of the species",
         "search_weight": 1.0,
     },
-    "genus": {"description": "Scientific (usually Latin) taxonomy genus name for the species"},
+    "genus": {
+        "description": "Scientific (usually Latin) taxonomy genus name for the species",
+        "search_weight": 0.5,
+    },
     "genus_en": {
         "description": "English common name for genus of the species",
         "search_weight": 1.0,
@@ -223,7 +256,6 @@ TEXT_PARAMETERS = {
             "6 - Extinct (EX)",
         ],
         "description": "Conservation status of the species according to the IUCN",
-        "search_weight": 0.0,
     },
     "model_detail": {
         "choices": [
@@ -232,12 +264,10 @@ TEXT_PARAMETERS = {
             "High-poly",
         ],
         "description": "Polygonal resolution of model",
-        "search_weight": 0.0,
     },
     "st_original": {
         "description": "Path to the original source file and optionally the object name in the source 3DShaker asset pack",
         "show_filter": False,
-        "search_weight": 0.0,
     },
     "interior_detail": {
         "choices": [
@@ -245,24 +275,47 @@ TEXT_PARAMETERS = {
             "High",
         ],
         "description": "Interior detail level",
-        "search_weight": 0.0,
     },
     "author": {
         "description": "Who created this asset. Optional and relevant only for internal use",
         "show_filter": False,
-        "search_weight": 0.0,
     },
     "native_observations": {
         "description": "List of lat/long coordinates where the asset is naturally occurring",
-        "search_weight": 0.0,
     },
     "all_observations": {
         "description": "List of lat/long coordinates where the asset is occurring",
-        "search_weight": 0.0,
     },
     "location_of_origin": {
         "description": "List of lat/long coordinates based on 'country_of_origin' parameter",
-        "search_weight": 0.0,
+    },
+    "source_link": {
+        "description": "Link to the source of the asset - website, store page, etc.",
+        "show_filter": False,
+        "type": "url",
+    },
+    # TODO: This is duplicated in 'aesthetiq' data, let's unify in future.
+    "source": {
+        "description": "Link to the source of the asset - website, store page, etc.",
+        "show_filter": False,
+        "type": "url",
+    },
+    "artwork_title": {
+        "description": "Artistic title of the artwork",
+        "search_weight": 1.0,
+    },
+    "attributed_to": {
+        "description": "Who is the artwork attributed to",
+        "search_weight": 1.0,
+    },
+    "artwork_medium": {
+        "description": "Medium used in the artwork",
+        "search_weight": 0.25,
+    },
+    "artwork_content_description": {
+        "description": "Description of the content of the artwork",
+        "search_weight": 0.25,
+        "show_filter": False,
     },
 }
 
@@ -283,13 +336,11 @@ class VectorType:
 VECTOR_PARAMETERS = {
     "introduced_in": {
         "description": "Version of asset pack this asset was introduced in",
-        "search_weight": 0.0,
         "type": VectorType.INT,
         "is_required": True,
     },
     "viewport_color": {
         "description": "",
-        "search_weight": 0.0,
         "type": VectorType.COLOR,
     },
 }
@@ -297,15 +348,20 @@ VECTOR_PARAMETERS = {
 LOCATION_PARAMETERS = {
     "native_observations": {
         "description": "List of lat/long coordinates where the asset is naturally occurring.",
-        "search_weight": 0.0,
     },
     "all_observations": {
         "description": "List of lat/long coordinates where the asset is naturally occurring, "
         "or was artificially introduced.",
-        "search_weight": 0.0,
     },
 }
 
+# Combined dictionary of all known parameters.
+ALL_PARAMETERS = {
+    **NUMERIC_PARAMETERS,
+    **TEXT_PARAMETERS,
+    **VECTOR_PARAMETERS,
+    **LOCATION_PARAMETERS,
+}
 
 # Mapping of parameter name to unit. If the parameter is not specified here it is considered unitless.
 PARAMETER_UNITS = {
@@ -324,6 +380,9 @@ PARAMETER_GROUPING = {
         "num:width",
         "num:height",
         "num:depth",
+        "num:original_width",
+        "num:original_height",
+        "num:original_depth",
     ],
     "taxonomy": [
         "text:class",
@@ -375,6 +434,14 @@ PARAMETER_GROUPING = {
         "num:image_count",
     ],
 }
+
+
+def get_parameter_info(param_name: str) -> dict[str, typing.Any]:
+    """Returns metadata dictionary for the given parameter name.
+
+    Takes parameter name without the type prefix.
+    """
+    return ALL_PARAMETERS.get(param_name, {})
 
 
 def format_parameter_name(param_name: str) -> str:

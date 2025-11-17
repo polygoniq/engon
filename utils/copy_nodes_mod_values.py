@@ -26,7 +26,7 @@ from .. import polib
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-MODULE_CLASSES: typing.List[typing.Type] = []
+MODULE_CLASSES: list[type] = []
 
 
 @polib.log_helpers_bpy.logged_operator
@@ -81,58 +81,18 @@ class CopyGeonodesModifierValues(bpy.types.Operator):
             )
             return {'CANCELLED'}
 
-        src_input_map = polib.node_utils_bpy.get_node_tree_inputs_map(src_mod.node_group)
-        dst_input_map = polib.node_utils_bpy.get_node_tree_inputs_map(dst_mod.node_group)
-        if len(src_input_map) != len(dst_input_map):
-            self.report(
-                {'ERROR'},
-                f"Different count of modifier inputs {len(src_input_map)} != {len(dst_input_map)}, cannot copy.",
-            )
+        success = polib.geonodes_mod_utils_bpy.copy_geometry_nodes_modifier_inputs(src_mod, dst_mod)
+        if not success:
+            self.report({'ERROR'}, "Failed to copy modifier inputs.")
             return {'CANCELLED'}
 
-        any_input_incorrect = False
-        for src_identifier, src_input in src_input_map.items():
-            dst_input = dst_input_map.get(src_identifier)
-            if dst_input is None:
-                any_input_incorrect = True
-                break
-
-            # TODO: Check the type of the input whether it matches. Should we also check the name?
-            if polib.node_utils_bpy.get_socket_type(
-                src_input
-            ) != polib.node_utils_bpy.get_socket_type(dst_input):
-                logger.info(f"Input types don't match: {src_input} != {dst_input}")
-                any_input_incorrect = True
-                break
-
-        if any_input_incorrect:
-            self.report({'ERROR'}, "Inputs of the two modifiers don't match, cannot copy!")
-            return {'CANCELLED'}
-        else:
-            # If all inputs match, we can copy the values
-            # If we don't materialize the .keys(), blender complaints about the dict changing size during iteration
-            for input_ in list(src_mod.keys()):
-                # setting these utility attributes causes issues with, e.g., the attribute subtype
-                # it should be safe to assume they are set correctly in the destination modifier
-                if input_.endswith("_use_attribute") or input_.endswith("_attribute_name"):
-                    continue
-
-                dst_mod[input_] = src_mod[input_]
-
-                # Due to what is a bug in blender, we need to re-assign descriptions
-                # otherwise the values will be "None" subtype and won't show units ¯\_(ツ)_/¯
-                # https://projects.blender.org/blender/blender/issues/112646#issuecomment-1141403
-                # TODO: Remove when we don't support blender < 4.1
-                if bpy.app.version < (4, 1, 0):
-                    dst_input_map[input_].description = src_input_map[input_].description
-
-            dst_object.update_tag()
-            polib.ui_bpy.tag_areas_redraw(context, {'VIEW_3D'})
-            self.report(
-                {'INFO'},
-                f"Copied modifier values from '{src_object.name}[\"{src_mod.name}\"]' to '{dst_object.name}[\"{src_mod.name}\"]'.",
-            )
-            return {'FINISHED'}
+        dst_object.update_tag()
+        polib.ui_bpy.tag_areas_redraw(context, {'VIEW_3D'})
+        self.report(
+            {'INFO'},
+            f"Copied modifier values from '{src_object.name}[\"{src_mod.name}\"]' to '{dst_object.name}[\"{src_mod.name}\"]'.",
+        )
+        return {'FINISHED'}
 
 
 MODULE_CLASSES.append(CopyGeonodesModifierValues)

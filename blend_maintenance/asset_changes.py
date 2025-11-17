@@ -12,18 +12,44 @@ class RegexMapping(typing.NamedTuple):
 class AssetPackMigration(typing.NamedTuple):
     # List of regex expressions that will be iteratively applied to the library blend filenames.
     # So the renames stack up on each other.
-    library_changes: typing.List[RegexMapping]
+    library_changes: list[RegexMapping]
     # Dictionary of datablock types mapped to lists of regex expressions that will be iteratively
     # applied to the datablock names.
-    datablock_changes: typing.Dict[str, typing.List[RegexMapping]]
+    datablock_changes: dict[str, list[RegexMapping]]
 
 
 class AssetPackMigrations(typing.NamedTuple):
     # Asset pack name
     pack_name: str
     # Chronological list of migrations in the asset pack
-    migrations: typing.List[AssetPackMigration]
+    migrations: list[AssetPackMigration]
 
+
+_interniq_1_1_1_renamed_assets = {
+    r"^iq_Lobby_Dresser": r"iq_Hallway_Dresser",
+    r"^iq_Washing-Machine_Lois": r"iq_Washing-machine_Lois",
+}
+
+interniq_1_1_1_renamed_assets = AssetPackMigration(
+    [
+        RegexMapping(re.compile(f"{pattern}.blend$"), f"{replacement}.blend")
+        for pattern, replacement in _interniq_1_1_1_renamed_assets.items()
+    ],
+    {
+        "collections": [
+            RegexMapping(re.compile(pattern), replacement)
+            for pattern, replacement in _interniq_1_1_1_renamed_assets.items()
+        ],
+        "meshes": [
+            RegexMapping(re.compile(pattern), replacement)
+            for pattern, replacement in _interniq_1_1_1_renamed_assets.items()
+        ],
+        "objects": [
+            RegexMapping(re.compile(pattern), replacement)
+            for pattern, replacement in _interniq_1_1_1_renamed_assets.items()
+        ],
+    },
+)
 
 # versions in the names reflect the last version of asset pack without given changes
 _botaniq_7_0_0_move_pots_to_interniq = {
@@ -486,7 +512,8 @@ ASSET_PACK_MIGRATIONS = [
     AssetPackMigrations(
         pack_name="interniq",
         migrations=[
-            botaniq_7_0_0_move_pots_to_interniq  # This migration is under interniq, as the new files are in the interniq pack
+            botaniq_7_0_0_move_pots_to_interniq,  # This migration is under interniq, as the new files are in the interniq pack
+            interniq_1_1_1_renamed_assets,
         ],
     ),
 ]

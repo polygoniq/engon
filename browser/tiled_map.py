@@ -19,7 +19,7 @@ logger = logging.getLogger(f"polygoniq.{__name__}")
 tile_manager = polib.preview_manager_bpy.PreviewManager()
 
 
-class MapTileVariant(enum.Enum):
+class MapTileVariant(enum.StrEnum):
     """Enum for the two variants of map tiles."""
 
     SELECTED = "selected"
@@ -28,10 +28,6 @@ class MapTileVariant(enum.Enum):
     @classmethod
     def from_bool(cls, selected: bool) -> 'MapTileVariant':
         return cls.SELECTED if selected else cls.UNSELECTED
-
-    # StrEnum available in Python 3.11+ (blender 4.1+)
-    def __str__(self):
-        return self.value
 
 
 def get_tile_filename(selected: MapTileVariant, y: int, x: int) -> str:
@@ -197,12 +193,12 @@ def ensure_tiles_ready() -> None:
 
 def _draw_map(
     layout: bpy.types.UILayout,
-    property_owner: typing.Optional[bpy.types.PropertyGroup],
-    prop_name: typing.Optional[str],
-    selected_coords: typing.Optional[typing.List[typing.List[bool]]],
+    property_owner: bpy.types.PropertyGroup | None,
+    prop_name: str | None,
+    selected_coords: list[list[bool]] | None,
     max_x: int,
     max_y: int,
-    crop: typing.Tuple[int, int, int, int] = (0, 0, 0, 0),
+    crop: tuple[int, int, int, int] = (0, 0, 0, 0),
 ) -> None:
     top, bottom, left, right = crop
     interactive_mode = property_owner is not None and prop_name is not None
@@ -253,7 +249,7 @@ def draw_map_interactive(
     prop_name: str,
     max_x: int,
     max_y: int,
-    crop: typing.Tuple[int, int, int, int] = (0, 0, 0, 0),
+    crop: tuple[int, int, int, int] = (0, 0, 0, 0),
 ) -> None:
     """Draws an interactive tiled max_x * max_y map in the given layout.
 
@@ -276,10 +272,10 @@ def draw_map_interactive(
 
 def draw_map_static(
     layout: bpy.types.UILayout,
-    selected_coords: typing.List[typing.List[bool]],
+    selected_coords: list[list[bool]],
     max_x: int,
     max_y: int,
-    crop: typing.Tuple[int, int, int, int] = (0, 0, 0, 0),
+    crop: tuple[int, int, int, int] = (0, 0, 0, 0),
 ) -> None:
     """Draws a static tiled max_x * max_y map in the given layout, with given tiles preselected."""
 

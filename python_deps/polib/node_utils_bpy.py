@@ -9,49 +9,48 @@ import dataclasses
 from . import utils_bpy
 
 
-# Type that's compatible with both old and new node tree interfaces
-if bpy.app.version < (4, 0, 0):
-    NodeSocketInterfaceCompat = bpy.types.NodeSocketInterfaceStandard
-else:
-    NodeSocketInterfaceCompat = bpy.types.NodeTreeInterfaceSocket
-
-
 def get_node_tree_inputs_map(
     node_tree: bpy.types.NodeTree,
-) -> typing.Dict[str, NodeSocketInterfaceCompat]:
-    """Returns map of {identifier: input} of given 'node_tree' reassuring compatibility pre and post Blender 4.0"""
-    assert isinstance(node_tree, bpy.types.NodeTree)
-    if bpy.app.version < (4, 0, 0):
-        return {input_.identifier: input_ for input_ in node_tree.inputs}
-    else:
-        return {
-            item.identifier: item
-            for item in node_tree.interface.items_tree
-            if item.item_type == 'SOCKET' and item.in_out == 'INPUT'
-        }
+) -> dict[str, bpy.types.NodeTreeInterfaceSocket]:
+    """Returns map of {identifier: input} of given 'node_tree'"""
+    return {
+        item.identifier: item
+        for item in node_tree.interface.items_tree
+        if item.item_type == 'SOCKET' and item.in_out == 'INPUT'
+    }
 
 
-def get_socket_type(socket: NodeSocketInterfaceCompat) -> str:
-    """Returns the Blender 4.0 version of socket type from a NodeTree.
+def get_node_tree_interface_input_items(
+    node_tree: bpy.types.NodeTree,
+) -> list[bpy.types.NodeTreeInterfaceItem]:
+    """Returns list of inputs and panels of given 'node_tree'"""
+    return [
+        item
+        for item in node_tree.interface.items_tree
+        if (isinstance(item, bpy.types.NodeTreeInterfaceSocket) and item.in_out == 'INPUT')
+        or (isinstance(item, bpy.types.NodeTreeInterfacePanel))
+    ]
 
-    Note 1: This accepts either `bpy.types.NodeSocketInterfaceStandard` or
-            `bpy.types.NodeTreeInterfaceSocket` based on Blender version, but basically it is what
-            the `.inputs` or `.interface.items_tree` gives you.
-    Note 2: NodeTree is different from a NodeGroup!
-    """
 
-    # Inspired by a post on the 'bpy' discord by a user named 'Reigen'
-    if bpy.app.version < (4, 0, 0):
-        assert isinstance(socket, bpy.types.NodeSocketInterfaceStandard)
-        socket_type = socket.type
-    else:
-        assert isinstance(
-            socket, bpy.types.NodeTreeInterfaceSocket
-        ), "Given socket is not a Node Tree interface! Isn't it a node group?"
-        socket_type = socket.bl_socket_idname
+def get_node_tree_outputs_by_name(
+    node_tree: bpy.types.NodeTree, name: str
+) -> list[bpy.types.NodeTreeInterfaceSocket]:
+    """Returns a list of output sockets of 'name' from the given 'node_tree'"""
+    return [
+        item
+        for item in node_tree.interface.items_tree
+        if item.item_type == 'SOCKET' and item.in_out == 'OUTPUT' and item.name == name
+    ]
 
-    # We remap the values to their newer versions, in 4.0 the values changed
-    # from 'key' to the 'value' in MAP
+
+def get_socket_type(
+    socket: bpy.types.NodeTreeInterfaceSocket | bpy.types.NodeSocket,
+) -> str:
+    socket_type = (
+        socket.bl_socket_idname
+        if isinstance(socket, bpy.types.NodeTreeInterfaceSocket)
+        else socket.type
+    )
     key = socket_type.upper()
     MAP = {
         'STRING': 'NodeSocketString',
@@ -70,18 +69,15 @@ def get_socket_type(socket: NodeSocketInterfaceCompat) -> str:
     }
 
     new_value = MAP.get(key, None)
-    if bpy.app.version >= (4, 0, 0):
-        assert new_value is None
-        return socket_type
-    else:
-        return new_value
+    assert new_value is None
+    return socket_type
 
 
 def find_nodes_in_tree(
-    node_tree: typing.Optional[bpy.types.NodeTree],
-    filter_: typing.Optional[typing.Callable[[bpy.types.Node], bool]] = None,
+    node_tree: bpy.types.NodeTree | None,
+    filter_: typing.Callable[[bpy.types.Node], bool] | None = None,
     local_only: bool = False,
-) -> typing.Set[bpy.types.Node]:
+) -> set[bpy.types.Node]:
     """Returns a set of nodes from a given node tree that comply with the filter"""
     ret = set()
     if node_tree is None:
@@ -101,7 +97,7 @@ def find_nodes_in_tree(
 
 def get_top_level_material_nodes_with_name(
     obj: bpy.types.Object,
-    node_names: typing.Set[str],
+    node_names: set[str],
 ) -> typing.Iterable[bpy.types.Node]:
     """Searches for top level nodes or node groups = not nodes nested in other node groups.
 
@@ -138,7 +134,7 @@ def find_nodes_by_bl_idname(
 
 def find_nodes_by_name(
     node_tree: bpy.types.NodeTree, name_prefix: str, exact_match: bool = True
-) -> typing.Set[bpy.types.Node]:
+) -> set[bpy.types.Node]:
     """Returns set of nodes from 'node_tree' which name without duplicate suffix is 'name'"""
     nodes = find_nodes_in_tree(
         node_tree,
@@ -152,11 +148,11 @@ def find_nodes_by_name(
 
 
 def find_nodegroups_by_name(
-    node_tree: typing.Optional[bpy.types.NodeTree],
+    node_tree: bpy.types.NodeTree | None,
     name_prefix: str,
     use_node_tree_name: bool = True,
     exact_match: bool = True,
-) -> typing.Set[bpy.types.NodeGroup]:
+) -> set[bpy.types.NodeGroup]:
     """Returns set of node groups from 'node_tree' which name without duplicate suffix is 'name'
 
     Nodegroups have node.label, node.name and node.node_tree.name, if node.label is empty,
@@ -182,9 +178,9 @@ def find_nodegroups_by_name(
     return nodes
 
 
-def find_incoming_nodes(node: bpy.types.Node) -> typing.Set[bpy.types.Node]:
+def find_incoming_nodes(node: bpy.types.Node) -> set[bpy.types.Node]:
     """Finds and returns all nodes connecting to 'node'"""
-    ret: typing.Set[bpy.types.Node] = set()
+    ret: set[bpy.types.Node] = set()
     for input_ in node.inputs:
         for link in input_.links:
             ret.add(link.from_node)
@@ -197,14 +193,14 @@ def find_link_connected_to(
     to_node: bpy.types.Node,
     to_socket_name: str,
     skip_reroutes: bool = False,
-) -> typing.Optional[bpy.types.NodeLink]:
+) -> bpy.types.NodeLink | None:
     """Find the link connected to given target node (to_node) to given socket name (to_socket_name)
 
     There can be at most 1 such link. In Blender it is not allowed to connect more than one link
     to a socket. It is allowed to connect multiple links *from* one socket, but not *to* one socket.
     """
 
-    ret: typing.List[bpy.types.NodeLink] = []
+    ret: list[bpy.types.NodeLink] = []
     for link in links:
         if to_node != link.to_node:
             continue
@@ -212,7 +208,9 @@ def find_link_connected_to(
             continue
 
         if skip_reroutes and isinstance(link.from_node, bpy.types.NodeReroute):
-            return find_link_connected_to(links, link.from_node, link.from_node.inputs[0].name)
+            return find_link_connected_to(
+                links, link.from_node, link.from_node.inputs[0].name, skip_reroutes
+            )
 
         ret.append(link)
 
@@ -228,7 +226,7 @@ def find_link_connected_to(
 def find_links_connected_from(
     links: typing.Iterable[bpy.types.NodeLink],
     from_node: bpy.types.Node,
-    from_socket_name: typing.Optional[str] = None,
+    from_socket_name: str | None = None,
 ) -> typing.Iterable[bpy.types.NodeLink]:
     """Find links connected from the given node (from_node) with an option for links only from a given socket name (from_socket_name)
 
@@ -247,8 +245,8 @@ def is_node_socket_connected_to(
     links: typing.Iterable[bpy.types.NodeLink],
     from_node: bpy.types.Node,
     from_socket_name: str,
-    to_nodes: typing.List[bpy.types.Node],
-    to_socket_name: typing.Optional[str],
+    to_nodes: list[bpy.types.Node],
+    to_socket_name: str | None,
     recursive: bool = True,
 ) -> bool:
     for link in find_links_connected_from(links, from_node, from_socket_name):
@@ -272,9 +270,7 @@ def is_node_socket_connected_to(
     return False
 
 
-def get_node_input_socket(
-    node: bpy.types.Node, socket_name: str
-) -> typing.Optional[bpy.types.NodeSocket]:
+def get_node_input_socket(node: bpy.types.Node, socket_name: str) -> bpy.types.NodeSocket | None:
     ret = None
     for input_ in node.inputs:
         if input_.name != socket_name:
@@ -286,9 +282,7 @@ def get_node_input_socket(
     return ret
 
 
-def get_node_output_socket(
-    node: bpy.types.Node, socket_name: str
-) -> typing.Optional[bpy.types.NodeSocket]:
+def get_node_output_socket(node: bpy.types.Node, socket_name: str) -> bpy.types.NodeSocket | None:
     ret = None
     for output in node.outputs:
         if output.name != socket_name:
@@ -302,7 +296,7 @@ def get_node_output_socket(
 
 def find_nodegroup_users(
     nodegroup_name: str,
-) -> typing.Iterable[typing.Tuple[bpy.types.Object, typing.Iterable[bpy.types.Object]]]:
+) -> typing.Iterable[tuple[bpy.types.Object, typing.Iterable[bpy.types.Object]]]:
     """Returns iterable of (obj, user_objs) that use nodegroup with name 'nodegroup_name'
 
     In case of instanced object this checks the instanced collection and the nested
@@ -389,13 +383,13 @@ def find_nodegroup_users(
 
 def get_channel_nodes_map(
     node_tree: bpy.types.NodeTree,
-) -> typing.DefaultDict[str, typing.List[bpy.types.ShaderNodeTexImage]]:
+) -> collections.defaultdict[str, list[bpy.types.ShaderNodeTexImage]]:
     """Returns all image nodes from given nodegroup mapping to filepath"""
     image_nodes = find_nodes_in_tree(
         node_tree, lambda x: isinstance(x, bpy.types.ShaderNodeTexImage)
     )
 
-    channel_nodes_map: typing.DefaultDict[str, typing.List[bpy.types.ShaderNodeTexImage]] = (
+    channel_nodes_map: collections.defaultdict[str, list[bpy.types.ShaderNodeTexImage]] = (
         collections.defaultdict(list)
     )
 
@@ -418,7 +412,7 @@ def get_channel_nodes_map(
 
 
 def filter_node_socket_name(
-    socket: bpy.types.NodeSocket | NodeSocketInterfaceCompat,
+    socket: bpy.types.NodeSocket | bpy.types.NodeTreeInterfaceSocket,
     *names: str,
     case_sensitive: bool = False,
 ) -> bool:
@@ -440,10 +434,10 @@ class NodeSocketsDrawTemplate:
     """
 
     name_prefix: str
-    filter_: typing.Callable[[bpy.types.NodeSocket | NodeSocketInterfaceCompat], bool] = (
+    filter_: typing.Callable[[bpy.types.NodeSocket | bpy.types.NodeTreeInterfaceSocket], bool] = (
         lambda _: True
     )
-    socket_names_drawn_first: typing.Optional[typing.List[str]] = None
+    socket_names_drawn_first: list[str] | None = None
     exact_match: bool = True
 
     def draw_from_material(
@@ -473,7 +467,9 @@ class NodeSocketsDrawTemplate:
 
             inputs = list(filter(is_drawable_node_input, group.inputs))
             self._draw_template(
-                inputs, lambda input_: layout.row().prop(input_, "default_value", text=input_.name)
+                inputs,
+                layout,
+                lambda input_, layout: layout.row().prop(input_, "default_value", text=input_.name),
             )
 
     def draw_from_geonodes_modifier(
@@ -490,28 +486,66 @@ class NodeSocketsDrawTemplate:
             return
 
         inputs = list(
-            filter(is_drawable_node_tree_input, get_node_tree_inputs_map(mod.node_group).values())
+            filter(
+                is_drawable_node_interface_item, get_node_tree_interface_input_items(mod.node_group)
+            )
         )
-        self._draw_template(inputs, lambda input_: draw_modifier_input(layout, mod, input_))
+        self._draw_template(
+            inputs,
+            layout,
+            lambda input_, layout: draw_modifier_input_socket(layout, mod, input_),
+            lambda panel, layout: draw_modifier_input_panel(layout, mod, panel),
+        )
 
     def _draw_template(
         self,
-        inputs: typing.List[NodeSocketInterfaceCompat] | typing.List[bpy.types.NodeSocket],
-        draw_function: typing.Callable[[NodeSocketInterfaceCompat | bpy.types.NodeSocket], None],
+        inputs: list[bpy.types.NodeTreeInterfaceItem] | list[bpy.types.NodeSocket],
+        layout: bpy.types.UILayout,
+        draw_socket_function: typing.Callable[
+            [bpy.types.NodeTreeInterfaceSocket | bpy.types.NodeSocket, bpy.types.UILayout], None
+        ],
+        draw_panel_function: (
+            typing.Callable[
+                [bpy.types.NodeTreeInterfacePanel, bpy.types.UILayout], bpy.types.UILayout
+            ]
+            | None
+        ) = None,
     ) -> None:
+        """Draws the template into given layout using provided draw functions.
+
+        In congruence with bpy, nested panels are not supported.
+        All inputs after a panel are drawn into the panel, unless new panel is encountered.
+        """
+        master_layout = layout
+        current_layout = master_layout
         already_drawn = set()
         if self.socket_names_drawn_first is not None:
-            socket_name_to_input_map = {input_.name.lower(): input_ for input_ in inputs}
+            socket_name_to_input_map = {
+                input_.name.lower(): input_  # type: ignore
+                for input_ in inputs
+                if isinstance(input_, (bpy.types.NodeTreeInterfaceSocket, bpy.types.NodeSocket))
+            }
             for name in self.socket_names_drawn_first:
                 input_ = socket_name_to_input_map.get(name.lower(), None)
                 if input_ is None:
                     continue
                 already_drawn.add(input_)
-                draw_function(input_)
+                draw_socket_function(input_, current_layout)
 
         for input_ in inputs:
-            if input_ not in already_drawn and self.filter_(input_):
-                draw_function(input_)
+            if (
+                input_ not in already_drawn
+                and isinstance(input_, (bpy.types.NodeTreeInterfaceSocket, bpy.types.NodeSocket))
+                and self.filter_(input_)
+            ):
+                # if panel is closed, layout can be None
+                if current_layout is not None:
+                    draw_socket_function(input_, current_layout)
+            elif isinstance(input_, bpy.types.NodeTreeInterfacePanel):
+                assert (
+                    draw_panel_function is not None
+                ), "draw_panel_function must be provided to draw this modifier panel"
+                current_layout = draw_panel_function(input_, master_layout)
 
 
 def is_drawable_node_input(input_: bpy.types.NodeSocket) -> bool:
@@ -523,8 +557,12 @@ def is_drawable_node_input(input_: bpy.types.NodeSocket) -> bool:
     )
 
 
-def is_drawable_node_tree_input(input_: NodeSocketInterfaceCompat) -> bool:
-    return get_socket_type(input_) != 'NodeSocketGeometry' and not input_.hide_value
+def is_drawable_node_interface_item(input_: bpy.types.NodeTreeInterfaceItem) -> bool:
+    if isinstance(input_, bpy.types.NodeTreeInterfaceSocket):
+        return get_socket_type(input_) != 'NodeSocketGeometry' and not input_.hide_value
+    if isinstance(input_, bpy.types.NodeTreeInterfacePanel):
+        return True
+    return False
 
 
 def draw_node_inputs_filtered(
@@ -540,8 +578,10 @@ def draw_node_inputs_filtered(
             layout.row().prop(input_, "default_value", text=input_.name)
 
 
-def draw_modifier_input(
-    layout: bpy.types.UILayout, mod: bpy.types.NodesModifier, input_: NodeSocketInterfaceCompat
+def draw_modifier_input_socket(
+    layout: bpy.types.UILayout,
+    mod: bpy.types.NodesModifier,
+    input_: bpy.types.NodeTreeInterfaceSocket,
 ):
     if get_socket_type(input_) == 'NodeSocketObject':
         layout.row().prop_search(
@@ -574,6 +614,16 @@ def draw_modifier_input(
         layout.row().prop(mod, f"[\"{input_.identifier}\"]", text=input_.name)
 
 
+def draw_modifier_input_panel(
+    layout: bpy.types.UILayout,
+    mod: bpy.types.NodesModifier,
+    interface_panel: bpy.types.NodeTreeInterfacePanel,
+) -> bpy.types.UILayout:
+    header, panel = layout.panel(f"engon.panels.{mod.name}.{interface_panel.name}")
+    header.label(text=interface_panel.name)
+    return panel
+
+
 def draw_node_tree(
     layout: bpy.types.UILayout,
     node_tree: bpy.types.NodeTree,
@@ -582,7 +632,7 @@ def draw_node_tree(
     def draw_node_and_recurse(
         layout: bpy.types.UILayout,
         node: bpy.types.Node,
-        parent_node: typing.Optional[bpy.types.Node],
+        parent_node: bpy.types.Node | None,
         depth: int,
     ) -> None:
         if depth == depth_limit:

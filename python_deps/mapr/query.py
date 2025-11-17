@@ -30,7 +30,7 @@ class Query:
         # dict representation when the query would be converted to dict.
         self._dict = self._as_dict()
 
-    def _as_dict(self) -> typing.Dict:
+    def _as_dict(self) -> dict:
         ret = {}
         ret["category_id"] = self.category_id
         ret["recursive"] = self.recursive

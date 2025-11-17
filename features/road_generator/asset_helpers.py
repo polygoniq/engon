@@ -36,7 +36,7 @@ CROSSROAD_PREFIX = "tq_crossroad"
 ROAD_PREFIX = "tq_road"
 
 
-class RoadNodegroup(enum.Enum):
+class RoadNodegroup(enum.StrEnum):
     Input = "tq_InputCurve"
     Markings = "tq_RoadMark"
     Distribute = "tq_Distribute"
@@ -46,7 +46,7 @@ class RoadNodegroup(enum.Enum):
     Cleanup = "tq_Cleanup"
 
 
-class CrossroadNodegroup(enum.Enum):
+class CrossroadNodegroup(enum.StrEnum):
     Register = "tq_CX_RegisterAdjacency"
     Profile = "tq_CX_Profile"
     Build = "tq_CX_Build"
@@ -66,40 +66,40 @@ def get_road_collection(context: bpy.types.Context) -> bpy.types.Collection:
     return coll
 
 
-def get_modifiers_enum_items() -> typing.List[typing.Tuple[str, str, str]]:
+def get_modifiers_enum_items() -> list[tuple[str, str, str]]:
     return [
         (
-            RoadNodegroup.Input.value,
+            RoadNodegroup.Input,
             "Input",
             "The first road generator modifier - this should be present in every road modifier "
             "stack. Handles resampling, filleting and setups required attributes of the curve",
         ),
         (
-            RoadNodegroup.RoadProfile.value,
+            RoadNodegroup.RoadProfile,
             "Profile",
             "Adds geometry to road modifier stack - can be used to create curbs, sidewalks, etc",
         ),
-        (RoadNodegroup.Markings.value, "Road Markings", "Adds road markings to road surface"),
+        (RoadNodegroup.Markings, "Road Markings", "Adds road markings to road surface"),
         (
-            RoadNodegroup.Distribute.value,
+            RoadNodegroup.Distribute,
             "Distribute Objects",
             "Distributes selected objects with an offset on the input curve",
         ),
         (
-            RoadNodegroup.Scatter.value,
+            RoadNodegroup.Scatter,
             "Scatter To Target",
             "Scatters assets to objects from selected collections near the road",
         ),
-        (RoadNodegroup.Crosswalk.value, "Crosswalk", "Adds a customizable crosswalk to the road"),
+        (RoadNodegroup.Crosswalk, "Crosswalk", "Adds a customizable crosswalk to the road"),
         (
-            RoadNodegroup.Cleanup.value,
+            RoadNodegroup.Cleanup,
             "Cleanup",
             "Merges vertices and can realize instances for convert to mesh",
         ),
     ]
 
 
-def load_geometry_nodes(lib_path: str, node_group_names: typing.Set[str]) -> None:
+def load_geometry_nodes(lib_path: str, node_group_names: set[str]) -> None:
     with bpy.data.libraries.load(lib_path, link=True) as (data_from, data_to):
         for name in node_group_names:
             # We expect caller to know what node groups are present in his lib

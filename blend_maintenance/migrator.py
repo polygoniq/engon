@@ -36,7 +36,7 @@ from .. import mapr
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
-MODULE_CLASSES: typing.List[typing.Type] = []
+MODULE_CLASSES: list[type] = []
 
 
 @polib.log_helpers_bpy.logged_operator
@@ -97,10 +97,8 @@ def find_missing_files() -> int:
     # Tuple of (original name, datablock) to reload, we store the original name to report the error
     # if something wasn't possible to reload due to lost reference - e. g. the library not being
     # loaded in blender data anymore.
-    datablocks_to_reload: typing.List[
-        typing.Tuple[str, typing.Union[bpy.types.Library, bpy.types.Image]]
-    ] = []
-    empty_libraries: typing.Set[bpy.types.Library] = set()
+    datablocks_to_reload: list[tuple[str, bpy.types.Library | bpy.types.Image]] = []
+    empty_libraries: set[bpy.types.Library] = set()
 
     total_found_datablocks = 0
     for pack in asset_registry.instance.get_registered_packs():
@@ -187,7 +185,7 @@ class MigrateFromMaterialiq4(bpy.types.Operator):
                 # can't be a materialiq4 material if it's not using nodes
                 continue
 
-            mq4_node_tree: typing.Optional[bpy.types.NodeTree] = None
+            mq4_node_tree: bpy.types.NodeTree | None = None
             for node in polib.node_utils_bpy.find_nodes_in_tree(
                 material.node_tree, lambda x: x.type == 'GROUP'
             ):
@@ -219,7 +217,7 @@ class MigrateFromMaterialiq4(bpy.types.Operator):
                 )
                 continue
 
-            spawned_data: typing.Optional[hatchery.spawn.MaterialSpawnedData] = spawner.spawn(
+            spawned_data: hatchery.spawn.MaterialSpawnedData | None = spawner.spawn(
                 context,
                 asset_,
                 # We use the global spawn options - this will use the user selected texture
@@ -251,11 +249,11 @@ MODULE_CLASSES.append(MigrateFromMaterialiq4)
 
 # Using unbounded cache, make sure it gets cleared eventually
 @functools.cache
-def get_blend_datablock_names(blend_filepath: str) -> typing.Dict[str, typing.List[str]]:
+def get_blend_datablock_names(blend_filepath: str) -> dict[str, list[str]]:
     assert polib.utils_bpy.isfile_case_sensitive(bpy.path.abspath(blend_filepath))
     assert os.path.splitext(blend_filepath)[1] == ".blend"
 
-    ret: typing.Dict[str, typing.List[str]] = {}
+    ret: dict[str, list[str]] = {}
     with bpy.data.libraries.load(blend_filepath) as (data_from, _):
         for attr in dir(data_from):
             if not attr.startswith("__"):
@@ -275,9 +273,9 @@ class MigrateLibraryPaths(bpy.types.Operator):
 
     def fix_datablock_filepath(
         self,
-        datablock: typing.Union[bpy.types.Library, bpy.types.Image],
-        filename_migrations: typing.List[typing.List[asset_changes.RegexMapping]],
-        pack_subdirectories: typing.Set[str],
+        datablock: bpy.types.Library | bpy.types.Image,
+        filename_migrations: list[list[asset_changes.RegexMapping]],
+        pack_subdirectories: set[str],
     ) -> bool:
         filename_candidate = bpy.path.basename(datablock.filepath)
         for version_migrations in filename_migrations:
@@ -306,15 +304,15 @@ class MigrateLibraryPaths(bpy.types.Operator):
 
     def fix_blend_file_libraries(
         self,
-        asset_pack_migrations: typing.List[asset_changes.AssetPackMigration],
+        asset_pack_migrations: list[asset_changes.AssetPackMigration],
         pack_subdirectories: set[str],
-    ) -> typing.List[bpy.types.Library]:
-        library_filename_migrations: typing.List[typing.List[asset_changes.RegexMapping]] = []
+    ) -> list[bpy.types.Library]:
+        library_filename_migrations: list[list[asset_changes.RegexMapping]] = []
         for migration in asset_pack_migrations:
             if len(migration.library_changes) > 0:
                 library_filename_migrations.append(migration.library_changes)
 
-        fixed_libraries: typing.List[bpy.types.Library] = []
+        fixed_libraries: list[bpy.types.Library] = []
         for library in bpy.data.libraries:
             if polib.utils_bpy.isfile_case_sensitive(bpy.path.abspath(library.filepath)):
                 continue
@@ -332,16 +330,16 @@ class MigrateLibraryPaths(bpy.types.Operator):
 
     def fix_image_filepaths(
         self,
-        asset_pack_migrations: typing.List[asset_changes.AssetPackMigration],
-        pack_subdirectories: typing.Set[str],
-    ) -> typing.List[bpy.types.Image]:
+        asset_pack_migrations: list[asset_changes.AssetPackMigration],
+        pack_subdirectories: set[str],
+    ) -> list[bpy.types.Image]:
         """Fixes image_datablock.filepath of editable image datablocks."""
-        image_filename_migrations: typing.List[typing.List[asset_changes.RegexMapping]] = []
+        image_filename_migrations: list[list[asset_changes.RegexMapping]] = []
         for migration in asset_pack_migrations:
             if "images" in migration.datablock_changes:
                 image_filename_migrations.append(migration.datablock_changes["images"])
 
-        fixed_images: typing.List[bpy.types.Image] = []
+        fixed_images: list[bpy.types.Image] = []
         for image in bpy.data.images:
             if image.library is not None:
                 # we handle here only datablocks stored in this blend
@@ -364,8 +362,8 @@ class MigrateLibraryPaths(bpy.types.Operator):
         self,
         datablock: bpy.types.ID,
         datablock_type: str,
-        asset_pack_migrations: typing.List[asset_changes.AssetPackMigrations],
-    ) -> typing.Optional[bpy.types.ID]:
+        asset_pack_migrations: list[asset_changes.AssetPackMigrations],
+    ) -> bpy.types.ID | None:
         for pack_name, version_migrations in asset_pack_migrations:
             name_candidate = datablock.name
             for migration in version_migrations:
@@ -423,9 +421,9 @@ class MigrateLibraryPaths(bpy.types.Operator):
 
     def fix_datablocks(
         self,
-        asset_pack_migrations: typing.List[asset_changes.AssetPackMigrations],
-    ) -> typing.List[bpy.types.ID]:
-        fixed_datablocks: typing.List[bpy.types.ID] = []
+        asset_pack_migrations: list[asset_changes.AssetPackMigrations],
+    ) -> list[bpy.types.ID]:
+        fixed_datablocks: list[bpy.types.ID] = []
         for datablock, datablock_type in polib.utils_bpy.get_all_datablocks(bpy.data):
             if datablock.library is None:
                 # datablock stored in this blend
@@ -495,8 +493,8 @@ class MigrateLibraryPaths(bpy.types.Operator):
                 for root, _, _ in os.walk(pack.install_path):
                     pack_subdirectories_map[pack_name].add(root)
 
-            fixed_libraries: typing.List[bpy.types.Library] = []
-            fixed_images: typing.List[bpy.types.Image] = []
+            fixed_libraries: list[bpy.types.Library] = []
+            fixed_images: list[bpy.types.Image] = []
 
             for asset_pack_changes in asset_changes.ASSET_PACK_MIGRATIONS:
                 pack_subdirs = pack_subdirectories_map.get(asset_pack_changes.pack_name, set())

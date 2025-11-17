@@ -14,7 +14,7 @@ logger = logging.getLogger(f"polygoniq.{__name__}")
 AssetDataID = str
 
 
-class AssetDataType(enum.Enum):
+class AssetDataType(enum.StrEnum):
     unknown = "unknown"
 
     blender_model = "blender_model"
@@ -25,7 +25,7 @@ class AssetDataType(enum.Enum):
     blender_geometry_nodes = "blender_geometry_nodes"
 
     @property
-    def search_matter(self) -> typing.DefaultDict[str, float]:
+    def search_matter(self) -> collections.defaultdict[str, float]:
         """Returns a dictionary of keywords mapped to their search weight
 
         Removes "blender" prefix. Example results:
@@ -33,7 +33,7 @@ class AssetDataType(enum.Enum):
         "blender_particle_system" -> {"particle": 1.0, "system": 1.0}
         """
         ret = collections.defaultdict(float)
-        split = self.value.split("_")
+        split = self.split("_")
         if len(split) == 1:
             ret[split[0]] = 1.0
             return ret

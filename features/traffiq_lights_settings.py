@@ -137,7 +137,7 @@ class TraffiqLightsSettingsPanel(
                 prefs,
                 "main_lights_status",
                 text="Status",
-                icon='LIGHTPROBE_GRID' if bpy.app.version < (4, 1, 0) else 'LIGHTPROBE_VOLUME',
+                icon='LIGHTPROBE_VOLUME',
             )
 
     def draw(self, context: bpy.types.Context) -> None:

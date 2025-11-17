@@ -71,7 +71,7 @@ class Machine:
         }
 
     @staticmethod
-    def get_blender_window_size() -> typing.Tuple[int, int]:
+    def get_blender_window_size() -> tuple[int, int]:
         width = -1
         height = -1
 
@@ -84,10 +84,8 @@ class Machine:
         return width, height
 
     @staticmethod
-    def get_blender_addons() -> (
-        typing.Dict[str, typing.Union[typing.List[str], typing.Dict[str, typing.Any]]]
-    ):
-        addon_utils_modules: typing.Dict[str, typing.Dict[str, typing.Any]] = {}
+    def get_blender_addons() -> dict[str, list[str] | dict[str, typing.Any]]:
+        addon_utils_modules: dict[str, dict[str, typing.Any]] = {}
         for module in addon_utils.modules():
             try:
                 name = module.__name__
@@ -121,7 +119,7 @@ class Machine:
         }
 
 
-class MessageType(enum.Enum):
+class MessageType(enum.StrEnum):
     SESSION_STARTED = "session_started"
     MACHINE_REGISTERED = "machine_registered"
     # this is used by polygoniq addons to report version, etc...
@@ -135,13 +133,13 @@ class Message:
         self,
         type: MessageType,
         data: typing.Any = None,
-        text: typing.Optional[str] = None,
+        text: str | None = None,
         product: str = "unknown",
     ):
         self._session_uuid: str = "unknown"
 
         self._timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        self._type = type.value
+        self._type = type
         self.data: typing.Any = None
         if text is not None:
             assert data is None
@@ -153,9 +151,9 @@ class Message:
 
 BOOTSTRAPPED = False
 BOOTSTRAP_LOCK = threading.Lock()
-SESSION: typing.Optional[Session] = None
-MACHINE: typing.Optional[Machine] = None
-MESSAGES: typing.List[Message] = []
+SESSION: Session | None = None
+MACHINE: Machine | None = None
+MESSAGES: list[Message] = []
 
 
 class TelemetryJSONEncoder(json.JSONEncoder):
@@ -242,7 +240,7 @@ class TelemetryWrapper:
         _log(Message(MessageType.ADDON_REPORTED, data=data, product=self.product))
 
 
-RETURNED_TELEMETRY_CLASSES: typing.Dict[str, TelemetryWrapper] = {}
+RETURNED_TELEMETRY_CLASSES: dict[str, TelemetryWrapper] = {}
 
 
 def get_telemetry(product: str) -> TelemetryWrapper:

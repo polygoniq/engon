@@ -32,7 +32,7 @@ logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
 AQ_PAINT_VERTICES_WARNING_THRESHOLD = 16
-MODULE_CLASSES: typing.List[typing.Type] = []
+MODULE_CLASSES: list[type] = []
 
 
 class PaintMaskPreferences(bpy.types.PropertyGroup):

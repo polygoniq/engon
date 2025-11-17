@@ -13,7 +13,7 @@ logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
 def polygoniq_duplicate_data_filter(
-    data: bpy.types.ID, data_filepaths: typing.Optional[typing.Set[str]] = None
+    data: bpy.types.ID, data_filepaths: set[str] | None = None
 ) -> bool:
     """Filters polygoniq duplicate data based on addon prefix and duplicate suffix.
 
@@ -26,7 +26,7 @@ def polygoniq_duplicate_data_filter(
     if data_filepaths is None:
         data_filepaths = set()
 
-    KNOWN_PREFIXES = ("aq_", "bq_", "mq_", "tq_", "iq_", "eq_", "st_", "am154_", "am176_")
+    KNOWN_PREFIXES = ("aq_", "bq_", "mq_", "tq_", "iq_", "eq_", "st_", "am154_", "am176_", "sq_")
 
     orig_name = utils_bpy.remove_object_duplicate_suffix(data.name)
     if isinstance(data, bpy.types.NodeTree):
@@ -47,13 +47,13 @@ def polygoniq_duplicate_data_filter(
     return False
 
 
-DuplicateFilter = typing.Callable[[bpy.types.ID, typing.Optional[typing.Set[str]]], bool]
+DuplicateFilter = typing.Callable[[bpy.types.ID, set[str] | None], bool]
 
 
 def _is_duplicate_filtered(
     data: bpy.types.ID,
     filters: typing.Iterable[DuplicateFilter],
-    install_paths: typing.Optional[typing.Set[str]] = None,
+    install_paths: set[str] | None = None,
 ) -> bool:
     filtered = False
     for filter_ in filters:
@@ -66,9 +66,9 @@ def _is_duplicate_filtered(
 
 def remove_duplicate_datablocks(
     datablocks: bpy.types.bpy_prop_collection,
-    filters: typing.Optional[typing.Iterable[DuplicateFilter]] = None,
-    install_paths: typing.Optional[typing.Set[str]] = None,
-) -> typing.List[str]:
+    filters: typing.Iterable[DuplicateFilter] | None = None,
+    install_paths: set[str] | None = None,
+) -> list[str]:
     to_remove = []
 
     for datablock in datablocks:

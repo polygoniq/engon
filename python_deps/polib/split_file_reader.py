@@ -3,21 +3,21 @@
 # https://gitlab.com/Reivax
 
 """
-    split_file_reader
-    Copyright (C) 2022  Xavier Halloran, United States
+split_file_reader
+Copyright (C) 2022  Xavier Halloran, United States
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """
 
@@ -72,7 +72,7 @@ class SplitFileReader(io.RawIOBase):
 
     def __init__(  # noqa: PLR0913
         self,
-        files: typing.List[typing.Union[str, os.PathLike, typing.Any]],
+        files: list[str | os.PathLike | typing.Any],
         mode: str = "rb",
         stream_only: bool = False,
         validate_all_readable: bool = False,
@@ -119,7 +119,7 @@ class SplitFileReader(io.RawIOBase):
     def readall(self) -> bytes:
         return self._read(-1, read_once=False)
 
-    def read1(self, size: typing.Optional[int] = None) -> typing.AnyStr:
+    def read1(self, size: int | None = None) -> typing.AnyStr:
         """Read the specified amount, making underlying file boundaries invisible to the caller.
 
         If the current file pointer has been set to None, indicating an earlier call to `close()`, raises IOError.
@@ -132,7 +132,7 @@ class SplitFileReader(io.RawIOBase):
         else:
             return self._read(size, read_once=True)
 
-    def read(self, size: typing.Optional[int] = None) -> typing.AnyStr:
+    def read(self, size: int | None = None) -> typing.AnyStr:
         """
         Read the specified amount, making underlying file boundaries invisible to the caller.
 
@@ -175,14 +175,14 @@ class SplitFileReader(io.RawIOBase):
             self._told += len(ret)
         return ret
 
-    def readinto(self, buffer: bytearray) -> typing.Optional[int]:
+    def readinto(self, buffer: bytearray) -> int | None:
         """This is the copy/paste implementation of `io.FileIO.readinto()`"""
         data = self._read(len(buffer), read_once=False)
         n = len(data)
         buffer[:n] = data
         return n
 
-    def readinto1(self, buffer: bytearray) -> typing.Optional[int]:
+    def readinto1(self, buffer: bytearray) -> int | None:
         """This is the copy/paste implementation of `io.FileIO.readinto()`"""
         data = self._read(len(buffer), read_once=True)
         n = len(data)
@@ -518,15 +518,15 @@ class SplitFileReader(io.RawIOBase):
     def writable(self) -> bool:
         return False
 
-    def write(self, b: typing.Union[bytes, bytearray]) -> typing.Optional[int]:
+    def write(self, b: bytes | bytearray) -> int | None:
         # No writing allowed with this class.
         raise io.UnsupportedOperation(f"{self.__class__.__name__} cannot write.")
 
-    def writelines(self, lines: typing.Iterable[typing.Union[bytes, bytearray]]) -> None:
+    def writelines(self, lines: typing.Iterable[bytes | bytearray]) -> None:
         # No writing allowed with this class.
         raise io.UnsupportedOperation(f"{self.__class__.__name__} cannot write.")
 
-    def truncate(self, size: typing.Optional[int] = None) -> int:
+    def truncate(self, size: int | None = None) -> int:
         # No writing allowed with this class.
         raise io.UnsupportedOperation(f"{self.__class__.__name__} cannot truncate.")
 
@@ -547,7 +547,7 @@ class SplitFileReader(io.RawIOBase):
             f"{self.__class__.__name__} cannot decode text; use io.TextIOWrapper."
         )
 
-    def readlines(self, hint: int = 0) -> typing.List[bytes]:
+    def readlines(self, hint: int = 0) -> list[bytes]:
         raise io.UnsupportedOperation(
             f"{self.__class__.__name__} cannot decode text; use io.TextIOWrapper."
         )

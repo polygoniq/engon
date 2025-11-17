@@ -188,7 +188,7 @@ class RoadGeneratorProps(bpy.types.PropertyGroup):
 MODULE_CLASSES.append(RoadGeneratorProps)
 
 
-def get_rg_props(context: typing.Optional[bpy.types.Context] = None) -> RoadGeneratorProps:
+def get_rg_props(context: bpy.types.Context | None = None) -> RoadGeneratorProps:
     if context is None:
         context = bpy.context
 

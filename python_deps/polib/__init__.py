@@ -16,6 +16,7 @@ try:
     from . import color_utils_bpy
     from . import custom_props_bpy
     from . import geonodes_mod_utils_bpy
+    from . import keymaps_bpy
     from . import linalg_bpy
     from . import log_helpers_bpy
     from . import material_utils_bpy
@@ -73,6 +74,7 @@ except ImportError as e:
     custom_props_bpy = types.ModuleType("custom_props_bpy")
     color_utils_bpy = types.ModuleType("color_utils_bpy")
     geonodes_mod_utils_bpy = types.ModuleType("geonodes_mod_utils_bpy")
+    keymaps_bpy = types.ModuleType("keymaps_bpy")
     linalg_bpy = types.ModuleType("linalg_bpy")
     log_helpers_bpy = types.ModuleType("log_helpers_bpy")
     material_utils_bpy = types.ModuleType("material_utils_bpy")
@@ -116,6 +118,7 @@ __all__ = [
     "custom_props_bpy",
     "geonodes_mod_utils_bpy",
     "get_telemetry",
+    "keymaps_bpy",
     "linalg_bpy",
     "log_helpers_bpy",
     "material_utils_bpy",

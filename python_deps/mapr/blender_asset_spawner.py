@@ -46,7 +46,7 @@ class AssetSpawner:
         context: bpy.types.Context,
         asset_: asset.Asset,
         options: hatchery.spawn.DatablockSpawnOptions,
-    ) -> typing.Optional[hatchery.spawn.SpawnedData]:
+    ) -> hatchery.spawn.SpawnedData | None:
         """Tries to spawn first asset data, materializes required files and dependencies."""
         for asset_data_ in self.asset_provider_.list_asset_data(asset_.id_):
             path = self._materialize_files(asset_data_)

@@ -28,7 +28,7 @@ from .. import asset_helpers
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-MODULE_CLASSES: typing.List[typing.Any] = []
+MODULE_CLASSES: list[typing.Any] = []
 
 
 @polib.log_helpers_bpy.logged_operator

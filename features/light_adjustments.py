@@ -181,7 +181,7 @@ class LightAdjustmentsPanel(feature_utils.PropertyAssetFeatureControlPanelMixin,
             # text = invisible character, so the checkbox is aligned properly
             text=" ",
         )
-        if datablock.get(polib.custom_props_bpy.CustomPropertyNames.PQ_LIGHT_USE_RGB):
+        if datablock.get(polib.custom_props_bpy.CustomPropertyNames.PQ_LIGHT_USE_RGB, None):
             self.draw_property(
                 datablock,
                 layout,

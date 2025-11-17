@@ -26,7 +26,7 @@ from .. import asset_helpers
 
 from . import asset_pack_panels
 
-MODULE_CLASSES: typing.List[typing.Type] = []
+MODULE_CLASSES: list[type] = []
 
 
 @feature_utils.register_feature

@@ -40,7 +40,7 @@ from . import asset_pack_panels
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-MODULE_CLASSES: typing.List[typing.Type] = []
+MODULE_CLASSES: list[type] = []
 
 
 class TraffiqRigsPreferences(bpy.types.PropertyGroup):
@@ -68,11 +68,11 @@ MODULE_CLASSES.append(TraffiqRigsPreferences)
 class GroundSensorsManipulator:
     def __init__(self, pose: bpy.types.Pose):
         self.ground_sensors = self.__find_ground_sensors(pose)
-        self.ground_sensors_constraints: typing.Dict[str, bpy.types.Constraint] = (
+        self.ground_sensors_constraints: dict[str, bpy.types.Constraint] = (
             self.__get_ground_sensors_constraints(self.ground_sensors)
         )
 
-    def __find_ground_sensors(self, pose: bpy.types.Pose) -> typing.Set[bpy.types.PoseBone]:
+    def __find_ground_sensors(self, pose: bpy.types.Pose) -> set[bpy.types.PoseBone]:
         ground_sensors = set()
         for bone in pose.bones:
             if bone.name.startswith("GroundSensor_"):
@@ -81,11 +81,9 @@ class GroundSensorsManipulator:
         return ground_sensors
 
     def __get_ground_sensors_constraints(
-        self, ground_sensors: typing.Set[bpy.types.PoseBone]
-    ) -> typing.Dict[str, typing.Optional[bpy.types.ShrinkwrapConstraint]]:
-        ground_sensor_constraints: typing.Dict[str, bpy.types.Constraint] = collections.defaultdict(
-            None
-        )
+        self, ground_sensors: set[bpy.types.PoseBone]
+    ) -> dict[str, bpy.types.ShrinkwrapConstraint | None]:
+        ground_sensor_constraints: dict[str, bpy.types.Constraint] = collections.defaultdict(None)
         for ground_sensor in ground_sensors:
             for constraint in ground_sensor.constraints:
                 if constraint.type != 'SHRINKWRAP':
@@ -132,16 +130,21 @@ def clear_object_animation_property(obj: bpy.types.Object, property_name: str):
     if obj.animation_data and obj.animation_data.action:
         fcurve_datapath = f'["{property_name}"]'
         action = obj.animation_data.action
-        fcurve = action.fcurves.find(fcurve_datapath)
+        fcurves = polib.utils_bpy.get_fcurves_from_action(action)
+        fcurve = fcurves.find(fcurve_datapath)
         if fcurve is not None:
-            action.fcurves.remove(fcurve)
+            fcurves.remove(fcurve)
     obj[property_name] = 0.0
 
 
 def create_fcurve(action: bpy.types.Action, property_name: str) -> bpy.types.FCurve:
     """Creates fcurve in 'action' with property_name wrapped as data path"""
-
-    return action.fcurves.new(f'["{property_name}"]', index=0, action_group="tq_WheelRotation")
+    fcurves = polib.utils_bpy.get_fcurves_from_action(action)
+    data_path = f'["{property_name}"]'
+    group_name = "tq_WheelRotation"
+    if bpy.app.version >= (5, 0, 0):
+        return fcurves.new(data_path, index=0, group_name=group_name)
+    return fcurves.new(data_path, index=0, action_group=group_name)
 
 
 def check_rig_drivers(obj: bpy.types.Object) -> bool:
@@ -163,7 +166,7 @@ class FCurvesEvaluator:
         self.default_value = default_value
         self.fcurves = fcurves
 
-    def evaluate(self, frame: float) -> typing.List[float]:
+    def evaluate(self, frame: float) -> list[float]:
         result = []
         for fcurve, value in zip(self.fcurves, self.default_value):
             if fcurve is not None:
@@ -177,7 +180,7 @@ class VectorFCurvesEvaluator:
     def __init__(self, fcurves_evaluator: FCurvesEvaluator):
         self.fcurves_evaluator = fcurves_evaluator
 
-    def evaluate(self, frame: float) -> typing.List[float]:
+    def evaluate(self, frame: float) -> list[float]:
         return mathutils.Vector(self.fcurves_evaluator.evaluate(frame))
 
 
@@ -185,7 +188,7 @@ class EulerToQuaternionFCurvesEvaluator:
     def __init__(self, fcurves_evaluator: FCurvesEvaluator):
         self.fcurves_evaluator = fcurves_evaluator
 
-    def evaluate(self, frame: float) -> typing.List[float]:
+    def evaluate(self, frame: float) -> list[float]:
         return mathutils.Euler(self.fcurves_evaluator.evaluate(frame)).to_quaternion()
 
 
@@ -193,7 +196,7 @@ class QuaternionFCurvesEvaluator:
     def __init__(self, fcurves_evaluator: FCurvesEvaluator):
         self.fcurves_evaluator = fcurves_evaluator
 
-    def evaluate(self, frame: float) -> typing.List[float]:
+    def evaluate(self, frame: float) -> list[float]:
         return mathutils.Quaternion(self.fcurves_evaluator.evaluate(frame))
 
 
@@ -229,85 +232,92 @@ class BakingOperatorBase:
 
     def _create_euler_evaluator(self, action: bpy.types.Action, source_bone: bpy.types.Bone):
         fcurve_name = f'pose.bones["{source_bone.name}"].rotation_euler'
-        fc_root_rot = [action.fcurves.find(fcurve_name, index=i) for i in range(3)]
+        fcurves = polib.utils_bpy.get_fcurves_from_action(action)
+        fc_root_rot = [fcurves.find(fcurve_name, index=i) for i in range(3)]
         return EulerToQuaternionFCurvesEvaluator(
             FCurvesEvaluator(fc_root_rot, default_value=(0.0, 0.0, 0.0))
         )
 
     def _create_quaternion_evaluator(self, action: bpy.types.Action, source_bone: bpy.types.Bone):
         fcurve_name = f'pose.bones["{source_bone.name}"].rotation_quaternion'
-        fc_root_rot = [action.fcurves.find(fcurve_name, index=i) for i in range(4)]
+        fcurves = polib.utils_bpy.get_fcurves_from_action(action)
+        fc_root_rot = [fcurves.find(fcurve_name, index=i) for i in range(4)]
         return QuaternionFCurvesEvaluator(
             FCurvesEvaluator(fc_root_rot, default_value=(1.0, 0.0, 0.0, 0.0))
         )
 
     def _create_location_evaluator(self, action: bpy.types.Action, source_bone: bpy.types.Bone):
         fcurve_name = f'pose.bones["{source_bone.name}"].location'
-        fc_root_loc = [action.fcurves.find(fcurve_name, index=i) for i in range(3)]
+        fcurves = polib.utils_bpy.get_fcurves_from_action(action)
+        fc_root_loc = [fcurves.find(fcurve_name, index=i) for i in range(3)]
         return VectorFCurvesEvaluator(FCurvesEvaluator(fc_root_loc, default_value=(0.0, 0.0, 0.0)))
 
     def _create_scale_evaluator(self, action: bpy.types.Action, source_bone: bpy.types.Bone):
         fcurve_name = f'pose.bones["{source_bone.name}"].scale'
-        fc_root_loc = [action.fcurves.find(fcurve_name, index=i) for i in range(3)]
+        fcurves = polib.utils_bpy.get_fcurves_from_action(action)
+        fc_root_loc = [fcurves.find(fcurve_name, index=i) for i in range(3)]
         return VectorFCurvesEvaluator(FCurvesEvaluator(fc_root_loc, default_value=(1.0, 1.0, 1.0)))
 
     def _bake_action(
         self, context: bpy.types.Context, source_bones: typing.Iterable[bpy.types.Bone]
     ):
+        assert context.object is not None
+
         action = context.object.animation_data.action
         nla_tweak_mode = getattr(context.object, "use_tweak_mode", False)
 
         # Save context
-        selected_bones = [b for b in context.object.data.bones if b.select]
         mode = context.object.mode
+        if bpy.app.version < (5, 0, 0):
+            bpy.ops.object.mode_set(mode='OBJECT')
+            bone_source = context.object.data.bones
+        else:
+            # Bone selection moved from Bone to PoseBone in Blender 5.0
+            # This should be probably refactored to use PoseBones as input argument in the future
+            bpy.ops.object.mode_set(mode='POSE')
+            bone_source = context.object.pose.bones
+        selected_bones = [b for b in bone_source if b.select]
         for bone in selected_bones:
             bone.select = False
 
-        bpy.ops.object.mode_set(mode='OBJECT')
         source_bones_matrix_basis = []
         for source_bone in source_bones:
             source_bones_matrix_basis.append(
                 context.object.pose.bones[source_bone.name].matrix_basis.copy()
             )
-            source_bone.select = True
+            if bpy.app.version < (5, 0, 0):
+                source_bone.select = True
+            else:
+                context.object.pose.bones[source_bone.name].select = True
 
-        if bpy.app.version < (4, 1, 0):
-            baked_action = bpy_extras.anim_utils.bake_action(
-                context.object,
-                action=None,
-                frames=range(self.frame_start, self.frame_end + 1),
+        baked_action = bpy_extras.anim_utils.bake_action(
+            context.object,
+            action=None,
+            frames=range(self.frame_start, self.frame_end + 1),
+            bake_options=bpy_extras.anim_utils.BakeOptions(
                 only_selected=True,
                 do_pose=True,
-                do_object=False,
                 do_visual_keying=True,
-            )
-        else:
-            # API for bake_action changed in 4.1.0 to use BakeOptions dataclass
-            baked_action = bpy_extras.anim_utils.bake_action(
-                context.object,
-                action=None,
-                frames=range(self.frame_start, self.frame_end + 1),
-                bake_options=bpy_extras.anim_utils.BakeOptions(
-                    only_selected=True,
-                    do_pose=True,
-                    do_visual_keying=True,
-                    do_constraint_clear=False,
-                    do_object=False,
-                    do_parents_clear=False,
-                    do_clean=False,
-                    do_bbone=False,
-                    # We bake location, rotation and custom props that are used in the rig
-                    do_location=True,
-                    do_rotation=True,
-                    do_scale=False,
-                    do_custom_props=True,
-                ),
-            )
+                do_constraint_clear=False,
+                do_object=False,
+                do_parents_clear=False,
+                do_clean=False,
+                do_bbone=False,
+                # We bake location, rotation and custom props that are used in the rig
+                do_location=True,
+                do_rotation=True,
+                do_scale=False,
+                do_custom_props=True,
+            ),
+        )
 
         # Restore context
         for source_bone, matrix_basis in zip(source_bones, source_bones_matrix_basis):
             context.object.pose.bones[source_bone.name].matrix_basis = matrix_basis
-            source_bone.select = False
+            if bpy.app.version < (5, 0, 0):
+                source_bone.select = False
+            else:
+                context.object.pose.bones[source_bone.name].select = False
 
         for bone in selected_bones:
             bone.select = True
@@ -370,7 +380,7 @@ class BakeWheelRotation(bpy.types.Operator, BakingOperatorBase):
 
     def _evaluate_distance_per_frame(
         self, action: bpy.types.Action, bone: bpy.types.Bone, brake_bone: bpy.types.Bone
-    ) -> typing.Generator[typing.Tuple[int, float], None, None]:
+    ) -> typing.Generator[tuple[int, float], None, None]:
         loc_evaluator = self._create_location_evaluator(action, bone)
         rot_evaluator = self._create_euler_evaluator(action, bone)
         brake_evaluator = self._create_scale_evaluator(action, brake_bone)
@@ -463,7 +473,7 @@ class BakeSteering(bpy.types.Operator, BakingOperatorBase):
 
     def _evaluate_rotation_per_frame(
         self, action: bpy.types.Action, bone_offset: float, bone: bpy.types.Bone
-    ) -> typing.Generator[typing.Tuple[int, float], None, None]:
+    ) -> typing.Generator[tuple[int, float], None, None]:
         loc_evaluator = self._create_location_evaluator(action, bone)
         rot_evaluator = self._create_quaternion_evaluator(action, bone)
 
@@ -678,8 +688,8 @@ class FollowPath(bpy.types.Operator):
     def setup_follow_path_constraint(
         self, root_bone: bpy.types.PoseBone, target_obj: bpy.types.Object
     ) -> bpy.types.FollowPathConstraint:
-        follow_path_constraint: typing.Optional[bpy.types.FollowPathConstraint] = (
-            root_bone.constraints.get(FollowPath.CONSTRAINT_NAME, None)
+        follow_path_constraint: bpy.types.FollowPathConstraint | None = root_bone.constraints.get(
+            FollowPath.CONSTRAINT_NAME, None
         )
         if follow_path_constraint is None:
             follow_path_constraint = root_bone.constraints.new(type='FOLLOW_PATH')
@@ -695,7 +705,7 @@ class FollowPath(bpy.types.Operator):
         self,
         owner: bpy.types.Object,
         path: bpy.types.Object,
-        ground: typing.Optional[bpy.types.Object] = None,
+        ground: bpy.types.Object | None = None,
     ) -> None:
         # prepare objects used in follow path constraints according to
         # https://docs.blender.org/manual/en/latest/animation/constraints/relationship/follow_path.html
@@ -749,15 +759,13 @@ class ChangeFollowPathSpeed(bpy.types.Operator):
 
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
         active_object: bpy.types.Object = context.active_object
-        self.root_bone: typing.Optional[bpy.types.PoseBone] = active_object.pose.bones.get(
-            "Root", None
-        )
+        self.root_bone: bpy.types.PoseBone | None = active_object.pose.bones.get("Root", None)
         if self.root_bone is None:
             self.report({'ERROR'}, "No root bone found")
             return {'CANCELLED'}
 
-        self.fp_constraint: typing.Optional[bpy.types.FollowPathConstraint] = (
-            self.root_bone.constraints.get(FollowPath.CONSTRAINT_NAME)
+        self.fp_constraint: bpy.types.FollowPathConstraint | None = self.root_bone.constraints.get(
+            FollowPath.CONSTRAINT_NAME
         )
         if self.fp_constraint is None:
             self.report({'ERROR'}, f"Follow path constraint not found on '{active_object.name}'")
@@ -817,7 +825,8 @@ class ChangeFollowPathSpeed(bpy.types.Operator):
             self.root_bone.name, self.fp_constraint.name
         )
 
-        fcurve = active_object.animation_data.action.fcurves.find(offset_factor_data_path)
+        fcurves = polib.utils_bpy.get_fcurves_from_action(active_object.animation_data.action)
+        fcurve = fcurves.find(offset_factor_data_path)
         if fcurve is not None and len(fcurve.keyframe_points) == 2:
             kf = fcurve.keyframe_points[-1]
             kf.co = (end_frame, 0.0)
@@ -881,10 +890,10 @@ class RemoveAnimation(bpy.types.Operator):
             root_bone.name, fp_constraint.name
         )
 
-        action = obj.animation_data.action
-        fcurve = action.fcurves.find(offset_factor_data_path)
+        fcurves = polib.utils_bpy.get_fcurves_from_action(obj.animation_data.action)
+        fcurve = fcurves.find(offset_factor_data_path)
         if fcurve is not None:
-            action.fcurves.remove(fcurve)
+            fcurves.remove(fcurve)
 
     def remove_constraints(self, obj: bpy.types.Object) -> None:
         """Removes ground and follow path constraints created with `FollowPath` operator.

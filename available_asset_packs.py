@@ -34,7 +34,7 @@ from . import asset_registry
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-MODULE_CLASSES: typing.List[typing.Type] = []
+MODULE_CLASSES: list[type] = []
 
 
 WORK_FOLDER = os.path.join(
@@ -57,7 +57,7 @@ class AssetPackMarket:
     url: str
 
     @classmethod
-    def from_dict(cls, data: typing.Dict[str, typing.Any]) -> "AssetPackMarket":
+    def from_dict(cls, data: dict[str, typing.Any]) -> "AssetPackMarket":
         name = data.get("name", None)
         if name is None:
             raise ValueError("Asset pack market URL must have a 'name' field.")
@@ -79,17 +79,17 @@ class AvailableAssetPackMetadata:
     # id_ is a full name without a variant
     id_: str
     name: str
-    version: typing.Tuple[int, int, int]
+    version: tuple[int, int, int]
     vendor: str
     description: str
-    icon_url: typing.Optional[str]
+    icon_url: str | None
     # List of full_names of possible variants e. g. botaniq_full, botaniq_lite, ...
-    variants: typing.List[str]
-    markets: typing.List[AssetPackMarket]
-    tags: typing.List[str]
+    variants: list[str]
+    markets: list[AssetPackMarket]
+    tags: list[str]
 
     @classmethod
-    def from_dict(cls, data: typing.Dict[str, typing.Any]) -> "AvailableAssetPackMetadata":
+    def from_dict(cls, data: dict[str, typing.Any]) -> "AvailableAssetPackMetadata":
         id_ = data.get("id", None)
         if id_ is None:
             raise ValueError("Asset pack metadata must have an 'id' field.")
@@ -130,14 +130,14 @@ class AvailableAssetPackMetadata:
         )
 
 
-AVAILABLE_ASSET_PACKS: typing.List[AvailableAssetPackMetadata] = []
+AVAILABLE_ASSET_PACKS: list[AvailableAssetPackMetadata] = []
 
 
 def _materialize_asset_packs_index(
-    timeout: typing.Optional[float] = None,
-) -> typing.List[AvailableAssetPackMetadata]:
+    timeout: float | None = None,
+) -> list[AvailableAssetPackMetadata]:
     """Returns a list of available asset packs, downloading the index file if necessary."""
-    if bpy.app.version >= (4, 2, 0) and not bpy.app.online_access:
+    if not bpy.app.online_access:
         return []
     ret = []
     update_needed = False
@@ -151,9 +151,11 @@ def _materialize_asset_packs_index(
         remote_mtime = polib.utils_bpy.get_remote_file_last_modified_utc(
             INDEX_REMOTE_URL, timeout=timeout
         )
-        if remote_mtime is not None and remote_mtime > local_mtime:
+        if remote_mtime is None:
+            return []
+        if remote_mtime > local_mtime:
             logger.info(
-                f"Remote index {INDEX_REMOTE_URL} is newer than local file {INDEX_LOCAL_FILE_PATH}, "
+                f"Remote index '{INDEX_REMOTE_URL}' is newer than local file '{INDEX_LOCAL_FILE_PATH}', "
                 "downloading new version."
             )
             update_needed = True
@@ -169,7 +171,7 @@ def _materialize_asset_packs_index(
                     f.write(raw_data)
                 indexed_asset_packs = json.loads(raw_data)
         except (urllib.error.HTTPError, urllib.error.URLError) as e:
-            logger.exception(e)
+            logger.warning(f"Failed to download '{INDEX_REMOTE_URL}'. Reason: {e}")
             return []
 
     try:
@@ -201,7 +203,7 @@ def _refresh_available_asset_packs() -> None:
     Downloads and assigns the pack preview to 'pack_thumbnail_icon_manager'.
     Clears AVAILABLE_ASSET_PACKS access methods caches.
     """
-    if bpy.app.version >= (4, 2, 0) and not bpy.app.online_access:
+    if not bpy.app.online_access:
         return
     # Avoid multiple asset registry refreshes manipulating the same list
     with available_pack_refresh_lock:
@@ -223,7 +225,7 @@ def _refresh_available_asset_packs() -> None:
 @functools.lru_cache
 def get_available_pack_from_full_name(
     full_name: str,
-) -> typing.Optional[AvailableAssetPackMetadata]:
+) -> AvailableAssetPackMetadata | None:
     """Returns available asset pack if it contains variant matching 'full_name'.
 
     NOTE: This doesn't fetch data, data has to be firstly updated by one of the refresh methods.
@@ -237,7 +239,7 @@ def get_available_pack_from_full_name(
     return None
 
 
-def get_not_installed_available_asset_packs() -> typing.List[AvailableAssetPackMetadata]:
+def get_not_installed_available_asset_packs() -> list[AvailableAssetPackMetadata]:
     """Returns a list of asset packs that are not installed, but available for download.
 
     NOTE: This doesn't fetch data, data has to be firstly updated by one of the refresh methods.

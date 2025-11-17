@@ -20,7 +20,7 @@ CategoryID = str
 class Category:
     id_: CategoryID = ""
     title: str = ""
-    preview_file: typing.Optional[file_provider.FileID] = None
+    preview_file: file_provider.FileID | None = None
 
 
 DEFAULT_ROOT_CATEGORY = Category(id_="/", title="All")

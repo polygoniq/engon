@@ -18,6 +18,7 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
+import math
 import bpy
 import typing
 import collections
@@ -33,7 +34,7 @@ from ... import asset_registry
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
-MODULE_CLASSES: typing.List[typing.Type] = []
+MODULE_CLASSES: list[type] = []
 
 
 DEFAULT_PRESET = botaniq_animations.WindPreset.WIND
@@ -66,14 +67,14 @@ def get_animation_library_path() -> str:
     return animation_library_path
 
 
-def load_helper_object_names(animation_library_path: str) -> typing.Set[str]:
+def load_helper_object_names(animation_library_path: str) -> set[str]:
     with bpy.data.libraries.load(animation_library_path) as (data_from, _):
         return set(data_from.objects)
 
 
 def link_animation_data(
     animation_type: str, animation_library_path: str
-) -> typing.Tuple[bpy.types.Library, bpy.types.Collection, typing.List[bpy.types.Action]]:
+) -> tuple[bpy.types.Library, bpy.types.Collection, list[bpy.types.Action]]:
     anim_data_collection_name = f"bq_Animation-Data_{animation_type}"
     anim_lib_basename = os.path.basename(animation_library_path)
     old_anim_lib = bpy.data.libraries.get(anim_lib_basename, None)
@@ -108,7 +109,7 @@ def remove_orphan_actions() -> typing.Iterable[str]:
     return removed_action_names
 
 
-def get_instanced_mesh_object(obj: bpy.types.Object) -> typing.Optional[bpy.types.Object]:
+def get_instanced_mesh_object(obj: bpy.types.Object) -> bpy.types.Object | None:
     """Returns first mesh object in instanced collection of 'obj',
     if 'obj' is not instanced this returns 'obj'.
 
@@ -129,7 +130,7 @@ def get_instanced_mesh_object(obj: bpy.types.Object) -> typing.Optional[bpy.type
     return obj
 
 
-def infer_modifier_from_data_path(data_path: str) -> typing.Optional[str]:
+def infer_modifier_from_data_path(data_path: str) -> str | None:
     """Returns name of affected modifier from data path. If it is not possible to infer
     modifier name returns None.
     """
@@ -145,12 +146,13 @@ def infer_modifier_from_data_path(data_path: str) -> typing.Optional[str]:
 
 def get_animation_state_control_modifiers(
     action: bpy.types.Action,
-) -> typing.Set[typing.Tuple[str, bpy.types.FModifierLimits]]:
+) -> set[tuple[str, bpy.types.FModifierLimits]]:
     """Returns set of last 'LIMITS' modifiers from fcurves in 'action'.
     These fcurve modifiers are used to control the state of the animation modifier (on/off).
     """
     control_modifiers = set()
-    for fcurve in action.fcurves:
+    fcurves = polib.utils_bpy.get_fcurves_from_action(action)
+    for fcurve in fcurves:
         modifier_name = infer_modifier_from_data_path(fcurve.data_path)
         if modifier_name is None:
             continue
@@ -166,7 +168,7 @@ def get_animation_state_control_modifiers(
 
 def get_envelope_modifier(
     fmodifiers: bpy.types.FCurveModifiers,
-) -> typing.Optional[bpy.types.FModifierEnvelope]:
+) -> bpy.types.FModifierEnvelope | None:
     """Returns first 'ENVELOPE' modifier in FCurve modifier stack if is present."""
     for modifier in fmodifiers:
         if modifier.type == 'ENVELOPE':
@@ -178,7 +180,8 @@ def set_animation_strength(action: bpy.types.Action, value: float) -> None:
     """Changes 'max' value of 'ENVELOPE' modifiers control point.
     This is used to control the strength of the animation.
     """
-    for fcurve in action.fcurves:
+    fcurves = polib.utils_bpy.get_fcurves_from_action(action)
+    for fcurve in fcurves:
         envelope_mod = get_envelope_modifier(fcurve.modifiers)
         if envelope_mod is None:
             continue
@@ -191,7 +194,7 @@ def set_animation_strength(action: bpy.types.Action, value: float) -> None:
         control_points[0].max = value
 
 
-def parse_action_name(action: bpy.types.Action) -> typing.Tuple[str, str]:
+def parse_action_name(action: bpy.types.Action) -> tuple[str, str]:
     """Returns tuple of (animation_type, preset) parsed from the name of 'action'."""
     assert action.name.count("_", 2)
     split = polib.utils_bpy.remove_object_duplicate_suffix(action.name).split("_")
@@ -206,7 +209,7 @@ def get_scene_fps_adjusted_interval(scene_fps: float) -> int:
     return int(ANIMATION_DEFAULT_INTERVAL * (scene_fps / ANIMATION_DEFAULT_FPS))
 
 
-def infer_strength_from_action(action: typing.Optional[bpy.types.Action]) -> typing.Optional[float]:
+def infer_strength_from_action(action: bpy.types.Action | None) -> float | None:
     """Returns the average strength of wind animation inferred from the 'ENVELOPE' modifiers in
     fcurves from 'action'. This is mainly for UI purpose to display strength of active animation.
     """
@@ -214,7 +217,8 @@ def infer_strength_from_action(action: typing.Optional[bpy.types.Action]) -> typ
         return None
 
     strengths = []
-    for fcurve in action.fcurves:
+    fcurves = polib.utils_bpy.get_fcurves_from_action(action)
+    for fcurve in fcurves:
         envelope_mod = get_envelope_modifier(fcurve.modifiers)
         if envelope_mod is None:
             continue
@@ -230,18 +234,19 @@ def infer_strength_from_action(action: typing.Optional[bpy.types.Action]) -> typ
 
 
 def get_envelope_multiplier_mod_prop_map(
-    action: typing.Optional[bpy.types.Action],
-) -> typing.Dict[str, typing.Tuple[bpy.types.FModifier, str]]:
+    action: bpy.types.Action | None,
+) -> dict[str, tuple[bpy.types.FModifier, str]]:
     """Finds and returns a map of modifier names -> (fcurve modifier, property name)
 
     Key is the name of modifier on the object. Value tuple contains fcurve modifier
     and property name of the property affecting the amplitude of the fcurve.
     """
-    mod_name_prop_map: typing.Dict[str, typing.Tuple[bpy.types.FModifier, str]] = {}
+    mod_name_prop_map: dict[str, tuple[bpy.types.FModifier, str]] = {}
     if action is None:
         return mod_name_prop_map
 
-    for fcurve in action.fcurves:
+    fcurves = polib.utils_bpy.get_fcurves_from_action(action)
+    for fcurve in fcurves:
         if len(fcurve.modifiers) < len(WIND_ANIMATION_FCURVE_UI_MODS):
             continue
 
@@ -303,7 +308,7 @@ def copy_driving_empties(
 ) -> None:
     def parent_and_copy_animation_recursive(
         child: bpy.types.Object, parent: bpy.types.Object, target_collection: bpy.types.Collection
-    ) -> typing.Dict[bpy.types.Object, bpy.types.Object]:
+    ) -> dict[bpy.types.Object, bpy.types.Object]:
 
         ret = {}
         child_copy: bpy.types.Object = child.copy()
@@ -423,7 +428,7 @@ def get_animated_objects(
 
 
 def get_animated_objects_hierarchy(
-    root_obj: bpy.types.Object, helper_object_names: typing.Set[str], include_root: bool = False
+    root_obj: bpy.types.Object, helper_object_names: set[str], include_root: bool = False
 ) -> typing.Iterator[bpy.types.Object]:
     """Yields animation helper objects from 'root_obj' based on 'helper_object_names'
 
@@ -438,15 +443,6 @@ def get_animated_objects_hierarchy(
         obj_name_clean = polib.utils_bpy.remove_object_duplicate_suffix(obj.name)
         if obj_name_clean in helper_object_names:
             yield obj
-
-
-def get_frame_range(action: bpy.types.Action) -> typing.Optional[typing.Tuple[float, float]]:
-    for fcurve in action.fcurves:
-        if len(fcurve.keyframe_points) < 2:
-            continue
-        keyframes = fcurve.keyframe_points
-        return keyframes[0].co.x, keyframes[-1].co.x
-    return None
 
 
 def set_animation_frame_range(
@@ -480,14 +476,11 @@ def set_animation_frame_range(
     anim_obj: bpy.types.Object = get_instanced_mesh_object(obj)
     assert anim_obj.animation_data.action is not None
     anim_obj_action = anim_obj.animation_data.action
-    current_frame_range = get_frame_range(anim_obj_action)
-
-    if current_frame_range is None:
-        return
-
-    anim_obj_hierarchy = polib.asset_pack_bpy.get_entire_object_hierarchy(anim_obj)
+    current_frame_range = anim_obj_action.frame_range
 
     current_frame_interval = current_frame_range[1] - current_frame_range[0]
+    if math.isclose(current_frame_interval, 0):
+        return
     fps_ratio = frame_rate / ANIMATION_DEFAULT_FPS
     interval_count, frames_overlap = divmod(
         new_frame_interval, ANIMATION_DEFAULT_INTERVAL * fps_ratio
@@ -502,11 +495,13 @@ def set_animation_frame_range(
         else:
             multiplier /= interval_count
 
+    anim_obj_hierarchy = polib.asset_pack_bpy.get_entire_object_hierarchy(anim_obj)
     for obj in anim_obj_hierarchy:
         if obj.animation_data is None or obj.animation_data.action is None:
             continue
 
-        for fcurve in obj.animation_data.action.fcurves:
+        fcurves = polib.utils_bpy.get_fcurves_from_action(obj.animation_data.action)
+        for fcurve in fcurves:
             # We need at least two keyframes to change animation interval
             if len(fcurve.keyframe_points) < 2:
                 continue
@@ -526,7 +521,8 @@ def set_animation_frame_range(
 
 def get_wind_style(action: bpy.types.Action) -> botaniq_animations.WindStyle:
     """Infers animation style from looking at status of FCurve Noise modifier in stack."""
-    for fcurve in action.fcurves:
+    fcurves = polib.utils_bpy.get_fcurves_from_action(action)
+    for fcurve in fcurves:
         if len(fcurve.modifiers) < len(WIND_ANIMATION_FCURVE_STYLE_MODS):
             continue
 
@@ -559,7 +555,8 @@ def change_anim_style(
         action: bpy.types.Action, style: botaniq_animations.WindStyle
     ) -> None:
         """Set animation style of action to the provided one by changing the mute status on specific FCurves."""
-        for fcurve in action.fcurves:
+        fcurves = polib.utils_bpy.get_fcurves_from_action(action)
+        for fcurve in fcurves:
             if len(fcurve.modifiers) < len(WIND_ANIMATION_FCURVE_STYLE_MODS):
                 continue
 
@@ -609,10 +606,10 @@ def change_preset(
         animation_style = botaniq_animations.WindStyle.LOOP
     else:
         old_action = obj.animation_data.action
+        assert old_action is not None
         animation_style = get_wind_style(old_action)
-        old_frame_range = get_frame_range(old_action)
-        if old_frame_range is not None:
-            old_frame_interval = int(old_frame_range[1] - old_frame_range[0])
+        old_frame_range = old_action.frame_range
+        old_frame_interval = int(old_frame_range[1] - old_frame_range[0])
 
     # Reset the helper objects, as the main animated objects is reset to default by changing its action
     helper_objs = list(
@@ -648,11 +645,11 @@ class AnimationOperatorBase(bpy.types.Operator):
             context
         ).botaniq_animations_preferences.wind_anim_properties
 
-        if wind_properties.operator_target == 'SELECTED':
+        if wind_properties.operator_target == botaniq_animations.OperatorTarget.SELECTED:
             target_objects = context.selected_objects
-        elif wind_properties.operator_target == 'SCENE':
+        elif wind_properties.operator_target == botaniq_animations.OperatorTarget.SCENE:
             target_objects = context.scene.objects
-        elif wind_properties.operator_target == 'ALL':
+        elif wind_properties.operator_target == botaniq_animations.OperatorTarget.ALL:
             target_objects = bpy.data.objects
         else:
             raise ValueError(f"Unknown selection target '{wind_properties.operator_target}'")
@@ -812,8 +809,8 @@ class AnimationAddWind(bpy.types.Operator):
         )
 
     def prepare_animation_data(
-        self, unique_animation_types: typing.Set[str], animation_library_path: str
-    ) -> typing.Dict[str, str]:
+        self, unique_animation_types: set[str], animation_library_path: str
+    ) -> dict[str, str]:
         """Loads animation data for 'unique_animation_types' and returns map to modifier stack names.
 
         Returns mapping of 'animation_type': 'modifier_stack_name'.
@@ -839,7 +836,7 @@ class AnimationAddWind(bpy.types.Operator):
 
     def build_animation_type_objs_map(
         self, objects: typing.Iterable[bpy.types.Object], animation_type: str
-    ) -> typing.Dict[str, typing.List[bpy.types.Object]]:
+    ) -> dict[str, list[bpy.types.Object]]:
         """Returns a mapping of 'animation_type' to a unique subsets of 'objects' that use it.
 
         In case of  BEST FIT 'animation_type' there can be different 'animation_types' for different
@@ -848,12 +845,10 @@ class AnimationAddWind(bpy.types.Operator):
         """
         # Return early with direct map of animation_type -> objects if selected animation type
         # is different from BEST_FIT
-        if animation_type != botaniq_animations.AnimationType.WIND_BEST_FIT.value:
+        if animation_type != botaniq_animations.AnimationType.WIND_BEST_FIT:
             return {animation_type: list(objects)}
 
-        animation_type_objs_map: typing.Dict[str, typing.List[bpy.types.Object]] = (
-            collections.defaultdict(list)
-        )
+        animation_type_objs_map: dict[str, list[bpy.types.Object]] = collections.defaultdict(list)
 
         asset_provider = asset_registry.instance.master_asset_provider
         assert asset_provider is not None
@@ -896,8 +891,8 @@ class AnimationAddWind(bpy.types.Operator):
         modifier_container_name: str,
         make_instance: bool,
         animation_library_path: str,
-    ) -> typing.List[str]:
-        animated_object_names: typing.List[str] = []
+    ) -> list[str]:
+        animated_object_names: list[str] = []
 
         modifier_container = bpy.data.objects.get(modifier_container_name)
         assert modifier_container is not None
@@ -915,14 +910,14 @@ class AnimationAddWind(bpy.types.Operator):
             assert obj.name in obj_source_map
             # Switch the target collection for empties based on whether obj is in particle
             # system or not.
-            if any(o[0] == asset_helpers.ObjectSource.particles for o in obj_source_map[obj.name]):
+            if any(o[0] == asset_helpers.ObjectSource.PARTICLES for o in obj_source_map[obj.name]):
                 empties_coll = asset_helpers.get_animation_empties_collection(context)
             else:
                 assert len(obj.users_collection) > 0
                 empties_coll = obj.users_collection[0]
 
             copy_driving_empties(modifier_container, obj, empties_coll)
-            change_preset(obj, DEFAULT_PRESET.value, DEFAULT_WIND_STRENGTH, animation_library_path)
+            change_preset(obj, DEFAULT_PRESET, DEFAULT_WIND_STRENGTH, animation_library_path)
             # Adjust the frame interval to scene fps to maintain default speed
             set_animation_frame_range(obj, fps, fps_adjusted_interval)
             helper_objs = get_animated_objects_hierarchy(
@@ -1003,7 +998,7 @@ class AnimationAddWind(bpy.types.Operator):
                 return {'CANCELLED'}
 
         self.save_state(context)
-        new_animated_object_names: typing.List[str] = []
+        new_animated_object_names: list[str] = []
         try:
             scatter_objs = asset_helpers.gather_instanced_objects(selected_objects)
             curves_scatter_objs = asset_helpers.gather_curves_instanced_objects(selected_objects)
@@ -1094,9 +1089,7 @@ class AnimationRemoveWind(bpy.types.Operator):
         )
 
     @classmethod
-    def remove_animation(
-        cls, root_obj: bpy.types.Object, helper_object_names: typing.Set[str]
-    ) -> None:
+    def remove_animation(cls, root_obj: bpy.types.Object, helper_object_names: set[str]) -> None:
         """Removes botaniq wind animation and all its parts from object 'root_obj'."""
         # remove animation helper objects from botaniq 6.7 and newer
         helper_objects = get_animated_objects_hierarchy(root_obj, helper_object_names)
@@ -1336,17 +1329,17 @@ class AnimationSetAnimStyle(AnimationOperatorBase):
         description="Choose the desired animation style",
         items=[
             (
-                botaniq_animations.WindStyle.PROCEDURAL.name,
-                botaniq_animations.WindStyle.PROCEDURAL.value,
+                botaniq_animations.WindStyle.PROCEDURAL,
+                botaniq_animations.WindStyle.PROCEDURAL,
                 "Procedural botaniq animation",
             ),
             (
-                botaniq_animations.WindStyle.LOOP.name,
-                botaniq_animations.WindStyle.LOOP.value,
+                botaniq_animations.WindStyle.LOOP,
+                botaniq_animations.WindStyle.LOOP,
                 "Looping botaniq animation",
             ),
         ],
-        default=botaniq_animations.WindStyle.PROCEDURAL.name,
+        default=botaniq_animations.WindStyle.PROCEDURAL,
     )
 
     def draw(self, context: bpy.types.Context) -> None:
@@ -1357,12 +1350,13 @@ class AnimationSetAnimStyle(AnimationOperatorBase):
     def execute(self, context: bpy.types.Context):
         animation_library_path = get_animation_library_path()
 
-        if self.style == botaniq_animations.WindStyle.PROCEDURAL.name:
-            style_enum = botaniq_animations.WindStyle.PROCEDURAL
-        elif self.style == botaniq_animations.WindStyle.LOOP.name:
-            style_enum = botaniq_animations.WindStyle.LOOP
-        else:
-            raise ValueError(f"Unknown operation '{self.style}', expected LOOP or PROCEDURAL!")
+        if self.style not in {
+            botaniq_animations.WindStyle.LOOP,
+            botaniq_animations.WindStyle.PROCEDURAL,
+        }:
+            raise ValueError(
+                f"Unknown operation '{self.style}', expected {botaniq_animations.WindStyle.LOOP} or {botaniq_animations.WindStyle.PROCEDURAL}!"
+            )
 
         target_objects = AnimationOperatorBase.get_target_objects(context)
         animated_objects = list(get_animated_objects(target_objects))
@@ -1371,7 +1365,7 @@ class AnimationSetAnimStyle(AnimationOperatorBase):
             helper_objs = get_animated_objects_hierarchy(
                 obj, load_helper_object_names(animation_library_path)
             )
-            change_anim_style(obj, helper_objs, style_enum)
+            change_anim_style(obj, helper_objs, self.style)
 
         return {'FINISHED'}
 
@@ -1411,11 +1405,11 @@ class AnimationRandomizeOffset(AnimationOperatorBase):
     def randomize_animation_offset(obj: bpy.types.Object) -> None:
         anim_obj: bpy.types.Object = get_instanced_mesh_object(obj)
         assert anim_obj.animation_data.action is not None
-        current_frame_range = get_frame_range(anim_obj.animation_data.action)
-        if current_frame_range is None:
-            return
+        current_frame_range = anim_obj.animation_data.action.frame_range
 
         frame_interval = current_frame_range[1] - current_frame_range[0]
+        if math.isclose(frame_interval, 0.0):
+            return
         # get random offset from interval [-x, x], so in average keyframe values are not exploding
         # to big values when this operator is called multiple times
         random_offset = random.randint(-round(frame_interval / 2), round(frame_interval / 2))
@@ -1425,7 +1419,8 @@ class AnimationRandomizeOffset(AnimationOperatorBase):
             if obj.animation_data is None or obj.animation_data.action is None:
                 continue
 
-            for fcurve in obj.animation_data.action.fcurves:
+            fcurves = polib.utils_bpy.get_fcurves_from_action(obj.animation_data.action)
+            for fcurve in fcurves:
                 for keyframe in fcurve.keyframe_points:
                     keyframe.handle_left.x += random_offset
                     keyframe.co.x += random_offset
@@ -1481,7 +1476,7 @@ class AnimationMakeInstanced(bpy.types.Operator):
     @classmethod
     def wrap_to_instance_collection(
         cls, context: bpy.types.Context, obj: bpy.types.Object
-    ) -> typing.Tuple[bpy.types.Collection, bpy.types.Object]:
+    ) -> tuple[bpy.types.Collection, bpy.types.Object]:
         """Creates new collection containing 'obj' hierarchy and instances it on the
         previous location of 'obj'.
         """

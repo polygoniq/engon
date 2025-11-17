@@ -22,6 +22,7 @@ import re
 import logging
 import weakref
 import threading
+import bpy_extras.anim_utils
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
@@ -181,9 +182,7 @@ def generate_unique_name(old_name: str, container: typing.Iterable[typing.Any]) 
     return new_name
 
 
-def convert_size(
-    size_bytes: int, decimal_places: int = 2, unit: typing.Optional[ByteSizeUnit] = None
-) -> str:
+def convert_size(size_bytes: int, decimal_places: int = 2, unit: ByteSizeUnit | None = None) -> str:
     """Converts size in bytes to human readable format with an appropriate unit."""
 
     def format_size(size: float, unit_name: str):
@@ -192,7 +191,7 @@ def convert_size(
     if size_bytes == 0:
         return format_size(0, unit.name if unit is not None else ByteSizeUnit.B.name)
     if unit is not None:
-        index = unit.value
+        index = unit
     else:
         index = int(math.floor(math.log(size_bytes, 1024)))
     size = round(size_bytes / math.pow(1024, index), decimal_places)
@@ -303,7 +302,7 @@ class cached_property(typing.Generic[TProp, TPropReturn]):
         self.lock = threading.RLock()
         self._cache: weakref.WeakKeyDictionary[TProp, TPropReturn] = weakref.WeakKeyDictionary()
 
-    def __get__(self, instance: typing.Optional[TProp], _owner: typing.Any = None) -> TPropReturn:
+    def __get__(self, instance: TProp | None, _owner: typing.Any = None) -> TPropReturn:
         if instance is None:
             return typing.cast(TPropReturn, self)  # trust me bro
 
@@ -329,7 +328,7 @@ def xdg_open_file(path):
         subprocess.call(["xdg-open", path])
 
 
-def fork_running_blender(blend_path: typing.Optional[str] = None) -> None:
+def fork_running_blender(blend_path: str | None = None) -> None:
     """Opens new instance of Blender which keeps running even if the original instance is closed.
 
     Opens 'blend_path' if provided, otherwise Blender will open with an empty scene.
@@ -356,7 +355,7 @@ def fork_running_blender(blend_path: typing.Optional[str] = None) -> None:
 
 
 def run_logging_subprocess(
-    subprocess_args: typing.List[str], logger_: typing.Optional[logging.Logger] = None
+    subprocess_args: list[str], logger_: logging.Logger | None = None
 ) -> int:
     """Runs `subprocess_args` as subprocess and logs stdout and stderr of the subprocess.
 
@@ -402,7 +401,7 @@ def filter_invalid_characters_from_path(input_path: str) -> str:
     """
 
     # the overcomplicated typing hint is just so that mypy gets this
-    forbidden_chars: typing.Dict[str, typing.Union[int, str, None]] = {
+    forbidden_chars: dict[str, int | str | None] = {
         "<": "_",
         ">": "_",
         ":": "_",
@@ -480,8 +479,8 @@ def get_bpy_filepath_relative_to_dir(input_dir: str, filepath: str, library=None
 
 
 def get_first_existing_ancestor_directory(
-    file_path: str, whitelist: typing.Optional[set[str]] = None
-) -> typing.Optional[str]:
+    file_path: str, whitelist: set[str] | None = None
+) -> str | None:
     if whitelist is None:
         whitelist = set()
     if file_path not in whitelist and not os.path.exists(file_path):
@@ -492,7 +491,7 @@ def get_first_existing_ancestor_directory(
     return str(current_dir)
 
 
-def get_all_datablocks(data: bpy.types.BlendData) -> typing.List[typing.Tuple[bpy.types.ID, str]]:
+def get_all_datablocks(data: bpy.types.BlendData) -> list[tuple[bpy.types.ID, str]]:
     """returns all datablocks and their BlendData type in the currently loaded blend file"""
     # Return a materialized list, don't use generators here, those may result in Blender
     # crashing due to memory issues
@@ -506,7 +505,7 @@ def get_all_datablocks(data: bpy.types.BlendData) -> typing.List[typing.Tuple[bp
     return ret
 
 
-def get_addon_mod_info(module_name: str) -> typing.Dict[str, typing.Any]:
+def get_addon_mod_info(module_name: str) -> dict[str, typing.Any]:
     """Returns module bl_info based on its module name."""
     for mod in addon_utils.modules(refresh=False):
         if mod.__name__ == module_name:
@@ -515,11 +514,11 @@ def get_addon_mod_info(module_name: str) -> typing.Dict[str, typing.Any]:
     raise ValueError(f"No module '{module_name}' was found!")
 
 
-def get_release_tag_from_version(version: typing.Tuple[int, int, int]) -> str:
+def get_release_tag_from_version(version: tuple[int, int, int]) -> str:
     return f"v{'.'.join(map(str, version))}"
 
 
-def get_conflicting_addons(module_name: str) -> typing.List[str]:
+def get_conflicting_addons(module_name: str) -> list[str]:
     """Returns a list of messages about possibly conflicting addon installations based on 'module_name'."""
     this_addon_simple_name = module_name.replace("_addon", "")
     if "bl_ext" in this_addon_simple_name:
@@ -544,7 +543,7 @@ def get_conflicting_addons(module_name: str) -> typing.List[str]:
         "megaddon",
     }
 
-    conflicts: typing.List[str] = []
+    conflicts: list[str] = []
 
     for mod in addon_utils.modules():
         for candidate in old_addons:
@@ -573,9 +572,7 @@ def get_addon_docs_page(module_name: str) -> str:
     return f"{POLYGONIQ_DOCS_URL}/{name}/{version}"
 
 
-def get_addon_release_info(
-    addon_name: str, release_tag: str = ""
-) -> typing.Optional[typing.Dict[str, typing.Any]]:
+def get_addon_release_info(addon_name: str, release_tag: str = "") -> dict[str, typing.Any] | None:
     if release_tag != "":
         url = f"{POLYGONIQ_GITHUB_REPO_API_URL}/{addon_name}/releases/tags/{release_tag}"
     else:
@@ -603,8 +600,8 @@ def get_local_file_last_modified_utc(file_path: str) -> datetime.datetime:
 
 def get_remote_file_last_modified_utc(
     url: str,
-    timeout: typing.Optional[float] = None,
-) -> typing.Optional[datetime.datetime]:
+    timeout: float | None = None,
+) -> datetime.datetime | None:
     """Returns the last modified date of a remote file."""
     request = urllib.request.Request(url, method='HEAD')
     try:
@@ -615,10 +612,170 @@ def get_remote_file_last_modified_utc(
                 return dt.astimezone(datetime.timezone.utc)
             return None
     except (urllib.error.HTTPError, urllib.error.URLError) as e:
-        logger.exception(e)
+        logger.warning(f"Failed to retrieve last modified date of '{url}'. Reason: {e}")
     return None
 
 
 def get_name_from_blend_path(path: str) -> str:  # folder/structure/name.blend
     asset_name, _ = os.path.splitext(os.path.basename(path))
     return asset_name
+
+
+def get_nearest_subclass_of(object_: object, type_: type) -> type | None:
+    """Returns the nearest subclass of the given type in the MRO of the object's class.
+
+    Example:
+        class A
+        class B(A)
+        class C(B)
+        class D(C)
+
+        x = D()
+
+        get_nearest_subclass_of(x, A) = B
+        get_nearest_subclass_of(x, B) = C
+    """
+    for cls in object_.__class__.mro():
+        if type_ in cls.__bases__:
+            return cls
+
+
+# Has to be wrapped in a function because collections in bpy.data are not available at the time of
+# module import. It results in: "AttributeError: '_RestrictData' object has no attribute 'actions'"
+def get_datablock_types_to_collections(
+    lib_object: bpy.types.bpy_struct | None = None,
+) -> dict[type[bpy.types.ID], bpy.types.bpy_prop_collection]:
+    """Returns a mapping of all bpy.types.ID subclasses to their corresponding bpy.data collections.
+
+    Optionally can be used for returning collections from a specific library object.
+    Library objects are retrieved when using 'bpy.data.libraries.load'. They are of type 'bpy_lib'
+    which is not exposed in bpy.types, so we use 'bpy.types.bpy_struct' as a generic type here.
+    """
+    # All types that inherit from bpy.types.ID. They're the same in all supported Blenders 3.6 - 4.2
+    # If new Blender introduces a new type and we want to support storing it or its properties in
+    # renderset context, we have to add it here and handle that it's not present in older Blenders.
+    data = bpy.data
+    if lib_object is not None:
+        data = lib_object
+
+    ret = {
+        bpy.types.Action: data.actions,
+        bpy.types.Armature: data.armatures,
+        bpy.types.Brush: data.brushes,
+        bpy.types.CacheFile: data.cache_files,
+        bpy.types.Camera: data.cameras,
+        bpy.types.Collection: data.collections,
+        bpy.types.Curve: data.curves,
+        bpy.types.Curves: data.hair_curves,
+        bpy.types.FreestyleLineStyle: data.linestyles,
+        bpy.types.Image: data.images,
+        bpy.types.Lattice: data.lattices,
+        bpy.types.Light: data.lights,
+        bpy.types.LightProbe: data.lightprobes,
+        bpy.types.Mask: data.masks,
+        bpy.types.Material: data.materials,
+        bpy.types.Mesh: data.meshes,
+        bpy.types.MetaBall: data.metaballs,
+        bpy.types.MovieClip: data.movieclips,
+        bpy.types.NodeTree: data.node_groups,
+        bpy.types.Object: data.objects,
+        bpy.types.PaintCurve: data.paint_curves,
+        bpy.types.Palette: data.palettes,
+        bpy.types.ParticleSettings: data.particles,
+        bpy.types.PointCloud: data.pointclouds,
+        bpy.types.Scene: data.scenes,
+        bpy.types.Screen: data.screens,
+        bpy.types.Sound: data.sounds,
+        bpy.types.Speaker: data.speakers,
+        bpy.types.Text: data.texts,
+        bpy.types.Texture: data.textures,
+        bpy.types.VectorFont: data.fonts,
+        bpy.types.Volume: data.volumes,
+        bpy.types.WorkSpace: data.workspaces,
+        bpy.types.World: data.worlds,
+    }
+
+    if bpy.app.version < (5, 0, 0):
+        ret[bpy.types.GreasePencil] = data.grease_pencils
+    else:
+        ret[bpy.types.Annotation] = data.annotations
+
+    if lib_object is None:
+        # These collections are not available in library objects
+        ret.update(
+            {
+                bpy.types.Key: data.shape_keys,
+                bpy.types.Library: data.libraries,
+                bpy.types.WindowManager: data.window_managers,
+            }
+        )
+
+    return ret
+
+
+def get_datablock_icon(datablock: bpy.types.ID, default: str = 'FILE_3D') -> str:
+    mapping = {
+        bpy.types.Action: 'ACTION',
+        bpy.types.Armature: 'ARMATURE_DATA',
+        bpy.types.Brush: 'BRUSH_DATA',
+        bpy.types.CacheFile: 'FILE',
+        bpy.types.Camera: 'CAMERA_DATA',
+        bpy.types.Collection: 'OUTLINER_COLLECTION',
+        bpy.types.Curve: 'CURVE_DATA',
+        bpy.types.Curves: 'HAIR',
+        bpy.types.FreestyleLineStyle: 'LINE_DATA',
+        bpy.types.Image: 'IMAGE_DATA',
+        bpy.types.Key: 'SHAPEKEY_DATA',
+        bpy.types.Lattice: 'LATTICE_DATA',
+        bpy.types.Library: 'LIBRARY_DATA_DIRECT',
+        bpy.types.Light: 'LIGHT_DATA',
+        bpy.types.LightProbe: 'LIGHTPROBE_CUBEMAP',
+        bpy.types.Mask: 'MASK_DATA',
+        bpy.types.Material: 'MATERIAL',
+        bpy.types.Mesh: 'MESH_DATA',
+        bpy.types.MetaBall: 'META_DATA',
+        bpy.types.MovieClip: 'CLIP',
+        bpy.types.NodeTree: 'NODETREE',
+        bpy.types.Object: 'OBJECT_DATA',
+        bpy.types.PaintCurve: 'CURVE_BEZCURVE',
+        bpy.types.Palette: 'COLOR',
+        bpy.types.ParticleSettings: 'PARTICLES',
+        bpy.types.PointCloud: 'POINTCLOUD_DATA',
+        bpy.types.Scene: 'SCENE_DATA',
+        bpy.types.Screen: 'SCREEN_BACK',
+        bpy.types.Sound: 'SOUND',
+        bpy.types.Speaker: 'SPEAKER',
+        bpy.types.Text: 'TEXT',
+        bpy.types.Texture: 'TEXTURE',
+        bpy.types.VectorFont: 'FONT_DATA',
+        bpy.types.Volume: 'VOLUME_DATA',
+        bpy.types.WindowManager: 'WINDOW',
+        bpy.types.WorkSpace: 'WORKSPACE',
+        bpy.types.World: 'WORLD',
+    }
+
+    if bpy.app.version < (5, 0, 0):
+        mapping[bpy.types.GreasePencil] = 'GREASEPENCIL'
+    else:
+        mapping[bpy.types.Annotation] = 'GREASEPENCIL'
+
+    # Some datablocks are not direct subclasses of bpy.types.ID
+    # and their types are not present on the datablock type to icon map
+    return mapping.get(get_nearest_subclass_of(datablock, bpy.types.ID), default)
+
+
+def get_fcurves_from_action(action: bpy.types.Action):
+    """Returns FCurves collection from action.
+    This abstracts the difference between Blender versions < 4.4 and >= 4.4.
+    Assumes that we want the fcurves from the first slot in Blender >= 4.4.
+
+    Returns `bpy.types.ActionFCruves` in Blender < 4.4
+    and `bpy.types.ActionChannelbagFCurves` in Blender >= 4.4
+    """
+    if bpy.app.version < (5, 0, 0):
+        return action.fcurves
+    else:
+        assert len(action.slots) > 0
+        channelbag = bpy_extras.anim_utils.action_get_channelbag_for_slot(action, action.slots[0])
+        assert channelbag is not None
+        return channelbag.fcurves

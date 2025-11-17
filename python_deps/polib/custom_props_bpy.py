@@ -13,12 +13,15 @@ from . import ui_bpy
 
 CustomAttributeValueType = typing.Union[
     str,
+    bool,
     int,
     float,
-    typing.Tuple[int, ...],
-    typing.Tuple[float, ...],
-    typing.List[int],
-    typing.List[float],
+    tuple[bool, ...],
+    tuple[int, ...],
+    tuple[float, ...],
+    list[bool],
+    list[int],
+    list[float],
 ]
 
 
@@ -41,6 +44,8 @@ class CustomPropertyNames:
     TQ_CLEARCOAT = "tq_clearcoat"
     # traffiq_lights feature
     TQ_LIGHTS = "tq_main_lights"
+    # controlls traffic lights, not an engon feature yet
+    TQ_TRAFFIC_LIGHT_STATUS = "tq_traffic_light_status"
     # botaniq_adjustments feature
     BQ_BRIGHTNESS = "bq_brightness"
     BQ_RANDOM_PER_BRANCH = "bq_random_per_branch"
@@ -53,11 +58,30 @@ class CustomPropertyNames:
     TQ_SUSPENSION_ROLLING_FACTOR = "tq_SuspensionRollingFactor"
     TQ_WHEELS_Y_ROLLING = "tq_WheelsYRolling"
     TQ_CAR_RIG = "tq_Car_Rig"
+    # aesthetiq_wear feature
+    PQ_WEAR_BUGHOLES_AREA = "pq_wear_bugholes_area"
+    PQ_WEAR_BUGHOLES_MAPPING_SCALE = "pq_wear_bugholes_mapping_scale"
+    PQ_WEAR_BUGHOLES_STRENGTH = "pq_wear_bugholes_strength"
+    PQ_WEAR_FRACTURES_AREA = "pq_wear_fractures_area"
+    PQ_WEAR_FRACTURES_THICKNESS = "pq_wear_fractures_thickness"
+    PQ_WEAR_FRACTURES_STRENGTH = "pq_wear_fractures_strength"
+    PQ_WEAR_MAPCRACKS_AREA = "pq_wear_mapcracks_area"
+    PQ_WEAR_MAPCRACKS_STRENGTH = "pq_wear_mapcracks_strength"
+    PQ_WEAR_MAPCRACKS_MAPPING_SCALE = "pq_wear_mapcracks_mapping_scale"
+    PQ_DIRT_DENSITY = "pq_dirt_density"
+    # pictorial_wear feature
+    PQ_PICTORIAL_WEAR_PAINT_CHIPPING = "pq_pictorial_wear_paint_chipping"
+    PQ_PICTORIAL_WEAR_PRINT_TEAR = "pq_pictorial_wear_print_tear"
+    # pictorial_adjustments feature
+    PQ_PICTORIAL_ADJUSTMENT_CONTRAST = "pq_pictorial_adjustment_contrast"
+    PQ_PICTORIAL_ADJUSTMENT_SATURATION = "pq_pictorial_adjustment_saturation"
+    PQ_PICTORIAL_ADJUSTMENT_VALUE = "pq_pictorial_adjustment_value"
     # colorize_feature
     PQ_PRIMARY_COLOR = "pq_primary_color"
     PQ_PRIMARY_COLOR_FACTOR = "pq_primary_color_factor"
     PQ_SECONDARY_COLOR = "pq_secondary_color"
     PQ_SECONDARY_COLOR_FACTOR = "pq_secondary_color_factor"
+    PQ_PRIMARY_SECONDARY_SWITCH = "pq_primary_secondary_switch"
     # light_adjustment feature
     PQ_LIGHT_USE_RGB = "pq_light_use_rgb"
     PQ_LIGHT_KELVIN = "pq_light_kelvin"
@@ -66,6 +90,16 @@ class CustomPropertyNames:
     # engon scatter custom property defined for particle systems. This is API defined in runtime
     # but fallbacks to custom property if the defining API is not enabled.
     PPS_DENSITY = "pps_density"
+    # parallax_feature
+    PQ_PARALLAX = "pq_parallax"
+    PQ_PARALLAX_LIGHTS = "pq_parallax_lights"
+    PQ_PARALLAX_COVERINGS = "pq_parallax_coverings"
+    PQ_PARALLAX_COVERING_TYPES = "pq_parallax_covering_types"
+    PQ_PARALLAX_COVERING_SCALE = "pq_parallax_covering_scale"
+    PQ_PARALLAX_TRANSPARENCY = "pq_parallax_transparency"
+    # decay feature
+    PQ_DECAY = "pq_decay"
+    PQ_DIRT = "pq_dirt"
 
     @classmethod
     def is_rig_property(cls, prop: str) -> bool:
@@ -90,7 +124,7 @@ class CustomPropertyNames:
 
     @classmethod
     @functools.lru_cache(maxsize=1)
-    def _all(cls) -> typing.Set[str]:
+    def _all(cls) -> set[str]:
         """Returns all custom property names defined in this class.
 
         Note that this set doesn't represent all known custom properties.
@@ -109,7 +143,7 @@ class CustomPropertyNames:
 def has_property(
     datablock: bpy.types.ID,
     property_name: str,
-    value_condition: typing.Optional[typing.Callable[[typing.Any], bool]] = None,
+    value_condition: typing.Callable[[typing.Any], bool] | None = None,
     include_editable: bool = True,
     include_linked: bool = True,
 ) -> bool:
@@ -146,7 +180,7 @@ def update_custom_prop(
     datablocks: typing.Iterable[bpy.types.ID],
     prop_name: str,
     value: CustomAttributeValueType,
-    update_tag_refresh: typing.Set[str] = {'OBJECT'},
+    update_tag_refresh: set[str] = {'OBJECT'},
 ) -> None:
     """Update custom properties of given datablocks and force 3D view to redraw
 

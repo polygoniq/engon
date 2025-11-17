@@ -12,7 +12,7 @@ from . import preferences
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-MODULE_CLASSES: typing.List[typing.Any] = []
+MODULE_CLASSES: list[typing.Any] = []
 
 # The 'make_selection_linked' implementation is here because we need to access the 'asset_registry'
 # instance. The 'make_selection_editable' is in the 'polib.asset_pack_bpy' module, where it can
@@ -25,7 +25,7 @@ def make_selection_linked(
     context: bpy.types.Context,
     asset_provider: mapr.asset_provider.AssetProvider,
     file_provider: mapr.file_provider.FileProvider,
-) -> typing.List[bpy.types.Object]:
+) -> list[bpy.types.Object]:
     previous_active_obj_name = context.active_object.name if context.active_object else None
     converted_objects = []
 

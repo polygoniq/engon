@@ -34,7 +34,7 @@ class Filter:
         """
         raise NotImplementedError()
 
-    def as_dict(self) -> typing.Dict:
+    def as_dict(self) -> dict:
         """Returns a dict entry representing this filter - {key: filter-parameters}.
 
         The 'key' has to be unique across all the filters! The self.name is mostly used
@@ -55,7 +55,7 @@ class NumericParameterFilter(Filter):
 
         return self.range_start < asset_.numeric_parameters[self.name_without_type] < self.range_end
 
-    def as_dict(self) -> typing.Dict:
+    def as_dict(self) -> dict:
         return {self.name: {"min": self.range_start, "max": self.range_end}}
 
 
@@ -68,12 +68,12 @@ class TagFilter(Filter):
     def filter_(self, asset_: asset.Asset) -> bool:
         return self.name_without_type in asset_.tags
 
-    def as_dict(self) -> typing.Dict:
+    def as_dict(self) -> dict:
         return {self.name: self.include}
 
 
 class TextParameterFilter(Filter):
-    def __init__(self, name: str, values: typing.Set[str]):
+    def __init__(self, name: str, values: set[str]):
         super().__init__(name)
         self.values = values
 
@@ -84,7 +84,7 @@ class TextParameterFilter(Filter):
 
         return value in self.values
 
-    def as_dict(self) -> typing.Dict:
+    def as_dict(self) -> dict:
         return {self.name: list(self.values)}
 
 
@@ -94,13 +94,13 @@ class VectorComparator(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def as_dict(self) -> typing.Dict:
+    def as_dict(self) -> dict:
         """The dict representation of the comparator, has to be unique for each comparator type."""
         pass
 
 
 DistanceFunction = typing.Callable[[mathutils.Vector, mathutils.Vector], float]
-NamedDistanceFunction = typing.Tuple[DistanceFunction, str]
+NamedDistanceFunction = tuple[DistanceFunction, str]
 
 
 class VectorDistanceComparator(VectorComparator):
@@ -116,7 +116,7 @@ class VectorDistanceComparator(VectorComparator):
         self,
         value: mathutils.Vector,
         distance: float,
-        distance_function: typing.Optional[NamedDistanceFunction] = None,
+        distance_function: NamedDistanceFunction | None = None,
     ):
         self.value = value
         self.distance = distance
@@ -133,7 +133,7 @@ class VectorDistanceComparator(VectorComparator):
 
         return self.distance_function(value, self.value) <= self.distance
 
-    def as_dict(self) -> typing.Dict:
+    def as_dict(self) -> dict:
         return {
             "value": tuple(self.value),
             "distance": self.distance,
@@ -155,7 +155,7 @@ class VectorLexicographicComparator(VectorComparator):
     def compare(self, value: mathutils.Vector) -> bool:
         return tuple(self.min_) <= tuple(value) <= tuple(self.max_)
 
-    def as_dict(self) -> typing.Dict:
+    def as_dict(self) -> dict:
         return {"min": tuple(self.min_), "max": tuple(self.max_), "method": "lexicographic"}
 
 
@@ -177,7 +177,7 @@ class VectorComponentWiseComparator(VectorComparator):
 
         return True
 
-    def as_dict(self) -> typing.Dict:
+    def as_dict(self) -> dict:
         return {"min": tuple(self.min_), "max": tuple(self.max_), "method": "component-wise"}
 
 
@@ -196,13 +196,13 @@ class MapProjection(abc.ABC):
 
     # due to rounding in the location data, we have repeated values, we can cache where possible
     @abc.abstractmethod
-    def project(self, latitude: float, longitude: float) -> typing.Tuple[int, int]:
+    def project(self, latitude: float, longitude: float) -> tuple[int, int]:
         """Projects latitude and longitude to XY coordinates on the grid"""
         pass
 
     @property
     @abc.abstractmethod
-    def crop(self) -> typing.Tuple[int, int, int, int]:
+    def crop(self) -> tuple[int, int, int, int]:
         """Returns the crop of the map projection - top, bottom, left, right"""
         return (0, 0, 0, 0)
 
@@ -219,7 +219,7 @@ class MercatorProjection(MapProjection):
         return 16
 
     @property
-    def crop(self) -> typing.Tuple[int, int, int, int]:
+    def crop(self) -> tuple[int, int, int, int]:
         """Returns the crop of the map projection - top, bottom, left, right"""
         return (0, 4, 0, 0)  # bottom - antarctica
 
@@ -244,7 +244,7 @@ class MercatorProjection(MapProjection):
             (1 - math.log(math.tan(lat_rads) + 1 / math.cos(lat_rads)) / math.pi) / 2 * self.max_y
         )
 
-    def project(self, latitude: float, longitude: float) -> typing.Tuple[int, int]:
+    def project(self, latitude: float, longitude: float) -> tuple[int, int]:
         """Projects latitude and longitude to XY coordinates on the grid.
 
         Implements Mercator projection, see https://en.wikipedia.org/wiki/Mercator_projection.
@@ -263,7 +263,7 @@ class LocationParameterFilter(Filter):
     def __init__(
         self,
         name: str,
-        selected_tiles: typing.List[typing.List[bool]],
+        selected_tiles: list[list[bool]],
     ):
         super().__init__(name)
         self.selected_tiles = selected_tiles
@@ -283,7 +283,7 @@ class LocationParameterFilter(Filter):
 
         return False
 
-    def as_dict(self) -> typing.Dict:
+    def as_dict(self) -> dict:
         return {self.name: self.selected_tiles}
 
 
@@ -303,7 +303,7 @@ class VectorParameterFilter(Filter):
 
         return self.comparator.compare(mathutils.Vector(value))
 
-    def as_dict(self) -> typing.Dict:
+    def as_dict(self) -> dict:
         return {self.name: self.comparator.as_dict()}
 
 
@@ -338,11 +338,11 @@ class AssetTypesFilter(Filter):
             ]
         )
 
-    def as_dict(self) -> typing.Dict:
+    def as_dict(self) -> dict:
         return {self.name: self._all}
 
     @property
-    def _all(self) -> typing.Tuple:
+    def _all(self) -> tuple:
         return (
             self.model,
             self.material,
@@ -353,7 +353,7 @@ class AssetTypesFilter(Filter):
         )
 
 
-SEARCH_ASSET_SCORE: typing.Dict[str, float] = {}
+SEARCH_ASSET_SCORE: dict[str, float] = {}
 
 
 class SearchFilter(Filter):
@@ -456,16 +456,16 @@ class SearchFilter(Filter):
 
     @staticmethod
     @functools.lru_cache(maxsize=128)
-    def keywords_from_search(search: str) -> typing.List[str]:
+    def keywords_from_search(search: str) -> list[str]:
         """Returns a list of lowercase keywords to search for in the assets"""
 
-        def translate_keywords(keywords: typing.List[str]) -> typing.List[str]:
+        def translate_keywords(keywords: list[str]) -> list[str]:
             # Be careful when adding new keywords as it will make impossible to find anything using the original keyword.
             # E.g. if we'd have tag `hdr` it would not be possible to find it now. Or anything named `hdr_something` cannot be find by `hdr`
 
             translator = {"hdri": "world", "hdr": "world"}
 
-            ret: typing.List[str] = []
+            ret: list[str] = []
             for kw in keywords:
                 ret.append(translator.get(kw, kw))
 
@@ -475,5 +475,5 @@ class SearchFilter(Filter):
         keywords = {kw.lower(): None for kw in re.split(r"[ ,_\-]+", search) if kw != ""}
         return translate_keywords(list(keywords.keys()))
 
-    def as_dict(self) -> typing.Dict:
+    def as_dict(self) -> dict:
         return {self.name: self.search}

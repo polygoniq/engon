@@ -2,34 +2,52 @@
 
 import bpy
 import typing
+from .. import polib
+from . import prefs_utils
 
 
-MODULE_CLASSES: typing.List[typing.Any] = []
+MODULE_CLASSES: list[typing.Any] = []
 
 
+@polib.serialization_bpy.serializable_class
+@polib.serialization_bpy.preferences_propagate_property_update(
+    lambda context: prefs_utils.get_preferences(context).what_is_new_preferences
+)
 class SeenAssetPackVersion(bpy.types.PropertyGroup):
-    version: bpy.props.IntVectorProperty(size=3)
+    name: polib.serialization_bpy.Serialize(
+        bpy.props.StringProperty(),
+    )
+
+    version: polib.serialization_bpy.Serialize(
+        bpy.props.IntVectorProperty(size=3),
+    )
 
 
 MODULE_CLASSES.append(SeenAssetPackVersion)
 
 
+@polib.serialization_bpy.serializable_class
+@polib.serialization_bpy.preferences_propagate_property_update(prefs_utils.get_preferences)
 class WhatIsNewPreferences(bpy.types.PropertyGroup):
-    display_what_is_new: bpy.props.BoolProperty(
-        name="Display \"See What's New\" button",
-        description="Show button in the engon browser to filter for newly added asset after updating an asset pack."
-        "These only displays if there is a newly updated asset pack that wasn't explored before",
-        default=True,
+    display_what_is_new: polib.serialization_bpy.Serialize(
+        bpy.props.BoolProperty(
+            name="Display \"See What's New\" button",
+            description="Show button in the engon browser to filter for newly added asset after updating an asset pack."
+            "These only displays if there is a newly updated asset pack that wasn't explored before",
+            default=True,
+        )
     )
 
-    latest_seen_asset_packs: bpy.props.CollectionProperty(
-        name="Latest Seen Asset Pack Versions",
-        description="Dictionary with key of asset pack name (in the implicit name paramater) "
-        "and value of asset pack version",
-        type=SeenAssetPackVersion,
+    latest_seen_asset_packs: polib.serialization_bpy.Serialize(
+        bpy.props.CollectionProperty(
+            name="Latest Seen Asset Pack Versions",
+            description="Dictionary with key of asset pack name (in the implicit name paramater) "
+            "and value of asset pack version",
+            type=SeenAssetPackVersion,
+        )
     )
 
-    def see_asset_pack(self, asset_pack_name: str, version: typing.Tuple[int, int, int]) -> None:
+    def see_asset_pack(self, asset_pack_name: str, version: tuple[int, int, int]) -> None:
         """Marks asset pack as seen. If an asset pack is seen, its version is stored in preferences.
 
         What's new compares this value to currently installed asset packs when deciding whether

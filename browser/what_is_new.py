@@ -11,10 +11,10 @@ from .. import preferences
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-MODULE_CLASSES: typing.List[typing.Any] = []
+MODULE_CLASSES: list[typing.Any] = []
 
 
-def get_updated_asset_packs(context: bpy.types.Context) -> typing.Set[asset_registry.AssetPack]:
+def get_updated_asset_packs(context: bpy.types.Context) -> set[asset_registry.AssetPack]:
     what_is_new_pref = preferences.prefs_utils.get_preferences(context).what_is_new_preferences
     never_seen_packs = set()
     for pack in asset_registry.instance.get_registered_packs():
@@ -26,7 +26,7 @@ def get_updated_asset_packs(context: bpy.types.Context) -> typing.Set[asset_regi
 
 
 def _draw_what_is_new_browser_operators(
-    layout: bpy.types.UILayout, updated_packs: typing.Set[asset_registry.AssetPack]
+    layout: bpy.types.UILayout, updated_packs: set[asset_registry.AssetPack]
 ) -> None:
     for asset_pack in updated_packs:
         category = asset_registry.instance.master_asset_provider.get_category_safe(
@@ -75,7 +75,7 @@ def draw_what_is_new_browser_prompt(context: bpy.types.Context, layout: bpy.type
 def _ensure_asset_pack_known(
     what_is_new_pref: preferences.what_is_new_preferences.WhatIsNewPreferences,
     pack_full_name: str,
-    pack_version: typing.Tuple[int, int, int],
+    pack_version: tuple[int, int, int],
 ) -> None:
     # If an asset pack is not present seen_packs, it means that it's a completely new pack.
     # We don't want to display the 'what is new' filter for such asset pack,
@@ -91,8 +91,6 @@ def ensure_all_registered_asset_packs_known() -> None:
     for pack in asset_registry.instance.get_registered_packs():
         logger.debug(f"First time seeing {pack.full_name}, marking version as seen.")
         _ensure_asset_pack_known(prefs.what_is_new_preferences, pack.full_name, pack.version)
-    if prefs.save_prefs:
-        bpy.ops.wm.save_userpref()
 
 
 @polib.log_helpers_bpy.logged_panel
@@ -148,8 +146,6 @@ class MAPR_BrowserDisplayNewAssets(bpy.types.Operator):
         dyn_filters.query_and_reconstruct(self.category_id)
 
         what_is_new_pref.see_asset_pack(self.pack_name, newest_version)
-        if prefs.save_prefs:
-            bpy.ops.wm.save_userpref()
 
         return {'FINISHED'}
 
@@ -168,8 +164,6 @@ class MAPR_BrowserDismissNewAssets(bpy.types.Operator):
         what_is_new_pref = prefs.what_is_new_preferences
         for pack in asset_registry.instance.get_registered_packs():
             what_is_new_pref.see_asset_pack(pack.full_name, pack.version)
-        if prefs.save_prefs:
-            bpy.ops.wm.save_userpref()
         return {'FINISHED'}
 
 

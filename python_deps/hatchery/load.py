@@ -7,7 +7,7 @@ import typing
 
 def try_get_linked_datablock(
     datablock_collection: bpy.types.bpy_prop_collection, datablock_name: str, blend_path: str
-) -> typing.Optional[bpy.types.ID]:
+) -> bpy.types.ID | None:
     """Returns datablock 'datablock_name' linked from 'blend_path' or None if datablock wasn't linked yet.
 
     Tries to find library corresponding to 'blend_path' and then checks if there's the datablock
@@ -31,7 +31,7 @@ def try_get_linked_datablock(
     return None
 
 
-def load_master_collection(blend_path: str, link: bool = True) -> bpy.types.Collection:
+def load_master_collection(blend_path: str, link: bool = False) -> bpy.types.Collection:
     """Links master collection from 'blend_path' and returns it.
 
     Master collection is the collection with the same name as basename of the 'blend_path'
@@ -54,7 +54,7 @@ def load_master_collection(blend_path: str, link: bool = True) -> bpy.types.Coll
     return data_to.collections[0]
 
 
-def load_material(blend_path: str) -> bpy.types.Material:
+def load_material(blend_path: str, link: bool = False) -> bpy.types.Material:
     """Appends material 'blend_path' to current file and returns it.
 
     This allows loading materials from .blend file that are linked. The assumption here is
@@ -72,7 +72,7 @@ def load_material(blend_path: str) -> bpy.types.Material:
     # material sources directly if artists want to use the materials in assets too (simplifies
     # linking and changes a lot).
     using_transfer_mesh = False
-    with bpy.data.libraries.load(blend_path, link=False) as (data_from, data_to):
+    with bpy.data.libraries.load(blend_path, link=link) as (data_from, data_to):
         if len(data_from.materials) > 0:
             assert len(data_from.materials) > 0
             data_to.materials = [data_from.materials[0]]
@@ -93,11 +93,11 @@ def load_material(blend_path: str) -> bpy.types.Material:
 
 
 def load_particles(
-    blend_path: str,
-) -> typing.Tuple[bpy.types.Object, typing.List[bpy.types.ParticleSettings]]:
+    blend_path: str, link: bool = False
+) -> tuple[bpy.types.Object, list[bpy.types.ParticleSettings]]:
     """Loads all particle system and the master object from 'blend_path' and returns them."""
     asset_name, _ = os.path.splitext(os.path.basename(blend_path))
-    with bpy.data.libraries.load(blend_path, link=False) as (data_from, data_to):
+    with bpy.data.libraries.load(blend_path, link=link) as (data_from, data_to):
         # We assume that particle blends contain a simple plane with the same name and mesh name as the blend
         # Instead of copying the object, we just use its mesh data, so we don't copy materials, etc.
         assert asset_name in data_from.objects
@@ -110,9 +110,9 @@ def load_particles(
     return obj, data_to.particles
 
 
-def load_world(blend_path: str) -> bpy.types.World:
+def load_world(blend_path: str, link: bool = False) -> bpy.types.World:
     """Loads first world from 'blend_path' and returns it."""
-    with bpy.data.libraries.load(blend_path, link=False) as (data_from, data_to):
+    with bpy.data.libraries.load(blend_path, link=link) as (data_from, data_to):
         assert len(data_from.worlds) > 0
         data_to.worlds = [data_from.worlds[0]]
 
@@ -120,28 +120,28 @@ def load_world(blend_path: str) -> bpy.types.World:
     return world
 
 
-def load_scene(blend_path: str) -> bpy.types.Scene:
+def load_scene(blend_path: str, link: bool = False) -> bpy.types.Scene:
     """Loads first scene from 'blend_path' and returns it."""
-    with bpy.data.libraries.load(blend_path, link=False) as (data_from, data_to):
+    with bpy.data.libraries.load(blend_path, link=link) as (data_from, data_to):
         assert len(data_from.scenes) > 0
         data_to.scenes = [data_from.scenes[0]]
 
     return data_to.scenes[0]
 
 
-def load_master_object(blend_path: str) -> bpy.types.Object:
+def load_master_object(blend_path: str, link: bool = False) -> bpy.types.Object:
     """Loads object with the same name as basename of the given .blend path"""
     asset_name, _ = os.path.splitext(os.path.basename(blend_path))
-    with bpy.data.libraries.load(blend_path, link=False) as (data_from, data_to):
+    with bpy.data.libraries.load(blend_path, link=link) as (data_from, data_to):
         assert len(data_from.objects) > 0
         data_to.objects = [asset_name]
 
     return data_to.objects[0]
 
 
-def load_object_by_name(blend_path: str, object_name: str) -> bpy.types.Object:
+def load_object_by_name(blend_path: str, object_name: str, link: bool = False) -> bpy.types.Object:
     """Loads object with the given name from the given .blend path"""
-    with bpy.data.libraries.load(blend_path, link=False) as (data_from, data_to):
+    with bpy.data.libraries.load(blend_path, link=link) as (data_from, data_to):
         assert object_name in data_from.objects
         data_to.objects = [object_name]
 

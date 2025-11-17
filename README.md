@@ -36,11 +36,13 @@
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
-    - [Blender 4.2 or newer](#blender-42-or-newer)
-    - [Blender 4.1 or older](#blender-41-or-older)
-      - [Download the addon ZIP](#download-the-addon-zip)
+    - [Install from Extensions Repository](#install-from-extensions-repository)
+    - [Install from Disk](#install-from-disk)
+      - [Download the ZIP](#download-the-zip)
       - [Install ZIP in Blender](#install-zip-in-blender)
   - [Updating](#updating)
+    - [Update from Repository](#update-from-repository)
+    - [Updater](#updater)
 - [Roadmap](#roadmap)
 - [Support](#support)
 - [Project assistance](#project-assistance)
@@ -74,32 +76,44 @@
 
 ### Prerequisites
 
-> You need [Blender 3.6 LTS or higher](https://blender.org). Windows, macOS 10 and Linux are
+> You need [Blender 4.2 LTS or higher](https://blender.org). Windows, macOS 10 and Linux are
 > supported.
 
 ### Installation
 
-#### Blender 4.2 or newer
+#### Install from Extensions Repository
+
 Visit [polygoniq extensions repository](https://extensions.polygoniq.com), where we explain
 how to set it up as remote repository so you can install and update everything from Blender.
 
-#### Blender 4.1 or older
-##### Download the addon ZIP
+#### Install from Disk
+
+##### Download the ZIP
 
 |                          Stable Release                                                  |                         Unstable Master Branch                   |
 | :--------------------------------------------------------------------------------------: | :--------------------------------------------------------------: |
-| Head over to [Releases](https://github.com/polygoniq/engon/releases) for a stable ZIP.   | Click `Code` -> `Download ZIP` if you are feeling adventurous.   |
+| Head over to [Releases](https://github.com/polygoniq/engon/releases) for a stable ZIP.  | Click `Code` -> `Download ZIP` if you are feeling adventurous.   |
 
 ##### Install ZIP in Blender
 
-Go to `Edit` -> `Preferences`. And select `Add-ons` in the left bar. Click the `Install...` button
+Go to `Edit` -> `Preferences`. And select `Get Extensions` in the left bar. Click the `Install from Disk...` button
 in the top section. Select the ZIP file you just downloaded and click `Install Add-on`. After the
 installation finishes, check the checkbox next to the `engon` addon.
 
 ### Updating
 
+#### Update from Repository
+
+Navigate to `Edit` -> `Preferences` and select `Extensions` in the left bar. Write `engon`
+in the top search bar, expand the panel and click on `Update`.
+
+If you cannot see the `Update` button even though you know you're not on the latest version
+available, click the small arrow in the top-right corner and select `Check for Updates`.
+
+#### Updater
+
 The addon can auto-update itself to latest stable or even unstable master version. Head over to
-`Edit` -> `Preferences` and select `Add-ons` in the left bar. Type `engon` into the search bar
+`Edit` -> `Preferences` and select `Get Extensions` in the left bar. Type `engon` into the search bar
 and then expand the addon section of `engon`. Scroll down to the auto update section to set up
 update intervals or even update manually.
 

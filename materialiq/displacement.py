@@ -27,10 +27,10 @@ from .. import hatchery
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-MODULE_CLASSES: typing.List[typing.Any] = []
+MODULE_CLASSES: list[typing.Any] = []
 
 
-DRAW_MODIFIER_PROPS: typing.Dict[str, typing.List[str]] = {
+DRAW_MODIFIER_PROPS: dict[str, list[str]] = {
     "mq_Remesh": ["octree_depth", "scale"],
     "mq_Subdivision": ["levels", "render_levels"],
     "mq_Displacement": ["strength", "mid_level"],
@@ -113,7 +113,7 @@ class DisplaceObjectCandidate:
 
 
 def get_displacement_object_candidates(
-    objects: typing.List[bpy.types.Object],
+    objects: list[bpy.types.Object],
 ) -> typing.Iterator[DisplaceObjectCandidate]:
     for obj in objects:
         mat = obj.active_material
@@ -172,7 +172,7 @@ class AddDisplacement(bpy.types.Operator):
     def poll(cls, context: bpy.types.Context) -> bool:
         return next(get_displacement_object_candidates(context.selected_objects), None) is not None
 
-    displacement_object_candidates: typing.List[DisplaceObjectCandidate] = []
+    displacement_object_candidates: list[DisplaceObjectCandidate] = []
 
     add_subdiv_mod: bpy.props.BoolProperty(
         name="Subdivision Surface Modifier",

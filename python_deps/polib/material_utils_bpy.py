@@ -12,8 +12,8 @@ except ImportError:
 
 
 def safe_get_active_material(
-    obj: typing.Optional[bpy.types.Object],
-) -> typing.Optional[bpy.types.Material]:
+    obj: bpy.types.Object | None,
+) -> bpy.types.Material | None:
     """Returns active material of object. Returns None if object is None"""
     if obj is None:
         return None
@@ -24,7 +24,7 @@ def safe_get_active_material(
 def is_material_slot_used_on_geometry(
     obj: bpy.types.Object,
     material_index: int,
-    used_indices: typing.Optional[typing.FrozenSet[int]] = None,
+    used_indices: frozenset[int] | None = None,
 ) -> bool:
     """Returns whether a material slot on given index contains a material that is used
     by a given Object's geometry.
@@ -50,7 +50,7 @@ def is_material_slot_used_on_geometry(
 def is_material_used_on_geonodes(
     obj: bpy.types.Object,
     material_index: int,
-    geonode_materials: typing.Optional[typing.FrozenSet[bpy.types.Material]] = None,
+    geonode_materials: frozenset[bpy.types.Material] | None = None,
 ) -> bool:
     """Returns whether a material slot on given index contains a material that is used
     by a given Object's geometry nodes modifiers.
@@ -73,7 +73,7 @@ def is_material_used_on_geonodes(
     return obj_mat_name in geonode_mats_names
 
 
-def get_material_slots_used_by_mesh(obj: bpy.types.Object) -> typing.FrozenSet[int]:
+def get_material_slots_used_by_mesh(obj: bpy.types.Object) -> frozenset[int]:
     """Return a FrozenSet[material_index] used by a given Object's mesh"""
     if not hasattr(obj.data, "polygons"):
         return frozenset()
@@ -84,7 +84,7 @@ def get_material_slots_used_by_mesh(obj: bpy.types.Object) -> typing.FrozenSet[i
     return frozenset(unique_indices)
 
 
-def get_material_slots_used_by_spline(obj: bpy.types.Object) -> typing.FrozenSet[int]:
+def get_material_slots_used_by_spline(obj: bpy.types.Object) -> frozenset[int]:
     """Return a FrozenSet[material_index] used by a given Object's splines"""
     if not hasattr(obj.data, "splines"):
         return frozenset()
@@ -96,7 +96,7 @@ def get_material_slots_used_by_spline(obj: bpy.types.Object) -> typing.FrozenSet
     return frozenset(seen_indices)
 
 
-def get_material_slots_used_by_text(obj: bpy.types.Object) -> typing.FrozenSet[int]:
+def get_material_slots_used_by_text(obj: bpy.types.Object) -> frozenset[int]:
     """Return a FrozenSet[material_index] used by a given Object's texts"""
     if not hasattr(obj.data, "body_format"):
         return frozenset()
@@ -108,7 +108,7 @@ def get_material_slots_used_by_text(obj: bpy.types.Object) -> typing.FrozenSet[i
     return frozenset(seen_indices)
 
 
-def get_materials_used_by_geonodes(obj: bpy.types.Object) -> typing.FrozenSet[bpy.types.Material]:
+def get_materials_used_by_geonodes(obj: bpy.types.Object) -> frozenset[bpy.types.Material]:
     """Returns a FrozenSet[Material] used by a given Object's geometry nodes modifiers."""
 
     used_materials = set()

@@ -19,7 +19,7 @@ class DataView:
     """One view of data - lists of assets based on provided Query and AssetProvider."""
 
     def __init__(self, asset_provider: 'AssetProvider', query_: query.Query):
-        self.assets: typing.List[asset.Asset] = []
+        self.assets: list[asset.Asset] = []
         for asset_ in asset_provider.list_assets(query_.category_id, query_.recursive):
             if all(f.filter_(asset_) for f in query_.filters):
                 self.assets.append(asset_)
@@ -33,7 +33,7 @@ class DataView:
 
     def _get_sort_parameters(
         self, sort_mode: str
-    ) -> typing.Tuple[typing.Callable[[asset.Asset], str], bool]:
+    ) -> tuple[typing.Callable[[asset.Asset], str], bool]:
         """Return lambda and reverse bool to pass into Python sort() based on sort mode
 
         Returns tuple of (lambda, reverse)
@@ -53,7 +53,7 @@ class DataView:
             f"containing {len(self.assets)} assets"
         )
 
-    def find_asset_by_id(self, asset_id: asset.AssetID) -> typing.Tuple[int, asset.Asset]:
+    def find_asset_by_id(self, asset_id: asset.AssetID) -> tuple[int, asset.Asset]:
         """Finds an asset by its ID.
 
         Returns a tuple of (index, asset) if found, otherwise raises ValueError.
@@ -124,19 +124,17 @@ class AssetProvider(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_category(self, category_id: category.CategoryID) -> typing.Optional[category.Category]:
+    def get_category(self, category_id: category.CategoryID) -> category.Category | None:
         """Returns metadata of a category with given ID"""
         pass
 
     @abc.abstractmethod
-    def get_asset(self, asset_id: asset.AssetID) -> typing.Optional[asset.Asset]:
+    def get_asset(self, asset_id: asset.AssetID) -> asset.Asset | None:
         """Returns metadata of an asset with given ID"""
         pass
 
     @abc.abstractmethod
-    def get_asset_data(
-        self, asset_data_id: asset_data.AssetDataID
-    ) -> typing.Optional[asset_data.AssetData]:
+    def get_asset_data(self, asset_data_id: asset_data.AssetDataID) -> asset_data.AssetData | None:
         """Returns metadata of asset data with given ID"""
         pass
 
@@ -232,7 +230,7 @@ class AssetProviderMultiplexer(AssetProvider):
 
     def __init__(self):
         super().__init__()
-        self._asset_providers: typing.List[AssetProvider] = []
+        self._asset_providers: list[AssetProvider] = []
 
     def add_asset_provider(self, asset_provider: AssetProvider) -> None:
         self._asset_providers.append(asset_provider)
@@ -249,7 +247,7 @@ class AssetProviderMultiplexer(AssetProvider):
         # Two different asset providers can provide the same CategoryID, for example
         # botaniq/deciduous coming from core botaniq and an asset pack. That's why we have to
         # deduplicate the result.
-        ret: typing.Set[category.CategoryID] = set()
+        ret: set[category.CategoryID] = set()
         for asset_provider in self._asset_providers:
             ret.update(asset_provider.list_child_category_ids(parent_id))
         yield from ret
@@ -266,7 +264,7 @@ class AssetProviderMultiplexer(AssetProvider):
         for asset_provider in self._asset_providers:
             yield from asset_provider.list_asset_data_ids(asset_id)
 
-    def get_category(self, category_id: category.CategoryID) -> typing.Optional[category.Category]:
+    def get_category(self, category_id: category.CategoryID) -> category.Category | None:
         # TODO: reversed because providers added later override, does that make sense?
         for asset_provider in reversed(self._asset_providers):
             ret = asset_provider.get_category(category_id)
@@ -274,7 +272,7 @@ class AssetProviderMultiplexer(AssetProvider):
                 return ret
         return None
 
-    def get_asset(self, asset_id: asset.AssetID) -> typing.Optional[asset.Asset]:
+    def get_asset(self, asset_id: asset.AssetID) -> asset.Asset | None:
         # TODO: reversed because providers added later override, does that make sense?
         for asset_provider in reversed(self._asset_providers):
             ret = asset_provider.get_asset(asset_id)
@@ -282,9 +280,7 @@ class AssetProviderMultiplexer(AssetProvider):
                 return ret
         return None
 
-    def get_asset_data(
-        self, asset_data_id: asset_data.AssetDataID
-    ) -> typing.Optional[asset_data.AssetData]:
+    def get_asset_data(self, asset_data_id: asset_data.AssetDataID) -> asset_data.AssetData | None:
         # TODO: reversed because providers added later override, does that make sense?
         for asset_provider in reversed(self._asset_providers):
             ret = asset_provider.get_asset_data(asset_data_id)

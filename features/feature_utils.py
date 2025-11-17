@@ -29,7 +29,7 @@ import logging
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
-MODULE_CLASSES: typing.List[typing.Type] = []
+MODULE_CLASSES: list[type] = []
 
 
 # Older asset packs only implemented one feature - themselves.
@@ -299,8 +299,8 @@ class EngonFeaturePanelMixin:
         return cls.feature_name.replace("_", " ")
 
 
-NAME_FEATURE_MAP: typing.Dict[str, type(EngonFeaturePanelMixin)] = dict()
-PROPERTY_FEATURE_PROPERTIES_MAP: typing.Dict[str, typing.Set[str]] = dict()
+NAME_FEATURE_MAP: dict[str, type(EngonFeaturePanelMixin)] = dict()
+PROPERTY_FEATURE_PROPERTIES_MAP: dict[str, set[str]] = dict()
 
 
 def register_feature(cls: type(EngonFeaturePanelMixin)):
@@ -428,7 +428,7 @@ class EngonAssetFeatureControlPanelMixin(EngonFeaturePanelMixin):
         self,
         possible_assets: typing.Iterable[bpy.types.ID],
         layout: bpy.types.UILayout,
-        warning_text: typing.Optional[str] = None,
+        warning_text: str | None = None,
     ) -> bool:
         if warning_text is None:
             warning_text = f"No assets with {self.get_feature_name_readable()} feature selected!"
@@ -441,7 +441,7 @@ class EngonAssetFeatureControlPanelMixin(EngonFeaturePanelMixin):
         self,
         context: bpy.types.Context,
         layout: bpy.types.UILayout,
-        warning_text: typing.Optional[str] = None,
+        warning_text: str | None = None,
         include_children: bool = False,
     ) -> bool:
         if warning_text is None:
@@ -526,7 +526,7 @@ class GeoNodesAssetFeatureSecondaryControlPanelMixin(
 class PropertyAssetFeatureControlPanelMixin(EngonAssetFeatureControlPanelMixin):
     """Abstract mixin for displaying engon asset features based on properties."""
 
-    related_custom_properties: typing.Set[str]
+    related_custom_properties: set[str]
 
     @classmethod
     def get_selected_particle_system_targets(
@@ -600,7 +600,7 @@ class PropertyAssetFeatureControlPanelMixin(EngonAssetFeatureControlPanelMixin):
         self,
         property_names: typing.Iterable[str],
         layout: bpy.types.UILayout,
-    ) -> typing.Tuple[bpy.types.UILayout, bpy.types.UILayout]:
+    ) -> tuple[bpy.types.UILayout, bpy.types.UILayout]:
         row = layout.row()
 
         left_col = row.column(align=True)
@@ -704,7 +704,7 @@ class TraffiqPropertyAssetFeatureControlPanelMixin(PropertyAssetFeatureControlPa
         cls,
         possible_assets: typing.Iterable[bpy.types.ID],
     ) -> typing.Iterable[bpy.types.ID]:
-        def sort_func(obj: bpy.types.Object) -> typing.Tuple[int, str]:
+        def sort_func(obj: bpy.types.Object) -> tuple[int, str]:
             base_and_suffix = obj.name.rsplit(".", 1)
             if len(base_and_suffix) == 1 or not base_and_suffix[1].isdigit():  # no suffix
                 return (0, base_and_suffix[0])

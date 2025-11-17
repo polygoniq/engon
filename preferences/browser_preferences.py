@@ -31,112 +31,144 @@ from .. import asset_helpers
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-MODULE_CLASSES: typing.List[typing.Any] = []
+MODULE_CLASSES: list[typing.Any] = []
 
 
+@polib.serialization_bpy.serializable_class
+@polib.serialization_bpy.preferences_propagate_property_update(
+    lambda context: prefs_utils.get_preferences(context).browser_preferences
+)
 class SpawnOptions(bpy.types.PropertyGroup):
     """Defines options that should be considered when spawning assets."""
 
     # General
-    remove_duplicates: bpy.props.BoolProperty(
-        name="Remove Duplicates",
-        description="Automatically merges duplicate materials, node groups "
-        "and images into one when the asset is spawned. Saves memory",
-        default=True,
+    remove_duplicates: polib.serialization_bpy.Serialize(
+        bpy.props.BoolProperty(
+            name="Remove Duplicates",
+            description="Automatically merges duplicate materials, node groups "
+            "and images into one when the asset is spawned. Saves memory",
+            default=True,
+        )
     )
-    make_editable: bpy.props.BoolProperty(
-        name="Make Editable",
-        description="Automatically makes the spawned asset editable",
-        default=False,
+    make_editable: polib.serialization_bpy.Serialize(
+        bpy.props.BoolProperty(
+            name="Make Editable",
+            description="Automatically makes the spawned asset editable",
+            default=False,
+        )
     )
 
     # Model
-    use_collection: bpy.props.EnumProperty(
-        name="Target Collection",
-        description="Collection to spawn the model into",
-        items=(
-            (
-                'PACK',
-                "Asset Pack Collection",
-                "Spawn model into collection named as the asset pack - 'botaniq, traffiq, ...'",
+    use_collection: polib.serialization_bpy.Serialize(
+        bpy.props.EnumProperty(
+            name="Target Collection",
+            description="Collection to spawn the model into",
+            items=(
+                (
+                    'PACK',
+                    "Asset Pack Collection",
+                    "Spawn model into collection named as the asset pack - 'botaniq, traffiq, ...'",
+                ),
+                ('ACTIVE', "Active Collection", "Spawn model into the active collection"),
             ),
-            ('ACTIVE', "Active Collection", "Spawn model into the active collection"),
-        ),
+        )
     )
 
     # Materialiq
-    texture_size: bpy.props.EnumProperty(
-        items=lambda _, __: asset_helpers.get_materialiq_texture_sizes_enum_items(),
-        name="materialiq5 global maximum side size",
-        description="Maximum side size of textures spawned with a material",
+    texture_size: polib.serialization_bpy.Serialize(
+        bpy.props.EnumProperty(
+            items=lambda _, __: asset_helpers.get_materialiq_texture_sizes_enum_items(),
+            name="materialiq5 global maximum side size",
+            description="Maximum side size of textures spawned with a material",
+        )
     )
 
-    use_displacement: bpy.props.BoolProperty(
-        name="Use Displacement",
-        description="Spawn material with enabled displacement",
-        default=False,
+    use_displacement: polib.serialization_bpy.Serialize(
+        bpy.props.BoolProperty(
+            name="Use Displacement",
+            description="Spawn material with enabled displacement",
+            default=False,
+        )
     )
 
     # scatter
-    display_type: bpy.props.EnumProperty(
-        name="Display As", items=prefs_utils.SCATTER_DISPLAY_ENUM_ITEMS, default='TEXTURED'
+    display_type: polib.serialization_bpy.Serialize(
+        bpy.props.EnumProperty(
+            name="Display As", items=prefs_utils.SCATTER_DISPLAY_ENUM_ITEMS, default='TEXTURED'
+        )
     )
 
-    display_percentage: bpy.props.IntProperty(
-        name="Display Percentage",
-        description="Percentage of particles that are displayed in viewport",
-        subtype='PERCENTAGE',
-        default=100,
-        min=0,
-        max=100,
+    display_percentage: polib.serialization_bpy.Serialize(
+        bpy.props.IntProperty(
+            name="Display Percentage",
+            description="Percentage of particles that are displayed in viewport",
+            subtype='PERCENTAGE',
+            default=100,
+            min=0,
+            max=100,
+        )
     )
 
-    link_instance_collection: bpy.props.BoolProperty(
-        description="If true, this setting links particle system instance collection to scene. "
-        "Objects from instance collection are spawned on (0, -10, 0).",
-        name="Link Instance Collection To Scene",
-        default=True,
+    link_instance_collection: polib.serialization_bpy.Serialize(
+        bpy.props.BoolProperty(
+            description="If true, this setting links particle system instance collection to scene. "
+            "Objects from instance collection are spawned on (0, -10, 0).",
+            name="Link Instance Collection To Scene",
+            default=True,
+        )
     )
 
-    enable_instance_collection: bpy.props.BoolProperty(
-        name="Enable Instance Collection",
-        description="If true, the linked particle system instance collection will be included "
-        "in the view layer.",
-        default=False,
+    enable_instance_collection: polib.serialization_bpy.Serialize(
+        bpy.props.BoolProperty(
+            name="Enable Instance Collection",
+            description="If true, the linked particle system instance collection will be included "
+            "in the view layer.",
+            default=False,
+        )
     )
 
-    include_base_material: bpy.props.BoolProperty(
-        name="Include Base Material",
-        description="If true base material is loaded with the particle system and set "
-        "to the target object as active",
-        default=True,
+    include_base_material: polib.serialization_bpy.Serialize(
+        bpy.props.BoolProperty(
+            name="Include Base Material",
+            description="If true base material is loaded with the particle system and set "
+            "to the target object as active",
+            default=True,
+        )
     )
 
-    preserve_density: bpy.props.BoolProperty(
-        name="Preserve Density",
-        description="If true automatically recalculates density based on mesh area",
-        default=True,
+    preserve_density: polib.serialization_bpy.Serialize(
+        bpy.props.BoolProperty(
+            name="Preserve Density",
+            description="If true automatically recalculates density based on mesh area",
+            default=True,
+        )
     )
 
-    count: bpy.props.IntProperty(
-        name="Count",
-        description="Amount of particles to spawn if preserve density is off",
-        default=1000,
+    count: polib.serialization_bpy.Serialize(
+        bpy.props.IntProperty(
+            name="Count",
+            description="Amount of particles to spawn if preserve density is off",
+            default=1000,
+        )
     )
 
     # geonodes
-    link_target_collections: bpy.props.BoolProperty(
-        name="Link Target Collections to Scene",
-        description="If true, this setting links geometry nodes target collections to scene. "
-        "Objects from target collections are spawned 10 units below the lowest affected object.",
-        default=True,
+    link_target_collections: polib.serialization_bpy.Serialize(
+        bpy.props.BoolProperty(
+            name="Link Target Collections to Scene",
+            description="If true, this setting links geometry nodes target collections to scene. "
+            "Objects from target collections are spawned 10 units below the lowest affected object.",
+            default=True,
+        )
     )
 
-    enable_target_collections: bpy.props.BoolProperty(
-        name="Enable Target Collections",
-        description="If true, the linked geometry nodes target collections will be included "
-        "in the view layer.",
-        default=False,
+    enable_target_collections: polib.serialization_bpy.Serialize(
+        bpy.props.BoolProperty(
+            name="Enable Target Collections",
+            description="If true, the linked geometry nodes target collections will be included "
+            "in the view layer.",
+            default=False,
+        )
     )
 
     def get_spawn_options(
@@ -200,7 +232,7 @@ class SpawnOptions(bpy.types.PropertyGroup):
 
     def can_spawn(
         self, asset: mapr.asset.Asset, context: bpy.types.Context
-    ) -> typing.Tuple[bool, typing.Optional[typing.Tuple[str, str]]]:
+    ) -> tuple[bool, tuple[str, str] | None]:
         """Checks whether the given asset can spawn in given Blender context.
 
         Returns boolean value and a tuple of strings (Error, Hint To User)
@@ -229,7 +261,7 @@ class SpawnOptions(bpy.types.PropertyGroup):
 
     def _get_instance_layer_collection_parent(
         self, asset: mapr.asset.Asset, context: bpy.types.Context
-    ) -> typing.Optional[bpy.types.LayerCollection]:
+    ) -> bpy.types.LayerCollection | None:
         collection = None
         if (
             asset.type_ == mapr.asset_data.AssetDataType.blender_particle_system
@@ -254,7 +286,7 @@ class SpawnOptions(bpy.types.PropertyGroup):
 
     def _get_model_parent_collection(
         self, asset: mapr.asset.Asset, context: bpy.types.Context
-    ) -> typing.Optional[bpy.types.Collection]:
+    ) -> bpy.types.Collection | None:
         if self.use_collection == 'ACTIVE':
             return context.collection
         elif self.use_collection == 'PACK':
@@ -270,33 +302,47 @@ class SpawnOptions(bpy.types.PropertyGroup):
 MODULE_CLASSES.append(SpawnOptions)
 
 
+@polib.serialization_bpy.serializable_class
+@polib.serialization_bpy.preferences_propagate_property_update(prefs_utils.get_preferences)
 class BrowserPreferences(bpy.types.PropertyGroup):
     """Property group containing all the settings and customizable options for user interface"""
 
-    preview_scale_percentage: bpy.props.FloatProperty(
-        name="Preview Scale",
-        description="Preview scale",
-        min=0,
-        max=100,
-        default=50,
-        subtype='PERCENTAGE',
+    preview_scale_percentage: polib.serialization_bpy.Serialize(
+        bpy.props.FloatProperty(
+            name="Preview Scale",
+            description="Preview scale",
+            min=0,
+            max=100,
+            default=50,
+            subtype='PERCENTAGE',
+        )
     )
-    use_pills_nav: bpy.props.BoolProperty(
-        name="Tree / Pills Category Navigation",
-        description="If toggled, then pills navigation will be drawn, tree navigation otherwise",
-        default=False,
+    category_navigation_style: polib.serialization_bpy.Serialize(
+        bpy.props.EnumProperty(
+            name="Category Navigation Style",
+            description="Style of category navigation to use",
+            items=(
+                ('TREE_NEW', "Tree New", "Both tree and pills style category navigation"),
+                ('TREE', "Tree Old", "Tree style category navigation"),
+                ('PILLS', "Pills", "Pills style category navigation"),
+            ),
+        )
     )
-    search_history_count: bpy.props.IntProperty(
-        name="Search History Count",
-        description="Number of search queries that are remembered during one Blender instance run",
-        min=0,
-        default=20,
+    search_history_count: polib.serialization_bpy.Serialize(
+        bpy.props.IntProperty(
+            name="Search History Count",
+            description="Number of search queries that are remembered during one Blender instance run",
+            min=0,
+            default=20,
+        )
     )
 
-    debug: bpy.props.BoolProperty(
-        name="Enable Debug",
-        description="If true then asset browser displays additional debug information",
-        default=False,
+    debug: polib.serialization_bpy.Serialize(
+        bpy.props.BoolProperty(
+            name="Enable Debug",
+            description="If true then asset browser displays additional debug information",
+            default=False,
+        )
     )
 
     def _update_debug_show_hidden_filters(self, context):
@@ -309,17 +355,23 @@ class BrowserPreferences(bpy.types.PropertyGroup):
                 "Show Hidden Filters will not work properly."
             )
 
-    debug_show_hidden_filters: bpy.props.BoolProperty(
-        name="Show Hidden Filters",
-        description="If true then asset browser displays filters for metadata that have `show_filter: False`",
-        default=False,
-        update=_update_debug_show_hidden_filters,
+    debug_show_hidden_filters: polib.serialization_bpy.Serialize(
+        bpy.props.BoolProperty(
+            name="Show Hidden Filters",
+            description="If true then asset browser displays filters for metadata that have `show_filter: False`",
+            default=False,
+            update=_update_debug_show_hidden_filters,
+        )
     )
 
-    spawn_options: bpy.props.PointerProperty(type=SpawnOptions)
+    spawn_options: polib.serialization_bpy.Serialize(
+        bpy.props.PointerProperty(type=SpawnOptions),
+    )
 
     # We store the state whether preferences were open to be able to re-open it on load
-    prefs_hijacked: bpy.props.BoolProperty(options={'HIDDEN'})
+    prefs_hijacked: polib.serialization_bpy.Serialize(
+        bpy.props.BoolProperty(options={'HIDDEN'}),
+    )
 
 
 MODULE_CLASSES.append(BrowserPreferences)

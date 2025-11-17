@@ -99,12 +99,10 @@ MODULE_CLASSES.append(ColorizePreferences)
 
 
 @feature_utils.register_feature
-@polib.log_helpers_bpy.logged_panel
 class ColorizePanel(feature_utils.PropertyAssetFeatureControlPanelMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_engon_feature_colorize"
-    # TODO: this feature is currently interniq-only, but in the future it should be moved to engon panel,
+    # TODO: this feature is currently selected-asset-packs-only, but in the future it should be moved to engon panel,
     # once all other asset packs implement colorize
-    bl_parent_id = asset_pack_panels.InterniqPanel.bl_idname
     bl_label = "Colorize"
     feature_name = "colorize"
     related_custom_properties = {
@@ -170,7 +168,8 @@ class ColorizePanel(feature_utils.PropertyAssetFeatureControlPanelMixin, bpy.typ
         row = layout.row(align=True)
 
         if any(
-            o.get(polib.custom_props_bpy.CustomPropertyNames.PQ_PRIMARY_COLOR_FACTOR) is not None
+            o.get(polib.custom_props_bpy.CustomPropertyNames.PQ_PRIMARY_COLOR_FACTOR, None)
+            is not None
             for o in adjustable_assets
         ):
             row.label(text="", icon='COLOR')
@@ -187,7 +186,8 @@ class ColorizePanel(feature_utils.PropertyAssetFeatureControlPanelMixin, bpy.typ
                 row,
             )
         if any(
-            o.get(polib.custom_props_bpy.CustomPropertyNames.PQ_SECONDARY_COLOR_FACTOR) is not None
+            o.get(polib.custom_props_bpy.CustomPropertyNames.PQ_SECONDARY_COLOR_FACTOR, None)
+            is not None
             for o in adjustable_assets
         ):
             row = layout.row(align=True)
@@ -244,7 +244,50 @@ class ColorizePanel(feature_utils.PropertyAssetFeatureControlPanelMixin, bpy.typ
         self.draw_multiedit(context, layout, possible_assets)
 
 
-MODULE_CLASSES.append(ColorizePanel)
+@polib.log_helpers_bpy.logged_panel
+class AesthetiqColorizePanel(ColorizePanel):
+    bl_idname = "VIEW_3D_PT_engon_feature_colorize_aesthetiq"
+    bl_parent_id = asset_pack_panels.AesthetiqPanel.bl_idname
+
+    @classmethod
+    def filter_adjustable_assets(
+        cls,
+        possible_assets: typing.Iterable[bpy.types.ID],
+    ) -> typing.Iterable[bpy.types.ID]:
+        return filter(
+            lambda datablock: polib.custom_props_bpy.has_property(
+                datablock,
+                "polygoniq_addon",
+                lambda v: v == "aesthetiq",
+            ),
+            super().filter_adjustable_assets(possible_assets),
+        )
+
+
+MODULE_CLASSES.append(AesthetiqColorizePanel)
+
+
+@polib.log_helpers_bpy.logged_panel
+class InterniqColorizePanel(ColorizePanel):
+    bl_idname = "VIEW_3D_PT_engon_feature_colorize_interniq"
+    bl_parent_id = asset_pack_panels.InterniqPanel.bl_idname
+
+    @classmethod
+    def filter_adjustable_assets(
+        cls,
+        possible_assets: typing.Iterable[bpy.types.ID],
+    ) -> typing.Iterable[bpy.types.ID]:
+        return filter(
+            lambda datablock: polib.custom_props_bpy.has_property(
+                datablock,
+                "polygoniq_addon",
+                lambda v: v == "interniq",
+            ),
+            super().filter_adjustable_assets(possible_assets),
+        )
+
+
+MODULE_CLASSES.append(InterniqColorizePanel)
 
 
 def register():

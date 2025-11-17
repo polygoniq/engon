@@ -6,12 +6,12 @@ from . import asset
 
 
 class NumericParameterMeta:
-    def __init__(self, name: str, value: typing.Union[float, int]):
+    def __init__(self, name: str, value: float | int):
         self.name: str = name
-        self.min_: typing.Union[float, int] = value
-        self.max_: typing.Union[float, int] = value
+        self.min_: float | int = value
+        self.max_: float | int = value
 
-    def register_value(self, value: typing.Union[float, int]) -> None:
+    def register_value(self, value: float | int) -> None:
         self.min_ = min(value, self.min_)
         self.max_ = max(value, self.max_)
 
@@ -22,7 +22,7 @@ class NumericParameterMeta:
 class TextParameterMeta:
     def __init__(self, name: str, value: str):
         self.name: str = name
-        self.unique_values: typing.Set[str] = {value}
+        self.unique_values: set[str] = {value}
 
     def register_value(self, value: str) -> None:
         self.unique_values.add(value)
@@ -49,10 +49,10 @@ class VectorParameterMeta:
 
 
 class LocationParameterMeta:
-    def __init__(self, name: str, value: typing.Tuple[typing.Tuple[float, ...,], ...]) -> None:  # fmt: skip
+    def __init__(self, name: str, value: tuple[tuple[float, ...,], ...]) -> None:  # fmt: skip
         self.name: str = name
 
-    def register_value(self, value: typing.Tuple[typing.Tuple[float, ...], ...]) -> None:
+    def register_value(self, value: tuple[tuple[float, ...], ...]) -> None:
         # nothing to do here, keep the function for consistency
         pass
 
@@ -71,12 +71,12 @@ class AssetParametersMeta:
     """
 
     def __init__(self, assets: typing.Iterable[asset.Asset]):
-        self.numeric: typing.Dict[str, NumericParameterMeta] = {}
-        self.text: typing.Dict[str, TextParameterMeta] = {}
-        self.vector: typing.Dict[str, VectorParameterMeta] = {}
-        self.location: typing.Dict[str, LocationParameterMeta] = {}
-        self.unique_tags: typing.Set[str] = set()
-        self.unique_parameter_names: typing.Set[str] = set()
+        self.numeric: dict[str, NumericParameterMeta] = {}
+        self.text: dict[str, TextParameterMeta] = {}
+        self.vector: dict[str, VectorParameterMeta] = {}
+        self.location: dict[str, LocationParameterMeta] = {}
+        self.unique_tags: set[str] = set()
+        self.unique_parameter_names: set[str] = set()
 
         for asset_ in assets:
             for param, value in asset_.numeric_parameters.items():

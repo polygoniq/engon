@@ -98,9 +98,9 @@ class ProvisionalCrossroadInfo:
     know where the new adjacency will be located, as the segment was not build yet.
     """
 
-    adjacencies: typing.List[road_network.SegmentAdjacency]
+    adjacencies: list[road_network.SegmentAdjacency]
     midpoint: mathutils.Vector
-    adj_point: typing.Optional[mathutils.Vector]
+    adj_point: mathutils.Vector | None
 
 
 @dataclasses.dataclass
@@ -141,13 +141,13 @@ class RoadBuilder:
         self.cx_builder = cx_builder
         self.props = props.get_rg_props()
         self.is_building = False
-        self.start_build_point: typing.Optional[BuildPoint] = None
+        self.start_build_point: BuildPoint | None = None
         # Provisional adjacencies of crossroad that is going to be build when the next segment
         # is built.
-        self.provisional_cx: typing.Optional[ProvisionalCrossroadInfo] = None
-        self.provisional_segment: typing.Optional[ProvisionalSegment] = None
+        self.provisional_cx: ProvisionalCrossroadInfo | None = None
+        self.provisional_segment: ProvisionalSegment | None = None
 
-        asset_helpers.load_geometry_nodes(lib_path, {x.value for x in asset_helpers.RoadNodegroup})
+        asset_helpers.load_geometry_nodes(lib_path, {x for x in asset_helpers.RoadNodegroup})
 
     def clear_collection(self):
         """Clears the main road generator collection from empty children collections"""
@@ -322,7 +322,7 @@ class RoadBuilder:
 
     def get_spline_build_points(
         self,
-    ) -> typing.Iterable[typing.Tuple[road_network.RoadSegment, bpy.types.BezierSplinePoint]]:
+    ) -> typing.Iterable[tuple[road_network.RoadSegment, bpy.types.BezierSplinePoint]]:
         for segment in self.road_network.segments:
             # Don't allow connecting to the same spline
             if (
@@ -377,8 +377,8 @@ class RoadBuilder:
 
     def _begin_provisional_cx(
         self,
-        adjacencies: typing.List[road_network.SegmentAdjacency],
-        position: typing.Optional[mathutils.Vector] = None,
+        adjacencies: list[road_network.SegmentAdjacency],
+        position: mathutils.Vector | None = None,
     ) -> None:
         """Begins provisional crossroad, which geometry isn't constructed yet.
 

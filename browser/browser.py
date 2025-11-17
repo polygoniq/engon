@@ -24,6 +24,7 @@ import os
 import shutil
 import typing
 import logging
+
 from .. import mapr
 from .. import polib
 from . import filters
@@ -43,7 +44,7 @@ from .. import __package__ as base_package
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-MODULE_CLASSES: typing.List[typing.Any] = []
+MODULE_CLASSES: list[typing.Any] = []
 IS_KNOWN_BROWSER = "pq_is_known_browser"
 IS_KNOWN_BROWSER_POPUP = "pq_is_known_browser_popup"
 SELECT_ALL_WARNING_THRESHOLD = 100
@@ -131,7 +132,7 @@ class MAPR_BrowserPreferencesPopoverPanel(bpy.types.Panel):
         prefs = preferences.prefs_utils.get_preferences(context).browser_preferences
         col = layout.column()
         col.prop(prefs, "search_history_count")
-        col.prop(prefs, "use_pills_nav")
+        col.prop(prefs, "category_navigation_style")
         col.separator()
         col.operator(MAPR_BrowserReloadPreviews.bl_idname, icon='FILE_REFRESH')
         col.separator()
@@ -227,6 +228,36 @@ class MAPR_BrowserShowAssetDetail(bpy.types.Operator):
             ret += f" {mapr.known_metadata.PARAMETER_UNITS[param_name]}"
         return ret
 
+    def draw_parameter(
+        self, layout: bpy.types.UILayout, param_name: str, value: typing.Any
+    ) -> None:
+        param_info = mapr.known_metadata.get_parameter_info(param_name)
+
+        # If parameter is a URL, display it and draw a clickable button to open it in browser
+        if param_info.get("type", "") == "url":
+            row = layout.row()
+            row.label(
+                text=f"{mapr.known_metadata.format_parameter_name(param_name)}: "
+                f"{self.format_parameter_value(param_name, value)}"
+            )
+            row.operator("wm.url_open", text="", icon='URL').url = value
+        else:
+            layout.label(
+                text=f"{mapr.known_metadata.format_parameter_name(param_name)}: "
+                f"{self.format_parameter_value(param_name, value)}"
+            )
+
+        if isinstance(value, list) and param_name in self.asset.location_parameters:
+            projection = mapr.filters.LocationParameterFilter.map_projection
+            selected_coords = [[False] * projection.max_x for _ in range(projection.max_y)]
+            for lat, lon in value:
+                x, y = projection.project(lat, lon)
+                selected_coords[y][x] = True
+
+            tiled_map.draw_map_static(
+                layout, selected_coords, projection.max_x, projection.max_y, projection.crop
+            )
+
     def draw_parameters(self, layout: bpy.types.UILayout) -> None:
         box = layout.box()
         heading = box.row()
@@ -240,11 +271,11 @@ class MAPR_BrowserShowAssetDetail(bpy.types.Operator):
             return
 
         heading.label(text="Parameters", icon='PROPERTIES')
-        already_considered_parameters: typing.Set[str] = set()
+        already_considered_parameters: set[str] = set()
         for i, (group_name, group_parameters) in enumerate(
             mapr.known_metadata.PARAMETER_GROUPING.items()
         ):
-            asset_parameters: typing.List[str] = []
+            asset_parameters: list[str] = []
             for param_name in group_parameters:
                 param_name = mapr.parameter_meta.remove_type_from_name(param_name)
                 value = all_parameters.get(param_name, None)
@@ -275,29 +306,14 @@ class MAPR_BrowserShowAssetDetail(bpy.types.Operator):
             col = group_box.column(align=True)
             for param_name in asset_parameters:
                 value = all_parameters[param_name]
-
-                col.label(
-                    text=f"{mapr.known_metadata.format_parameter_name(param_name)}: "
-                    f"{self.format_parameter_value(param_name, value)}"
-                )
-
-                if isinstance(value, list) and param_name in self.asset.location_parameters:
-                    projection = mapr.filters.LocationParameterFilter.map_projection
-                    selected_coords = [[False] * projection.max_x for _ in range(projection.max_y)]
-                    for lat, lon in value:
-                        x, y = projection.project(lat, lon)
-                        selected_coords[y][x] = True
-
-                    tiled_map.draw_map_static(
-                        col, selected_coords, projection.max_x, projection.max_y, projection.crop
-                    )
+                self.draw_parameter(col, param_name, value)
 
         not_yet_drawn = set(all_parameters) - already_considered_parameters
 
         col = box.column(align=True)
         for param_name in sorted(not_yet_drawn):
             value = all_parameters[param_name]
-            col.label(text=f"{mapr.known_metadata.format_parameter_name(param_name)}: {value}")
+            self.draw_parameter(col, param_name, value)
 
     def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
@@ -365,7 +381,7 @@ class MAPR_ShowAssetMenu(bpy.types.Operator):
     )
 
     # Reference to the asset the menu will be drawn with, has to be set before the menu is drawn.
-    current_asset: typing.Optional[mapr.asset.Asset] = None
+    current_asset: mapr.asset.Asset | None = None
 
     @staticmethod
     def asset_menu_draw(menu_self, context: bpy.types.Context) -> None:
@@ -413,6 +429,20 @@ class MAPR_ShowAssetMenu(bpy.types.Operator):
         row = col.row()
         row.operator_context = 'INVOKE_DEFAULT'
         row.operator(MAPR_BrowserShowAssetDetail.bl_idname, icon='VIEWZOOM').asset_id = asset.id_
+
+        prefs = preferences.prefs_utils.get_preferences(context).browser_preferences
+        if prefs.debug:
+            col.separator()
+            if dev.IS_DEV:
+                col.operator(
+                    dev.MAPR_BrowserOpenAssetSourceBlend.bl_idname,
+                    text="Open Asset Source",
+                    icon='HOME',
+                ).asset_id = str(asset.id_)
+
+            row = col.row()
+            row.enabled = False
+            row.label(text=f"Search score: {mapr.filters.SEARCH_ASSET_SCORE.get(asset.id_, 'n/a')}")
 
     def execute(self, context: bpy.types.Context):
         asset = asset_registry.instance.master_asset_provider.get_asset(self.asset_id)
@@ -535,6 +565,38 @@ class MAPR_DeselectAll(bpy.types.Operator):
 MODULE_CLASSES.append(MAPR_DeselectAll)
 
 
+class MAPR_BrowserLinksMenu(bpy.types.Menu):
+    bl_idname = "ENGON_MT_browser_info_menu"
+    bl_label = "engon browser"
+
+    def draw(self, context: bpy.types.Context) -> None:
+        layout = self.layout
+        layout.operator(
+            "wm.url_open",
+            text="Leave us a Review",
+            icon='FUND',
+        ).url = "https://superhivemarket.com/products/engon/ratings?ref=673"
+        layout.operator("wm.url_open", text="Official Documentation", icon='HELP').url = (
+            polib.utils_bpy.get_addon_docs_page(base_package)
+        )
+        layout.operator(
+            "wm.url_open",
+            text="Discord Community",
+            icon_value=polib.ui_bpy.icon_manager.get_icon_id("logo_discord"),
+        ).url = "https://polygoniq.com/discord/"
+        layout.operator(
+            "wm.url_open",
+            text="polygoniq Website",
+            icon_value=polib.ui_bpy.icon_manager.get_icon_id("logo_polygoniq"),
+        ).url = "https://polygoniq.com/"
+        layout.operator("wm.url_open", text="GitHub", icon='URL').url = (
+            "https://github.com/polygoniq/engon"
+        )
+
+
+MODULE_CLASSES.append(MAPR_BrowserLinksMenu)
+
+
 def draw_asset_buttons_row(
     layout: bpy.types.UILayout,
     asset: mapr.asset.Asset,
@@ -565,22 +627,11 @@ def draw_asset_buttons_row(
         asset.id_
     )
 
-    if prefs.debug and dev.IS_DEV:
-        row.separator()
-        row.operator(
-            dev.MAPR_BrowserOpenAssetSourceBlend.bl_idname, text="", icon='HOME'
-        ).asset_id = str(asset.id_)
-
-    if prefs.debug:
-        row = layout.row()
-        row.enabled = False
-        row.label(text=f"Search score: {mapr.filters.SEARCH_ASSET_SCORE.get(asset.id_, 'n/a')}")
-
 
 def draw_selected_assets(
     context: bpy.types.Context,
     layout: bpy.types.UILayout,
-    selected_assets: typing.List[mapr.asset.Asset],
+    selected_assets: list[mapr.asset.Asset],
     prefs: preferences.browser_preferences.BrowserPreferences,
     browser_state: state.BrowserState,
     columns: int = 3,
@@ -746,7 +797,7 @@ def prefs_content_draw(self, context: bpy.types.Context) -> None:
 
 
 def prefs_navbar_draw(self, context: bpy.types.Context) -> None:
-    layout = self.layout
+    layout: bpy.types.UILayout = self.layout
     prefs = preferences.prefs_utils.get_preferences(context).browser_preferences
 
     row = layout.row(align=True)
@@ -759,7 +810,9 @@ def prefs_navbar_draw(self, context: bpy.types.Context) -> None:
     sub.alert = True
     sub.operator(MAPR_BrowserClose.bl_idname, text="", icon='PANEL_CLOSE')
 
-    if prefs.use_pills_nav:
+    if prefs.category_navigation_style == 'TREE_NEW':
+        categories.draw_ui_list_tree_category_navigation(context, layout)
+    elif prefs.category_navigation_style == 'PILLS':
         categories.draw_category_pills_header(context, layout, context.region.width)
     else:
         categories.draw_tree_category_navigation(context, layout)
@@ -806,6 +859,12 @@ def prefs_header_draw(self, context: bpy.types.Context) -> None:
         panel=MAPR_BrowserPreferencesPopoverPanel.bl_idname,
         text="",
         icon='MODIFIER',
+    )
+
+    row.menu(
+        MAPR_BrowserLinksMenu.bl_idname,
+        text="",
+        icon='INFO',
     )
 
 
@@ -861,8 +920,8 @@ class MAPR_BrowserOpen(bpy.types.Operator):
 
     # We store previous draw functions as class properties to be returned in
     # MAPR_ReturnPreferences
-    USERPREF_prev_draw: typing.Dict[str, typing.Callable[..., None]] = {}
-    prev_area_ui_types: typing.Dict[bpy.types.Area, str] = {}
+    USERPREF_prev_draw: dict[str, typing.Callable[..., None]] = {}
+    prev_area_ui_types: dict[bpy.types.Area, str] = {}
     is_browser_override_correct: bpy.props.BoolProperty(
         options={'HIDDEN'},
         description="When user changes the active section in preferences to an incompatible one, "
@@ -946,7 +1005,7 @@ class MAPR_BrowserChooseArea(bpy.types.Operator):
     bl_description = "Click on a selected area to open engon asset browser there"
     bl_label = "Choose Browser Area"
 
-    handlers: typing.Dict[typing.Tuple[bpy.types.Space, str], typing.Callable] = {}
+    handlers: dict[tuple[bpy.types.Space, str], typing.Callable] = {}
     is_running = False
 
     def draw_callback(self, context: bpy.types.Context):

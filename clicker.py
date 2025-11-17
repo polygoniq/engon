@@ -35,7 +35,7 @@ from . import preferences
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
-MODULE_CLASSES: typing.List[typing.Type] = []
+MODULE_CLASSES: list[type] = []
 
 
 CLICKER_OBJECT_SUFFIX = "_clicker_object"
@@ -93,15 +93,15 @@ class Clicker(bpy.types.Operator):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.models_collection: typing.Optional[bpy.types.Collection] = None
-        self.target_collection: typing.Optional[bpy.types.Collection] = None
+        self.models_collection: bpy.types.Collection | None = None
+        self.target_collection: bpy.types.Collection | None = None
         self.collision_collection = bpy.context.scene.collection
 
-        self.current_object: typing.Optional[bpy.types.Object] = None
-        self.placed_object: typing.Optional[bpy.types.Object] = None
-        self.initial_selected_objects: typing.Set[bpy.types.Object] = set()
-        self.place_mouse_position: typing.Optional[mathutils.Vector] = None
-        self.current_object_hierarchy_names: typing.Set[str] = set()
+        self.current_object: bpy.types.Object | None = None
+        self.placed_object: bpy.types.Object | None = None
+        self.initial_selected_objects: set[bpy.types.Object] = set()
+        self.place_mouse_position: mathutils.Vector | None = None
+        self.current_object_hierarchy_names: set[str] = set()
         # Store the last adjustment of z rotation, so next placed objects continue with the same
         # base rotation.
         self.last_z_rotation_adjustment = 0.0
@@ -187,9 +187,9 @@ class Clicker(bpy.types.Operator):
     def _cleanup(
         self,
         context: bpy.types.Context,
-        event: typing.Optional[bpy.types.Event] = None,
-        exception: typing.Optional[Exception] = None,
-    ) -> typing.Set[str]:
+        event: bpy.types.Event | None = None,
+        exception: Exception | None = None,
+    ) -> set[str]:
         Clicker.is_running = False
         Clicker.remove_draw_handlers()
 
@@ -321,9 +321,7 @@ class Clicker(bpy.types.Operator):
                 mathutils.Matrix.Translation(raycast_hit.position) @ rotation_matrix @ scale_matrix
             )
 
-    def reset_current_object_rotation(
-        self, position: typing.Optional[mathutils.Vector] = None
-    ) -> None:
+    def reset_current_object_rotation(self, position: mathutils.Vector | None = None) -> None:
         assert self.current_object is not None
         current_position, _, scale = self.current_object.matrix_world.decompose()
         if position is None:
@@ -433,10 +431,10 @@ class Clicker(bpy.types.Operator):
         # Changing parent's matrix will change the child's matrix, so we need to revert to the original later
         child_to_matrix_map = {obj: obj.matrix_world.copy() for obj in root.children}
 
-        bbox = hatchery.bounding_box.AlignedBox()
+        bbox = hatchery.bounding_box.BoundingBox()
         bbox.extend_by_object(root)
         eccentricity = bbox.get_eccentricity()
-        offset = bbox.min + mathutils.Vector((eccentricity.x, eccentricity.y, 0.0))
+        offset = bbox.get_min() + mathutils.Vector((eccentricity.x, eccentricity.y, 0.0))
         offset_local = root.matrix_world.inverted() @ offset
         root.data.transform(mathutils.Matrix.Translation(-offset_local))
         root.matrix_world.translation = offset
@@ -445,7 +443,7 @@ class Clicker(bpy.types.Operator):
             obj.matrix_world = matrix
 
     def prepare_instanced_objects(
-        self, context: bpy.types.Context, root_objs: typing.Set[bpy.types.Object]
+        self, context: bpy.types.Context, root_objs: set[bpy.types.Object]
     ) -> None:
         """Prepare a set of root objects for instancing. Populates the 'self.models_collection'.
 

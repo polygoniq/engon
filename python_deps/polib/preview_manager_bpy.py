@@ -14,6 +14,9 @@ from . import utils_bpy
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
+QUESTION_MARK_ICON_ID = 2 if bpy.app.version >= (4, 5, 0) else 1
+
+
 class PreviewManager:
     """Loads previews from provided paths on demand based on basenames or custom ids.
 
@@ -21,11 +24,11 @@ class PreviewManager:
 
     def __init__(self, blocking_load: bool = True) -> None:
         self.preview_collection = bpy.utils.previews.new()
-        self.id_path_map: typing.Dict[str, str] = {}
+        self.id_path_map: dict[str, str] = {}
         self.allowed_extensions = {".png", ".jpg"}
         self.blocking_load = blocking_load
 
-    def add_preview_path(self, path: str, id_override: typing.Optional[str] = None) -> None:
+    def add_preview_path(self, path: str, id_override: str | None = None) -> None:
         """Adds 'path' as a possible place from where preview can be loaded if requested.
 
         By default the ID of the preview is the basename of the file without extension. If 'path'
@@ -37,17 +40,17 @@ class PreviewManager:
         """
         self._update_path_map_entry(path, id_override)
 
-    def get_icon_id(self, id_: str) -> int:
+    def get_icon_id(self, id_: str, default: int = QUESTION_MARK_ICON_ID) -> int:
         """Return icon_id for preview with id 'id_'
 
-        Returns question mark icon id if 'id_' is not found.
+        Returns `default` (question mark if not set) icon id if 'id_' is not found.
         """
         if id_ in self.preview_collection:
             return self.preview_collection[id_].icon_id
         else:
             path = self.id_path_map.get(id_, None)
             if path is None:
-                return 1
+                return default
 
             # There might be paths, that weren't removed from the map, but the file was already
             # deleted on the filesystem. In that case (else branch) we remove the id_ from
@@ -61,7 +64,7 @@ class PreviewManager:
                 del self.id_path_map[id_]
 
         # Unknown preview ID
-        return 1
+        return default
 
     def get_polygoniq_addon_icon_id(self, addon_name: str) -> int:
         return self.get_icon_id(f"logo_{addon_name}")
@@ -69,7 +72,7 @@ class PreviewManager:
     def get_engon_feature_icon_id(self, feature_name: str) -> int:
         return self.get_icon_id(f"logo_{feature_name}_features")
 
-    def clear(self, ids: typing.Optional[typing.Set[str]] = None) -> None:
+    def clear(self, ids: set[str] | None = None) -> None:
         """Clears the whole preview collection or only 'ids' if provided.
 
         This doesn't clear the paths where previews can be found. If there is some invalid path,
@@ -82,7 +85,7 @@ class PreviewManager:
                 if id_ in self.preview_collection:
                     del self.preview_collection[id_]
 
-    def _update_path_map_entry(self, path: str, id_override: typing.Optional[str] = None) -> None:
+    def _update_path_map_entry(self, path: str, id_override: str | None = None) -> None:
         if os.path.isdir(path):
             if id_override is not None:
                 raise RuntimeError("id_override is not allowed for directories!")
@@ -139,7 +142,7 @@ class OnlinePreviewManager(PreviewManager):
         self,
         downloads_folder_path: str,
         blocking_load: bool = True,
-        timeout: typing.Optional[float] = None,
+        timeout: float | None = None,
     ) -> None:
         super().__init__(blocking_load)
         self.downloads_folder_path = downloads_folder_path
@@ -152,7 +155,7 @@ class OnlinePreviewManager(PreviewManager):
     def request_preview_url(
         self,
         url: str,
-        id_override: typing.Optional[str] = None,
+        id_override: str | None = None,
     ) -> None:
         """Downloads image from 'url' so it can be loaded locally."""
         basename = os.path.basename(url)
