@@ -146,3 +146,14 @@ def load_object_by_name(blend_path: str, object_name: str, link: bool = False) -
         data_to.objects = [object_name]
 
     return data_to.objects[0]
+
+
+def load_objects_by_name(blend_path: str, object_names: list[str]) -> list[bpy.types.Object]:
+    """Loads objects with the given names from the given .blend path"""
+    with bpy.data.libraries.load(blend_path, link=False) as (data_from, data_to):
+        data_to.objects = []
+        for object_name in object_names:
+            assert object_name in data_from.objects
+            data_to.objects.append(object_name)
+
+    return data_to.objects

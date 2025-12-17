@@ -19,7 +19,6 @@
 # ##### END GPL LICENSE BLOCK #####
 
 import bpy
-import typing
 from . import feature_utils
 from .. import polib
 from .. import asset_helpers

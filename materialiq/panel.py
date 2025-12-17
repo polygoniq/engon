@@ -173,7 +173,7 @@ class MaterialiqPanel(MaterialiqPanelMixin, bpy.types.Panel):
         row = row.row()
         row.alignment = 'LEFT'
         row.scale_x = 0.9
-        row.prop(prefs.spawn_options, "texture_size", text="")
+        row.prop(prefs.spawn_options, "filtered_texture_size", text="")
         self.draw_material_list(context)
 
 
@@ -637,14 +637,14 @@ MODULE_CLASSES.append(DisplacementPanel)
 
 
 @polib.log_helpers_bpy.logged_panel
-class AdaptiveSubdivPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
+class AdaptiveSubdivPanel(MaterialiqMaterialMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_engon_materialiq_adaptive_subdiv"
     bl_parent_id = DisplacementPanel.bl_idname
     bl_label = "Scene Subdivision"
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        return displacement.is_scene_setup_adaptive_subdiv(context)
+        return super().poll(context) and displacement.is_scene_setup_adaptive_subdiv(context)
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.template_icon(
@@ -663,7 +663,7 @@ MODULE_CLASSES.append(AdaptiveSubdivPanel)
 
 
 @polib.log_helpers_bpy.logged_panel
-class ModifiersDisplacementPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
+class ModifiersDisplacementPanel(MaterialiqMaterialMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_engon_materialiq_modifiers_displacement"
     bl_parent_id = DisplacementPanel.bl_idname
     bl_label = "Modifiers"
@@ -689,13 +689,16 @@ class ModifiersDisplacementPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel
             col.label(text=mod.name)
             for prop in displacement.DRAW_MODIFIER_PROPS[mod.name]:
                 col.prop(mod, prop)
-        # Dicing Rate property is located in modifier UI but belongs to object so we draw it separately
-        # and don't store it in DRAW_MODIFIER_PROPS
         if mod.name == "mq_Subdivision_Adaptive" and displacement.is_scene_setup_adaptive_subdiv(
             context
         ):
-            obj = context.active_object
-            col.prop(obj.cycles, "dicing_rate")
+            if bpy.app.version < (5, 0, 0):
+                # Dicing Rate property is located in modifier UI but belongs to object so we draw it separately
+                # and don't store it in DRAW_MODIFIER_PROPS
+                obj = context.active_object
+                col.prop(obj.cycles, "dicing_rate")
+            else:
+                col.prop(mod, "adaptive_pixel_size")
 
         layout = self.layout.column(align=True)
 
@@ -704,14 +707,10 @@ MODULE_CLASSES.append(ModifiersDisplacementPanel)
 
 
 @polib.log_helpers_bpy.logged_panel
-class AdjustmentsDisplacementPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
+class AdjustmentsDisplacementPanel(MaterialiqMaterialMixin, bpy.types.Panel):
     bl_idname = "VIEW_3D_PT_engon_materialiq_adjustments_displacement"
     bl_parent_id = DisplacementPanel.bl_idname
     bl_label = "Shader Displacement"
-
-    @classmethod
-    def poll(cls, context: bpy.types.Context) -> bool:
-        return displacement.is_scene_setup_adaptive_subdiv(context)
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon='NODE_MATERIAL')
@@ -815,45 +814,77 @@ class DisplaySettingsPanel(MaterialiqPanelMixin, bpy.types.Panel):
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon='SETTINGS')
 
-    def draw_eevee_material_settings(
+    def draw_viewport_display_settings(
         self, mat: bpy.types.Material, layout: bpy.types.UILayout, advanced_ui: bool
     ) -> None:
         row = layout.row()
         row.enabled = False
-        row.label(text="Eevee / Material Preview")
-        layout.prop(mat, "blend_method")
-        layout.prop(mat, "shadow_method")
-        layout.prop(mat, "alpha_threshold")
-        layout.prop(mat, "use_screen_refraction")
-        if not advanced_ui:
-            return
-        layout.prop(mat, "refraction_depth")
-        layout.prop(mat, "use_sss_translucency")
-        layout.prop(mat, "use_backface_culling")
+        row.label(text="Viewport Display")
+        layout.prop(mat, "diffuse_color", text="Color")
+        if advanced_ui:
+            layout.prop(mat, "metallic")
+            layout.prop(mat, "roughness")
+            layout.prop(mat, "pass_index")
 
-    def draw_cycles_material_settings(
-        self, mat: bpy.types.Material, layout: bpy.types.UILayout, advanced_ui: bool
+    def draw_shared_material_settings(
+        self, context: bpy.types.Context, mat: bpy.types.Material, layout: bpy.types.UILayout
     ) -> None:
-        if not advanced_ui:
-            row = layout.row()
-            row.enabled = False
-            row.label(text="Cycles")
-            layout.prop(mat, "displacement_method", text="Displacement")
+        """Draws settings shared between EEVEE and Cycles engines."""
+        row = layout.row()
+        row.enabled = False
+        row.label(text="Common Settings")
+        displacement_col = layout.column()
+        if (
+            context.engine in {'BLENDER_EEVEE', 'BLENDER_EEVEE_NEXT'}
+            and mat.displacement_method == 'DISPLACEMENT'
+        ):
+            displacement_col.alert = True
+            displacement_col.label(text="Unsupported displacement method for EEVEE", icon='ERROR')
+        displacement_col.prop(mat, "displacement_method", text="Displacement")
+        layout.prop(mat, "use_transparent_shadow")
+
+    def draw_engine_specific_settings(
+        self,
+        context: bpy.types.Context,
+        mat: bpy.types.Material,
+        layout: bpy.types.UILayout,
+        advanced_ui: bool,
+    ) -> None:
+        layout.label(text="Engine Specific Settings")
+        row = layout.row()
+        row.enabled = False
+        # Always draw eevee settings, as they might be useful for material preview
+        row.label(text="EEVEE / Material Preview Settings")
+        layout.prop(context.scene.eevee, "use_raytracing")
+        layout.prop(mat, "use_backface_culling")
+        layout.prop(mat, "surface_render_method", text="Render Method")
+        if bpy.app.version < (4, 3, 0):
+            layout.prop(mat, "shadow_method")
+        if advanced_ui:
+            layout.prop(mat, "use_raytrace_refraction", text="Raytraced Transmission")
+            layout.separator()
+            layout.prop(mat, "thickness_mode", text="Thickness")
+            layout.prop(mat, "use_thickness_from_shadow", text="From Shadow")
+            layout.separator()
+            layout.prop(mat, "volume_intersection_method", text="Intersection")
+
+        if context.engine != 'CYCLES':
             return
 
         row = layout.row()
         row.enabled = False
         row.label(text="Cycles Surface")
-        layout.prop(mat.cycles, "use_transparent_shadow")
-        layout.prop(mat, "displacement_method", text="Displacement")
+        layout.prop(mat.cycles, "emission_sampling")
+        layout.prop(mat.cycles, "use_bump_map_correction")
         layout.separator()
         row = layout.row()
         row.enabled = False
         row.label(text="Cycles Volume")
         layout.prop(mat.cycles, "volume_sampling", text="Sampling")
         layout.prop(mat.cycles, "volume_interpolation", text="Interpolation")
-        layout.prop(mat.cycles, "homogeneous_volume", text="Homogeneous")
-        layout.prop(mat.cycles, "volume_step_rate")
+        if bpy.app.version < (5, 0, 0):
+            layout.prop(mat.cycles, "homogeneous_volume", text="Homogeneous")
+            layout.prop(mat.cycles, "volume_step_rate")
 
     def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
@@ -864,24 +895,14 @@ class DisplaySettingsPanel(MaterialiqPanelMixin, bpy.types.Panel):
             return
 
         advanced_ui = show_advanced_ui(context)
-
-        row = layout.row()
-        row.enabled = False
-        row.label(text="Viewport Display")
-
         col = layout.column(align=True)
-        col.prop(mat, "diffuse_color", text="Color")
-        if advanced_ui:
-            col.prop(mat, "metallic")
-            col.prop(mat, "roughness")
-            col.prop(mat, "pass_index")
-        col.separator()
-        col.label(text="Engine Specific Settings")
-        if context.engine == 'CYCLES':
-            self.draw_cycles_material_settings(mat, col, advanced_ui)
 
-        # Always draw eevee settings, as they might be useful for material preview
-        self.draw_eevee_material_settings(mat, col, advanced_ui)
+        self.draw_viewport_display_settings(mat, col, advanced_ui)
+        col.separator()
+        # Common engine-agnostic settings like displacement method and shadow transparency
+        self.draw_shared_material_settings(context, mat, col)
+        col.separator()
+        self.draw_engine_specific_settings(context, mat, col, advanced_ui)
 
 
 MODULE_CLASSES.append(DisplaySettingsPanel)

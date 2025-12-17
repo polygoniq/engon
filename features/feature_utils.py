@@ -298,6 +298,10 @@ class EngonFeaturePanelMixin:
     def get_feature_name_readable(cls) -> str:
         return cls.feature_name.replace("_", " ")
 
+    @classmethod
+    def get_feature_icon(cls) -> str:
+        return 'QUESTION'
+
 
 NAME_FEATURE_MAP: dict[str, type(EngonFeaturePanelMixin)] = dict()
 PROPERTY_FEATURE_PROPERTIES_MAP: dict[str, set[str]] = dict()
@@ -356,6 +360,9 @@ class EngonAssetFeatureControlPanelMixin(EngonFeaturePanelMixin):
 
     Asset feature is a feature that controls spawned assets, e.g. asset's materials, rigs, lights...
     """
+
+    # Define this panel's popup width for pie menu display
+    bl_ui_units_x: int = 20
 
     @classmethod
     def has_pps(cls, obj: bpy.types.Object) -> bool:
@@ -685,6 +692,17 @@ class PropertyAssetFeatureControlPanelMixin(EngonAssetFeatureControlPanelMixin):
         op.custom_property_name = property_name
         op.engon_feature_name = self.feature_name
         op.use_one_value_per_hierarchy = use_one_value_per_hierarchy
+
+
+def get_property_features_panels_with_pie_menu() -> list[type(EngonAssetFeatureControlPanelMixin)]:
+    return [
+        feature_cls
+        for feature_cls in sorted(NAME_FEATURE_MAP.values(), key=lambda cls: cls.feature_name)
+        # Some of the panels could support pie menu, but are composed of subpanels that are
+        # registered separately, so we check for the "bl_idname" attribute to filter them out.
+        if issubclass(feature_cls, EngonAssetFeatureControlPanelMixin)
+        and hasattr(feature_cls, "bl_idname")
+    ]
 
 
 class TraffiqPropertyAssetFeatureControlPanelMixin(PropertyAssetFeatureControlPanelMixin):

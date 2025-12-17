@@ -55,8 +55,12 @@ class FrameGeneratorPanel(FrameGeneratorPanelMixin, bpy.types.Panel):
 
     feature_name = "frame_generator"
 
+    @classmethod
+    def get_feature_icon(cls) -> str:
+        return 'IMAGE_RGB'
+
     def draw_header(self, context: bpy.types.Context) -> None:
-        self.layout.label(text="", icon='IMAGE_RGB')
+        self.layout.label(text="", icon=self.get_feature_icon())
 
     def draw(self, context: bpy.types.Context):
         layout = self.layout
@@ -413,8 +417,8 @@ class FrameGeneratorControlPanel(
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        # The poll method is overridden to ensure that the panel appers when appropriate
-        # regular use of poll from mixin does not work well here - possibly beause of nested panels
+        # The poll method is overridden to ensure that the panel appears when appropriate
+        # regular use of poll from mixin does not work well here - possibly because of nested panels
         # or because of multiple mixins
         # poll returns true as expected, but the draw method is not called
         return True

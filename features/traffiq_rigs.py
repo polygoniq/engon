@@ -207,10 +207,15 @@ class BakingOperatorBase:
 
     @classmethod
     def poll(cls, context: bpy.types.Context):
-        return polib.rigs_shared_bpy.is_object_rigged(context.object) and context.object.mode in {
-            'POSE',
-            'OBJECT',
-        }
+        return (
+            polib.rigs_shared_bpy.is_object_rigged(context.object)
+            and context.object.mode
+            in {
+                'POSE',
+                'OBJECT',
+            }
+            and polib.utils_bpy.is_object_animated(context.object)
+        )
 
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
         if context.object.animation_data is None:
@@ -872,8 +877,10 @@ class RemoveAnimation(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context):
-        return context.mode in {'OBJECT', 'POSE'} and polib.rigs_shared_bpy.is_object_rigged(
-            context.active_object
+        return (
+            context.mode in {'OBJECT', 'POSE'}
+            and polib.rigs_shared_bpy.is_object_rigged(context.active_object)
+            and polib.utils_bpy.is_object_animated(context.active_object)
         )
 
     def remove_follow_path_keyframes(self, obj: bpy.types.Object) -> None:
@@ -965,8 +972,12 @@ class TraffiqRigsPanel(bpy.types.Panel, feature_utils.PropertyAssetFeatureContro
     ) -> typing.Iterable[bpy.types.ID]:
         return cls.filter_adjustable_assets_simple(possible_assets)
 
+    @classmethod
+    def get_feature_icon(cls) -> str:
+        return 'AUTO'
+
     def draw_header(self, context: bpy.types.Context) -> None:
-        self.layout.label(text="", icon='AUTO')
+        self.layout.label(text="", icon=self.get_feature_icon())
 
     def draw_header_preset(self, context: bpy.types.Context) -> None:
         self.layout.operator(
@@ -997,6 +1008,13 @@ class TraffiqRigsPanel(bpy.types.Panel, feature_utils.PropertyAssetFeatureContro
         row.operator(ChangeFollowPathSpeed.bl_idname, icon='FORCE_FORCE')
 
         layout.separator()
+
+        if polib.rigs_shared_bpy.is_object_rigged(
+            context.object
+        ) and not polib.utils_bpy.is_object_animated(context.object):
+            row = layout.row()
+            row.alert = True
+            row.label(text="Active object is not animated.", icon='ERROR')
 
         col = layout.column(align=True)
         col.operator(BakeSteering.bl_idname, icon='GIZMO')
@@ -1067,8 +1085,12 @@ class RigsGroundSensorsPanel(TraffiqRigsSubPanel):
             possible_assets,
         )
 
+    @classmethod
+    def get_feature_icon(cls) -> str:
+        return 'IMPORT'
+
     def draw_header(self, context: bpy.types.Context):
-        self.layout.label(text="", icon='IMPORT')
+        self.layout.label(text="", icon=self.get_feature_icon())
 
     def draw(self, context: bpy.types.Context):
         layout = self.layout.column()
@@ -1127,8 +1149,12 @@ class RigsRigPropertiesPanel(TraffiqRigsSubPanel):
             possible_assets,
         )
 
+    @classmethod
+    def get_feature_icon(cls) -> str:
+        return 'OPTIONS'
+
     def draw_header(self, context: bpy.types.Context):
-        self.layout.label(text="", icon='OPTIONS')
+        self.layout.label(text="", icon=self.get_feature_icon())
 
     def draw(self, context: bpy.types.Context):
         layout = self.layout

@@ -19,7 +19,6 @@
 # ##### END GPL LICENSE BLOCK #####
 
 import bpy
-import typing
 from . import feature_utils
 from .. import polib
 from .. import asset_helpers
@@ -44,8 +43,12 @@ class VineGeneratorPanel(
     bl_label = "Vine Generator"
     bl_options = {'DEFAULT_CLOSED'}
 
+    @classmethod
+    def get_feature_icon(cls) -> str:
+        return 'GRAPH'
+
     def draw_header(self, context: bpy.types.Context) -> None:
-        self.layout.label(text="", icon="GRAPH")
+        self.layout.label(text="", icon=self.get_feature_icon())
 
     def draw_header_preset(self, context: bpy.types.Context) -> None:
         self.layout.operator(

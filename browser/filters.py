@@ -890,6 +890,7 @@ class BrowserSearchFilter(bpy.types.PropertyGroup, mapr.filters.SearchFilter, Br
         name="Search",
         description="Space separated keywords to search for",
         update=lambda self, context: self.search_updated(context),
+        options={'TEXTEDIT_UPDATE'},
     )
 
     # This is used to store the previous search string, so we can check if the search was changed

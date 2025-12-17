@@ -129,7 +129,8 @@ class BotaniqAdjustmentsPanel(feature_utils.PropertyAssetFeatureControlPanelMixi
             asset_helpers.gather_instanced_objects(cls.get_possible_assets(context))
         )
 
-    def get_season_from_value(self, value: float) -> str:
+    @classmethod
+    def get_season_from_value(cls, value: float) -> str:
         # We need to change seasons at 0.125, 0.325, 0.625, 0.875
         # The list of seasons and values holds the "center" value of the season, not the boundaries
         # We need to do a bit of math to move it to get proper ranges. -0.125 moves from center to
@@ -140,8 +141,12 @@ class BotaniqAdjustmentsPanel(feature_utils.PropertyAssetFeatureControlPanelMixi
                 return season
         return "unknown"
 
+    @classmethod
+    def get_feature_icon(cls) -> str:
+        return 'MOD_HUE_SATURATION'
+
     def draw_header(self, context: bpy.types.Context) -> None:
-        self.layout.label(text="", icon='MOD_HUE_SATURATION')
+        self.layout.label(text="", icon=self.get_feature_icon())
 
     def draw_header_preset(self, context: bpy.types.Context) -> None:
         self.layout.operator(

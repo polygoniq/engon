@@ -926,14 +926,15 @@ class SpawnOptionsPopoverPanel(bpy.types.Panel):
         col.prop(spawning_options, "use_collection", text="")
         col.separator()
 
-        col.label(text="materialiq Materials", icon='MATERIAL')
-        # Creating row with 'use_property_split' makes the enum item align more nicely
-        row = col.row()
-        row.use_property_split = True
-        row.use_property_decorate = False
-        row.prop(spawning_options, "texture_size", text="Texture Size")
-        col.prop(spawning_options, "use_displacement")
-        col.separator()
+        if len(asset_registry.instance.get_packs_by_engon_feature("materialiq")) > 0:
+            col.label(text="materialiq Materials", icon='MATERIAL')
+            # Creating row with 'use_property_split' makes the enum item align more nicely
+            row = col.row()
+            row.use_property_split = True
+            row.use_property_decorate = False
+            row.prop(spawning_options, "filtered_texture_size", text="Texture Size")
+            col.prop(spawning_options, "use_displacement")
+            col.separator()
 
         col.label(text="Particle Systems", icon='PARTICLES')
         row = col.row()

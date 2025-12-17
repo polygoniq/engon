@@ -137,8 +137,12 @@ class TraffiqWearAdjustmentsPanel(
     }
     bl_options = {'DEFAULT_CLOSED'}
 
+    @classmethod
+    def get_feature_icon(cls) -> str:
+        return 'UV'
+
     def draw_header(self, context: bpy.types.Context) -> None:
-        self.layout.label(text="", icon='UV')
+        self.layout.label(text="", icon=self.get_feature_icon())
 
     def draw_header_preset(self, context: bpy.types.Context) -> None:
         self.layout.operator(

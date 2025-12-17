@@ -40,6 +40,9 @@ KEYMAP_DEFINITIONS: polib.keymaps_bpy.KeymapDefinitions = {
             False,
             False,
         ),
+        polib.keymaps_bpy.KeymapItemDefinition(
+            "Quick Search", "engon.browser_quick_search", 'F', 'PRESS', True
+        ),
     ],
     polib.keymaps_bpy.KeymapDefinition('3D View', 'VIEW_3D', 'WINDOW'): [
         polib.keymaps_bpy.KeymapItemDefinition(
@@ -47,6 +50,16 @@ KEYMAP_DEFINITIONS: polib.keymaps_bpy.KeymapDefinitions = {
         ),
         polib.keymaps_bpy.KeymapItemDefinition(
             "Snap to Ground", "engon.snap_to_ground", 'V', 'PRESS', False, False, False
+        ),
+        polib.keymaps_bpy.KeymapItemDefinition(
+            "Feature Pie Menu",
+            "wm.call_menu_pie",
+            'E',
+            'PRESS',
+            alt=True,
+            properties={
+                "name": "ENGON_MT_feature_pie_menu",
+            },
         ),
     ],
 }

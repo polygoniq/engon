@@ -597,6 +597,55 @@ class MAPR_BrowserLinksMenu(bpy.types.Menu):
 MODULE_CLASSES.append(MAPR_BrowserLinksMenu)
 
 
+@polib.log_helpers_bpy.logged_operator
+class MAPR_BrowserQuickSearch(bpy.types.Operator):
+    bl_idname = "engon.browser_quick_search"
+    bl_label = "Quick Search"
+    bl_property = "search"
+
+    @staticmethod
+    def search_updated(props: bpy.types.OperatorProperties, context: bpy.types.Context) -> None:
+        dyn_filters = filters.get_filters(context)
+        dyn_filters.search.search = getattr(props, "search", "")
+
+    # We cannot directly set the DynamicFilters.search.search, as it won't be focused by the
+    # "bl_property" attribute, so this wouldn't be a good UX when invoked from a keymap.
+    search: bpy.props.StringProperty(
+        name="Search",
+        description="Search text to filter assets",
+        default="",
+        options={'SKIP_SAVE', 'TEXTEDIT_UPDATE'},
+        update=lambda self, context: MAPR_BrowserQuickSearch.search_updated(self, context),
+    )
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        return (
+            context.area.type == 'PREFERENCES'
+            and preferences.prefs_utils.get_preferences(context).browser_preferences.prefs_hijacked
+        )
+
+    def draw(self, context: bpy.types.Context) -> None:
+        layout = self.layout
+        current_category = asset_registry.instance.master_asset_provider.get_category(
+            filters.asset_repository.current_category_id
+        )
+        if current_category is not None:
+            row = layout.row()
+            row.enabled = False
+            row.label(text=f"Searching in category '{current_category.title}'...")
+        layout.prop(self, "search", text="", placeholder="Type to search...")
+
+    def execute(self, context: bpy.types.Context):
+        return {'FINISHED'}
+
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+        return context.window_manager.invoke_popup(self)
+
+
+MODULE_CLASSES.append(MAPR_BrowserQuickSearch)
+
+
 def draw_asset_buttons_row(
     layout: bpy.types.UILayout,
     asset: mapr.asset.Asset,

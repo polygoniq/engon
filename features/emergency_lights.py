@@ -98,8 +98,12 @@ class EmergencyLightsPanel(
 
         return lights
 
+    @classmethod
+    def get_feature_icon(cls) -> str:
+        return 'LIGHT_SUN'
+
     def draw_header(self, context: bpy.types.Context) -> None:
-        self.layout.label(text="", icon='LIGHT_SUN')
+        self.layout.label(text="", icon=self.get_feature_icon())
 
     def draw_header_preset(self, context: bpy.types.Context) -> None:
         self.layout.operator(

@@ -20,7 +20,6 @@
 
 
 import bpy
-import typing
 import logging
 from . import feature_utils
 from . import asset_pack_panels

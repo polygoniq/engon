@@ -75,12 +75,52 @@ class SpawnOptions(bpy.types.PropertyGroup):
     )
 
     # Materialiq
-    texture_size: polib.serialization_bpy.Serialize(
-        bpy.props.EnumProperty(
-            items=lambda _, __: asset_helpers.get_materialiq_texture_sizes_enum_items(),
-            name="materialiq5 global maximum side size",
-            description="Maximum side size of textures spawned with a material",
+    def _get_texture_size(self) -> int:
+        # In case of uninstalling materialiq, it can happen that the value is set to
+        # higher than available size.
+        # We have to clamp it to highest available size.
+        # Note: enum getters and setters work with indices of enum items.
+        return min(
+            self.get("texture_size", 0),
+            len(asset_helpers.get_materialiq_texture_sizes_enum_items()) - 1,
         )
+
+    def _set_texture_size(self, value: int):
+        # We don't want to clamp here, as we want to be able to store values that are not currently
+        # available (e.g. when deserializing data and materialiq is not yet registered).
+        self["texture_size"] = value
+
+    texture_size: polib.serialization_bpy.Serialize(
+        # Note: this property can hold all valid sizes, not only those from registered packs.
+        # This is needed because in case of unregistering materialiq pack, stored value could
+        # become invalid enum item.
+        # Getter and setter ensure that the value is clamped to values based on currently installed
+        # materialiq.
+        bpy.props.EnumProperty(
+            items=lambda _, __: asset_helpers.get_materialiq_texture_sizes_enum_items(
+                filter_by_registered_packs=False
+            ),
+            name="materialiq global maximum side size",
+            description="Maximum side size of textures spawned with a material",
+            get=_get_texture_size,
+            set=_set_texture_size,
+        )
+    )
+
+    # This property should be used only for UI display purposes.
+    # It shows only sizes available for registered materialiq packs, but shares the same
+    # value as `texture_size`.
+    filtered_texture_size: bpy.props.EnumProperty(
+        items=lambda _, __: asset_helpers.get_materialiq_texture_sizes_enum_items(),
+        name="materialiq global maximum side size",
+        description="Maximum side size of textures spawned with a material",
+        get=_get_texture_size,
+        set=_set_texture_size,
+        # We need to add serialized property update callback manually here, as this property
+        # is not serialized itself, but shares the same value as the serialized `texture_size`.
+        update=lambda self, context: self._internal_on_serialized_property_update(
+            context, "texture_size"
+        ),
     )
 
     use_displacement: polib.serialization_bpy.Serialize(

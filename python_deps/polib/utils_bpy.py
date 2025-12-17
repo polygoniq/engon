@@ -764,18 +764,29 @@ def get_datablock_icon(datablock: bpy.types.ID, default: str = 'FILE_3D') -> str
     return mapping.get(get_nearest_subclass_of(datablock, bpy.types.ID), default)
 
 
-def get_fcurves_from_action(action: bpy.types.Action):
+def get_fcurves_from_action(
+    action: bpy.types.Action,
+):  # TODO: add retun type hint after dropping Blender < 5.0 support
     """Returns FCurves collection from action.
     This abstracts the difference between Blender versions < 4.4 and >= 4.4.
     Assumes that we want the fcurves from the first slot in Blender >= 4.4.
 
     Returns `bpy.types.ActionFCruves` in Blender < 4.4
-    and `bpy.types.ActionChannelbagFCurves` in Blender >= 4.4
+    and `bpy.types.ActionChannelbagFCurves` (or `None` if no animation slot present) in Blender >= 4.4
     """
     if bpy.app.version < (5, 0, 0):
         return action.fcurves
     else:
-        assert len(action.slots) > 0
+        if len(action.slots) == 0:
+            return None
         channelbag = bpy_extras.anim_utils.action_get_channelbag_for_slot(action, action.slots[0])
-        assert channelbag is not None
+        if channelbag is None:
+            return None
         return channelbag.fcurves
+
+
+def is_object_animated(obj: bpy.types.Object) -> bool:
+    if obj.animation_data is None or obj.animation_data.action is None:
+        return False
+    fcurves = get_fcurves_from_action(obj.animation_data.action)
+    return fcurves is not None and len(fcurves) > 0

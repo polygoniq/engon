@@ -20,7 +20,6 @@
 
 
 import bpy
-import typing
 import logging
 from . import feature_utils
 from . import asset_pack_panels
@@ -229,8 +228,12 @@ class AquatiqPaintMaskPanel(feature_utils.EngonFeaturePanelMixin, bpy.types.Pane
 
     feature_name = "aquatiq_paint_mask"
 
+    @classmethod
+    def get_feature_icon(cls) -> str:
+        return 'MOD_OCEAN'
+
     def draw_header(self, context: bpy.types.Context) -> None:
-        self.layout.label(text="", icon='MOD_OCEAN')
+        self.layout.label(text="", icon=self.get_feature_icon())
 
     def draw_vertex_paint_ui(self, context: bpy.types.Context):
         layout = self.layout

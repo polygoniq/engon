@@ -55,7 +55,7 @@ class RigDrivers:
         self,
         constraint: bpy.types.CopyLocationConstraint,
         driver_data_path: str,
-        base_influence: float | None = 1.0,
+        base_influence: float = 1.0,
     ) -> None:
         fcurve = constraint.driver_add("influence")
         drv = fcurve.driver
@@ -72,7 +72,12 @@ class RigDrivers:
         targ.data_path = driver_data_path
 
         if base_influence != 1.0:
-            fmod = fcurve.modifiers[0]
+            if bpy.app.version < (5, 0, 0):
+                # See https://projects.blender.org/blender/blender/pulls/148875
+                fmod = fcurve.modifiers[0]
+            else:
+                fmod = fcurve.modifiers.new(type='GENERATOR')
+            assert isinstance(fmod, bpy.types.FModifierGenerator)
             fmod.mode = 'POLYNOMIAL'
             fmod.poly_order = 1
             fmod.coefficients = (0, base_influence)

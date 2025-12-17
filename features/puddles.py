@@ -283,8 +283,12 @@ class PuddlesPanel(feature_utils.EngonFeaturePanelMixin, bpy.types.Panel):
     def poll(cls, context: bpy.types.Context) -> bool:
         return super().poll(context) and context.mode != 'PAINT_VERTEX'
 
+    @classmethod
+    def get_feature_icon(cls) -> str:
+        return 'MATFLUID'
+
     def draw_header(self, context: bpy.types.Context):
-        self.layout.label(text="", icon='MATFLUID')
+        self.layout.label(text="", icon=self.get_feature_icon())
 
     def draw(self, context: bpy.types.Context):
         layout: bpy.types.UILayout = self.layout

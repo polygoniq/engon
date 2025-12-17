@@ -92,8 +92,12 @@ class TraffiqPaintAdjustmentsPanel(
     }
     bl_options = {'DEFAULT_CLOSED'}
 
+    @classmethod
+    def get_feature_icon(cls) -> str:
+        return 'MOD_HUE_SATURATION'
+
     def draw_header(self, context: bpy.types.Context) -> None:
-        self.layout.label(text="", icon='MOD_HUE_SATURATION')
+        self.layout.label(text="", icon=self.get_feature_icon())
 
     def draw_header_preset(self, context: bpy.types.Context) -> None:
         self.layout.operator(

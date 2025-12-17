@@ -20,7 +20,6 @@
 
 
 import bpy
-import typing
 import logging
 from . import feature_utils
 from . import asset_pack_panels
@@ -53,8 +52,12 @@ class CurveScatterPanel(
         asset_helpers.BQ_CURVES_SCATTER_NODE_GROUP_NAME,
     )
 
+    @classmethod
+    def get_feature_icon(cls) -> str:
+        return 'OUTLINER_DATA_CURVES'
+
     def draw_header(self, context: bpy.types.Context) -> None:
-        self.layout.label(text="", icon='OUTLINER_DATA_CURVES')
+        self.layout.label(text="", icon=self.get_feature_icon())
 
     def draw_header_preset(self, context: bpy.types.Context) -> None:
         self.layout.operator(

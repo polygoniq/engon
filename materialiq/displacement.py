@@ -33,8 +33,8 @@ MODULE_CLASSES: list[typing.Any] = []
 DRAW_MODIFIER_PROPS: dict[str, list[str]] = {
     "mq_Remesh": ["octree_depth", "scale"],
     "mq_Subdivision": ["levels", "render_levels"],
+    "mq_Subdivision_Adaptive": ["levels", "render_levels"],
     "mq_Displacement": ["strength", "mid_level"],
-    "mq_Subdivision_Adaptive": [],
 }
 
 # Shader displacement strength and modifier strength do not map 1:1, this is approximation to get
@@ -52,7 +52,10 @@ def add_subdiv_modifier(obj: bpy.types.Object, use_adaptive: bool) -> None:
         mod = obj.modifiers.new(mod_name, 'SUBSURF')
         mod.subdivision_type = 'SIMPLE'
         if use_adaptive:
-            obj.cycles.use_adaptive_subdivision = True
+            if bpy.app.version < (5, 0, 0):
+                obj.cycles.use_adaptive_subdivision = True
+            else:
+                mod.use_adaptive_subdivision = True
 
 
 def add_remesh_modifier(obj: bpy.types.Object) -> None:
@@ -83,15 +86,18 @@ def add_disp_modifier(
 
 
 def is_scene_setup_adaptive_subdiv(context: bpy.types.Context) -> bool:
-    return (
-        context.scene.cycles.feature_set == 'EXPERIMENTAL'
-        and context.scene.render.engine == 'CYCLES'
-    )
+    is_cycles = context.scene.render.engine == 'CYCLES'
+    # In Blender 5.0+ Cycles feature sets are removed
+    if bpy.app.version < (5, 0, 0):
+        return is_cycles and context.scene.cycles.feature_set == 'EXPERIMENTAL'
+    return is_cycles
 
 
 def set_scene_adaptive_subdiv(context: bpy.types.Context) -> None:
-    context.scene.cycles.feature_set = 'EXPERIMENTAL'
     context.scene.render.engine = 'CYCLES'
+    # In Blender 5.0+ Cycles feature sets are removed
+    if bpy.app.version < (5, 0, 0):
+        context.scene.cycles.feature_set = 'EXPERIMENTAL'
 
 
 class DisplaceObjectCandidate:
@@ -193,9 +199,11 @@ class AddDisplacement(bpy.types.Operator):
     )
 
     set_scene_adaptive_subdiv: bpy.props.BoolProperty(
-        name="Adaptive Subdivision (Set to Cycles and Experimental)",
+        name=f"Adaptive Subdivision (Set to Cycles{' and Experimental' if bpy.app.version < (5, 0, 0) else ''})",
         default=True,
-        description="Will set render engine to Cycles and feature set to Experimental",
+        description=(
+            f"Set render engine to Cycles{' and Experimental feature set' if bpy.app.version < (5, 0, 0) else ''} and enable adaptive subdivision"
+        ),
     )
 
     affected_objects: bpy.props.StringProperty(

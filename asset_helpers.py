@@ -18,6 +18,7 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
+import functools
 import typing
 import bpy
 import bisect
@@ -171,22 +172,29 @@ def is_materialiq_material(material: bpy.types.Material) -> bool:
     )
 
 
-def get_materialiq_texture_sizes_enum_items():
-    """Returns enum items for materialiq texture sizes based on what is present in asset registry
+@functools.cache
+def get_materialiq_texture_sizes_enum_items(
+    filter_by_registered_packs: bool = True,
+) -> list[tuple[str, str, str]]:
+    """Returns enum items for materialiq texture sizes.
 
+    If `filter_by_registered_packs` is True, only sizes available for the registered packs are returned.
     Always returns 1024, as it is the base texture size present in all materialiq variants.
     """
-    texture_sizes = {1024}
-    mq_variant_size_map = {"lite": 2048, "full": 4096, "ultra": 8192, "dev": 8192}
-    registered_packs = asset_registry.instance.get_packs_by_engon_feature("materialiq")
-    for pack in registered_packs:
-        _, pack_variant = pack.full_name.split("_", 1)
-        for i, variant in enumerate(mq_variant_size_map):
-            # If we find variant that matches, we include all previous texture sizes,
-            # as the variant includes them too.
-            if variant == pack_variant:
-                texture_sizes.update(list(mq_variant_size_map.values())[: i + 1])
-                break
+    if filter_by_registered_packs:
+        texture_sizes = {1024}
+        mq_variant_size_map = {"lite": 2048, "full": 4096, "ultra": 8192, "dev": 8192}
+        registered_packs = asset_registry.instance.get_packs_by_engon_feature("materialiq")
+        for pack in registered_packs:
+            _, pack_variant = pack.full_name.split("_", 1)
+            for i, variant in enumerate(mq_variant_size_map):
+                # If we find variant that matches, we include all previous texture sizes,
+                # as the variant includes them too.
+                if variant == pack_variant:
+                    texture_sizes.update(list(mq_variant_size_map.values())[: i + 1])
+                    break
+    else:
+        texture_sizes = {1024, 2048, 4096, 8192}
 
     return [(str(size), str(size), f"materialiq texture size: {size}") for size in texture_sizes]
 

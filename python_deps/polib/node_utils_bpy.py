@@ -73,6 +73,17 @@ def get_socket_type(
     return socket_type
 
 
+def node_socket_type_to_node_socket_data_type(socket_type: str) -> str:
+    """Converts `Node Socket Type` enum items (used by `NodeSocket.type`) to `Node Socket Data Type`
+    enum items (used by `NodeCompositorFileOutputItems.new()` in Blender 5.0+).
+    """
+    if socket_type == 'CUSTOM':
+        raise ValueError("Cannot convert 'CUSTOM' socket type to data type")
+    if socket_type == 'VALUE':
+        return 'FLOAT'
+    return socket_type
+
+
 def find_nodes_in_tree(
     node_tree: bpy.types.NodeTree | None,
     filter_: typing.Callable[[bpy.types.Node], bool] | None = None,

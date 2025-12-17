@@ -142,6 +142,10 @@ class LightAdjustmentsPanel(feature_utils.PropertyAssetFeatureControlPanelMixin,
     ) -> typing.Iterable[bpy.types.ID]:
         return cls.filter_adjustable_assets_hierarchical(possible_assets)
 
+    @classmethod
+    def get_feature_icon(cls) -> str:
+        return 'LIGHT'
+
     def conditionally_draw_warning_unapplied_scale(self, context, layout):
         unapplied_scale_objects = []
         for obj in self.filter_adjustable_assets(context.selected_objects):
@@ -162,7 +166,7 @@ class LightAdjustmentsPanel(feature_utils.PropertyAssetFeatureControlPanelMixin,
             )
 
     def draw_header(self, context: bpy.types.Context) -> None:
-        self.layout.label(text="", icon='LIGHT')
+        self.layout.label(text="", icon=self.get_feature_icon())
 
     def draw_header_preset(self, context: bpy.types.Context) -> None:
         self.layout.operator(

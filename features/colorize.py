@@ -21,9 +21,10 @@
 import bpy
 import typing
 from . import feature_utils
+from . import asset_pack_panels
 from .. import polib
 from .. import preferences
-from . import asset_pack_panels
+from .. import panel
 
 
 MODULE_CLASSES = []
@@ -41,7 +42,7 @@ class ColorizePreferences(bpy.types.PropertyGroup):
         step=1,
         update=lambda self, context: polib.custom_props_bpy.update_custom_prop(
             context,
-            ColorizePanel.get_multiedit_adjustable_assets(context),
+            ColorizePanelMixin.get_multiedit_adjustable_assets(context),
             polib.custom_props_bpy.CustomPropertyNames.PQ_PRIMARY_COLOR,
             self.primary_color,
         ),
@@ -56,7 +57,7 @@ class ColorizePreferences(bpy.types.PropertyGroup):
         step=1,
         update=lambda self, context: polib.custom_props_bpy.update_custom_prop(
             context,
-            ColorizePanel.get_multiedit_adjustable_assets(context),
+            ColorizePanelMixin.get_multiedit_adjustable_assets(context),
             polib.custom_props_bpy.CustomPropertyNames.PQ_PRIMARY_COLOR_FACTOR,
             self.primary_color_factor,
         ),
@@ -73,7 +74,7 @@ class ColorizePreferences(bpy.types.PropertyGroup):
         step=1,
         update=lambda self, context: polib.custom_props_bpy.update_custom_prop(
             context,
-            ColorizePanel.get_multiedit_adjustable_assets(context),
+            ColorizePanelMixin.get_multiedit_adjustable_assets(context),
             polib.custom_props_bpy.CustomPropertyNames.PQ_SECONDARY_COLOR,
             self.secondary_color,
         ),
@@ -88,7 +89,7 @@ class ColorizePreferences(bpy.types.PropertyGroup):
         step=1,
         update=lambda self, context: polib.custom_props_bpy.update_custom_prop(
             context,
-            ColorizePanel.get_multiedit_adjustable_assets(context),
+            ColorizePanelMixin.get_multiedit_adjustable_assets(context),
             polib.custom_props_bpy.CustomPropertyNames.PQ_SECONDARY_COLOR_FACTOR,
             self.secondary_color_factor,
         ),
@@ -98,12 +99,11 @@ class ColorizePreferences(bpy.types.PropertyGroup):
 MODULE_CLASSES.append(ColorizePreferences)
 
 
-@feature_utils.register_feature
-class ColorizePanel(feature_utils.PropertyAssetFeatureControlPanelMixin, bpy.types.Panel):
-    bl_idname = "VIEW_3D_PT_engon_feature_colorize"
+class ColorizePanelMixin(feature_utils.PropertyAssetFeatureControlPanelMixin, bpy.types.Panel):
     # TODO: this feature is currently selected-asset-packs-only, but in the future it should be moved to engon panel,
     # once all other asset packs implement colorize
     bl_label = "Colorize"
+    bl_parent_id = panel.EngonPanel.bl_idname
     feature_name = "colorize"
     related_custom_properties = {
         polib.custom_props_bpy.CustomPropertyNames.PQ_PRIMARY_COLOR,
@@ -120,8 +120,12 @@ class ColorizePanel(feature_utils.PropertyAssetFeatureControlPanelMixin, bpy.typ
     ) -> typing.Iterable[bpy.types.ID]:
         return cls.filter_adjustable_assets_simple(possible_assets)
 
+    @classmethod
+    def get_feature_icon(cls) -> str:
+        return 'MOD_HUE_SATURATION'
+
     def draw_header(self, context: bpy.types.Context) -> None:
-        self.layout.label(text="", icon='MOD_HUE_SATURATION')
+        self.layout.label(text="", icon=self.get_feature_icon())
 
     def draw_header_preset(self, context: bpy.types.Context) -> None:
         self.layout.operator(
@@ -244,8 +248,28 @@ class ColorizePanel(feature_utils.PropertyAssetFeatureControlPanelMixin, bpy.typ
         self.draw_multiedit(context, layout, possible_assets)
 
 
+@feature_utils.register_feature
 @polib.log_helpers_bpy.logged_panel
-class AesthetiqColorizePanel(ColorizePanel):
+class ColorizePanel(ColorizePanelMixin):
+    # TODO: This panel is currently registered mainly because of the pie menu use case
+    # so we have one registered central panel for all packs supporting colorize. Registering and
+    # using the 'ColorizePanelMixin' directly isn't possible, as it causes registration RNA issues.
+    bl_idname = "VIEW_3D_PT_engon_feature_colorize_general"
+    bl_parent_id = panel.EngonPanel.bl_idname
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        # We don't want to display this panel in the engon UI right now as asset packs have their
+        # own respective panels and it feels clumsy to have one feature disconnected from others.
+        # By this check, we display this panel only inside the pie menu.
+        return context.region.type != 'UI'
+
+
+MODULE_CLASSES.append(ColorizePanel)
+
+
+@polib.log_helpers_bpy.logged_panel
+class AesthetiqColorizePanel(ColorizePanelMixin):
     bl_idname = "VIEW_3D_PT_engon_feature_colorize_aesthetiq"
     bl_parent_id = asset_pack_panels.AesthetiqPanel.bl_idname
 
@@ -268,7 +292,7 @@ MODULE_CLASSES.append(AesthetiqColorizePanel)
 
 
 @polib.log_helpers_bpy.logged_panel
-class InterniqColorizePanel(ColorizePanel):
+class InterniqColorizePanel(ColorizePanelMixin):
     bl_idname = "VIEW_3D_PT_engon_feature_colorize_interniq"
     bl_parent_id = asset_pack_panels.InterniqPanel.bl_idname
 
