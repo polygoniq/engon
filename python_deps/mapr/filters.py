@@ -2,7 +2,7 @@
 
 # Base classes for filters which can be used in a query against asset provider to get assets
 # based on their parameters. For example one can use:
-# - NumericParameterFilter("num:width", 0.0, 10.0) - assets with '0.0 < "width" < 10.0'
+# - NumericParameterFilter("num:width", 0.0, 10.0) - assets with '0.0 <= "width" <= 10.0'
 # - TextParameterFilter("text:country_of_origin", {"Czechia", "Poland"}) - assets containing
 #   "country_of_origin" either "Czechia" or "Poland"
 # The filters defined here provide the minimal functionality needed for filtering and can be used
@@ -53,7 +53,9 @@ class NumericParameterFilter(Filter):
         if self.name_without_type not in asset_.numeric_parameters:
             return False
 
-        return self.range_start < asset_.numeric_parameters[self.name_without_type] < self.range_end
+        return (
+            self.range_start <= asset_.numeric_parameters[self.name_without_type] <= self.range_end
+        )
 
     def as_dict(self) -> dict:
         return {self.name: {"min": self.range_start, "max": self.range_end}}
@@ -356,6 +358,11 @@ class AssetTypesFilter(Filter):
 SEARCH_ASSET_SCORE: dict[str, float] = {}
 
 
+class MatchCount(typing.NamedTuple):
+    match_count: int
+    weight: float
+
+
 class SearchFilter(Filter):
     def __init__(self, search: str):
         super().__init__("builtin:search")
@@ -363,26 +370,24 @@ class SearchFilter(Filter):
         self.needle_keywords = SearchFilter.keywords_from_search(search)
 
     def filter_(self, asset_: asset.Asset) -> bool:
+        REQUIRED_EXACT_MATCH_COEFFICIENT = 10.0
         EXACT_MATCH_COEFFICIENT = 5.0
         PREFIX_MATCH_COEFFICIENT = 3.0
         INFIX_MATCH_COEFFICIENT = 2.0
         SUFFIX_MATCH_COEFFICIENT = 2.0
+
+        MATCH_ORDER_COEFFICIENT = 1.0
 
         SUBSEQUENT_MATCH_COEFFICIENT = 5.0
         MULTIPLE_MATCH_COEFFICIENT = 1.0
 
         def get_affix_score(
             needle_keyword: str,
+            needle_keyword_index: int,
             haystack_keyword: str,
             haystack_keyword_weight: float,
-            require_exact_match: bool,
         ) -> float:
             affix_score = 0.0
-            if require_exact_match:
-                if haystack_keyword == needle_keyword[1:-1]:
-                    affix_score = haystack_keyword_weight * EXACT_MATCH_COEFFICIENT
-                return affix_score
-
             index = haystack_keyword.find(needle_keyword)
             if index == -1:
                 # no match
@@ -399,19 +404,55 @@ class SearchFilter(Filter):
             else:
                 # suffix match
                 affix_score = SUFFIX_MATCH_COEFFICIENT * haystack_keyword_weight
+
+            if affix_score > 0.0:
+                # Boost score based on needle keyword order - earlier keywords are more relevant
+                affix_score += (
+                    MATCH_ORDER_COEFFICIENT
+                    * (len(self.needle_keywords) - needle_keyword_index)
+                    / len(self.needle_keywords)
+                )
             return affix_score
 
         def get_multiplicity_score(
-            subsequent_match_count: float, multiple_match_count: float
+            subsequent_match: MatchCount, multiple_match: MatchCount
         ) -> float:
+            """Computes multiplicity score based on subsequent and multiple matches.
+
+            The scores take into account both the count and the weight of matches. The weight comes
+            from the sum of affix scores meaning exact matches weight more than prefix, etc...
+            """
             multiplicity_score = 1.0
-            if subsequent_match_count <= 1 and multiple_match_count <= 1:
+            weighted_subsequent_match = subsequent_match.match_count + subsequent_match.weight / 10
+            weighted_multiple_match = multiple_match.match_count + multiple_match.weight / 10
+            if weighted_subsequent_match <= 1 and weighted_multiple_match <= 1:
                 return multiplicity_score
-            if max_subsequent_matches >= multiple_match_count:
-                multiplicity_score = SUBSEQUENT_MATCH_COEFFICIENT * max_subsequent_matches
+            if weighted_subsequent_match >= weighted_multiple_match:
+                multiplicity_score = SUBSEQUENT_MATCH_COEFFICIENT * weighted_subsequent_match
             else:
-                multiplicity_score = MULTIPLE_MATCH_COEFFICIENT * multiple_match_count
+                multiplicity_score = MULTIPLE_MATCH_COEFFICIENT * weighted_multiple_match
             return multiplicity_score
+
+        def get_exact_match_score(needle_keyword: str, asset_: asset.Asset) -> float:
+            haystack_keywords = list(asset_.search_matter.keys())
+            needle_keyword_trimmed = needle_keyword[1:-1]
+            if needle_keyword_trimmed in haystack_keywords:
+                return REQUIRED_EXACT_MATCH_COEFFICIENT
+
+            needle_keywords = needle_keyword_trimmed.split(' ')
+            needle_index = next(
+                (i for i, kw in enumerate(haystack_keywords) if kw == needle_keywords[0]), -1
+            )
+            if needle_index == -1:
+                return 0.0
+            for keyword in needle_keywords[1:]:
+                needle_index += 1
+                if (
+                    needle_index >= len(haystack_keywords)
+                    or haystack_keywords[needle_index] != keyword
+                ):
+                    return 0.0
+            return REQUIRED_EXACT_MATCH_COEFFICIENT
 
         # we make sure all needle keywords are present in given haystack for the haystack not to be
         # filtered
@@ -420,36 +461,54 @@ class SearchFilter(Filter):
             return True
 
         max_relevancy_score = 0.0
-        multiple_match_count = 0
-        subsequent_match_count = 0
-        max_subsequent_matches = 0
+        # represent (count, weighted_sum) as tuples to keep integer counts pure
+        multiple_match = MatchCount(0, 0.0)
+        subsequent_match = MatchCount(0, 0.0)
+        max_subsequent_match = MatchCount(0, 0.0)
 
-        for needle_keyword in self.needle_keywords:
+        for i, needle_keyword in enumerate(self.needle_keywords):
+            affix_score = 0.0
             match_flag = False
             require_exact_match = needle_keyword.startswith('"') and needle_keyword.endswith('"')
-            for haystack_keyword, haystack_keyword_weight in asset_.search_matter.items():
-                relevancy_score = 0.0
-                # this is guaranteed by the API
-                assert haystack_keyword_weight > 0.0
-                relevancy_score = get_affix_score(
-                    needle_keyword, haystack_keyword, haystack_keyword_weight, require_exact_match
-                )
-                match_flag = relevancy_score > 0.0 or match_flag
-                max_relevancy_score = max(max_relevancy_score, relevancy_score)
 
-            if require_exact_match and not match_flag:
-                # exclude results which do not contain keywords in quotation marks (even if other keywords would match)
-                SEARCH_ASSET_SCORE[asset_.id_] = 0.0
-                return False
+            if require_exact_match:
+                exact_match_score = get_exact_match_score(needle_keyword, asset_)
+                if exact_match_score == 0.0:
+                    # exclude results which do not contain keywords in quotation marks (even if other keywords would match)
+                    SEARCH_ASSET_SCORE[asset_.id_] = 0.0
+                    return False
+                max_relevancy_score = max(max_relevancy_score, exact_match_score)
+                match_flag = max_relevancy_score > 0.0
+            else:
+                for haystack_keyword, haystack_keyword_weight in asset_.search_matter.items():
+                    relevancy_score = 0.0
+                    # this is guaranteed by the API
+                    assert haystack_keyword_weight > 0.0
+                    relevancy_score = get_affix_score(
+                        needle_keyword,
+                        i,
+                        haystack_keyword,
+                        haystack_keyword_weight,
+                    )
+
+                    match_flag = relevancy_score > 0.0 or match_flag
+                    affix_score = max(affix_score, relevancy_score)
+                    max_relevancy_score = max(max_relevancy_score, relevancy_score)
 
             if match_flag:
-                subsequent_match_count += 1
-                multiple_match_count += 1
-                max_subsequent_matches = max(max_subsequent_matches, subsequent_match_count)
+                subsequent_match = MatchCount(
+                    subsequent_match.match_count + 1, subsequent_match.weight + affix_score
+                )
+                multiple_match = MatchCount(
+                    multiple_match.match_count + 1, multiple_match.weight + affix_score
+                )
+                max_subsequent_match = max(
+                    max_subsequent_match, subsequent_match, key=lambda x: x.match_count
+                )
             else:
-                subsequent_match_count = 0
+                subsequent_match = MatchCount(0, 0.0)
 
-        max_relevancy_score *= get_multiplicity_score(max_subsequent_matches, multiple_match_count)
+        max_relevancy_score *= get_multiplicity_score(max_subsequent_match, multiple_match)
 
         SEARCH_ASSET_SCORE[asset_.id_] = max_relevancy_score
         return max_relevancy_score > 0.0
@@ -472,7 +531,7 @@ class SearchFilter(Filter):
             return ret
 
         # put search keywords to a dictionary first to prevent duplicate keywords while keeping the order in which they were searched
-        keywords = {kw.lower(): None for kw in re.split(r"[ ,_\-]+", search) if kw != ""}
+        keywords = {kw.lower(): None for kw in re.findall(r'"[^"]*"|\S+', search) if kw != ""}
         return translate_keywords(list(keywords.keys()))
 
     def as_dict(self) -> dict:

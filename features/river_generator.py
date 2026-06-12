@@ -56,7 +56,7 @@ class RiverGeneratorPanel(RiverGeneratorPanelMixin, bpy.types.Panel):
             emboss=False,
         ).engon_feature_name = self.__class__.feature_name
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout: bpy.types.UILayout = self.layout
         self.conditionally_draw_warning_no_adjustable_active_object(context, layout)
 
@@ -92,7 +92,7 @@ class RiverGeneratorGeneralAdjustmentsPanel(
         socket_names_drawn_first=["Self Object"],
     )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         self.draw_active_object_modifiers_node_group_inputs_template(
             self.layout,
             context,
@@ -120,7 +120,7 @@ class RiverGeneratorBankRiverbedAdjustmentsPanel(
         socket_names_drawn_first=["Bank Material", "Riverbed Material"],
     )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         self.draw_active_object_modifiers_node_group_inputs_template(
             self.layout,
             context,
@@ -148,7 +148,7 @@ class RiverGeneratorScatterPanel(
         socket_names_drawn_first=["Rocks", "Vegetation"],
     )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         self.draw_active_object_modifiers_node_group_inputs_template(
             self.layout,
             context,
@@ -182,7 +182,7 @@ class RiverGeneratorAdvancedAdjustmentsPanel(
         socket_names_drawn_first=["Collision"],
     )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         self.draw_active_object_modifiers_node_group_inputs_template(
             self.layout,
             context,

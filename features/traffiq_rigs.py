@@ -36,6 +36,9 @@ from .. import polib
 from .. import preferences
 from . import asset_pack_panels
 
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
+
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
@@ -206,7 +209,7 @@ class BakingOperatorBase:
     keyframe_tolerance: bpy.props.FloatProperty(name="Keyframe tolerance", min=0, default=0.01)
 
     @classmethod
-    def poll(cls, context: bpy.types.Context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         return (
             polib.rigs_shared_bpy.is_object_rigged(context.object)
             and context.object.mode
@@ -217,7 +220,9 @@ class BakingOperatorBase:
             and polib.utils_bpy.is_object_animated(context.object)
         )
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         if context.object.animation_data is None:
             context.object.animation_data_create()
             assert context.object.animation_data is not None
@@ -228,7 +233,7 @@ class BakingOperatorBase:
 
         return context.window_manager.invoke_props_dialog(self)
 
-    def draw(self, context):
+    def draw(self, context: bpy.types.Context) -> None:
         self.layout.use_property_split = True
         self.layout.use_property_decorate = False
         self.layout.prop(self, "frame_start")
@@ -344,7 +349,7 @@ class BakeWheelRotation(bpy.types.Operator, BakingOperatorBase):
     bl_description = "Automatically generates wheels animation based on Root bone animation"
     bl_options = {'REGISTER', 'UNDO'}
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         logger.info(f"Working on target object: {context.object.name}")
         context.object[polib.custom_props_bpy.CustomPropertyNames.TQ_WHEELS_Y_ROLLING] = False
         if not check_rig_drivers(context.object):
@@ -449,7 +454,7 @@ class BakeSteering(bpy.types.Operator, BakingOperatorBase):
 
     rotation_factor: bpy.props.FloatProperty(name="Rotation factor", min=0.1, default=1)
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         self.layout.use_property_split = True
         self.layout.use_property_decorate = False
         self.layout.prop(self, "frame_start")
@@ -457,7 +462,7 @@ class BakeSteering(bpy.types.Operator, BakingOperatorBase):
         self.layout.prop(self, "rotation_factor")
         self.layout.prop(self, "keyframe_tolerance")
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         active_object = context.active_object
         if not check_rig_drivers(active_object):
             self.report({'ERROR'}, f"Corrupted animation drivers in '{active_object.name}'")
@@ -567,12 +572,12 @@ class SetGroundSensors(bpy.types.Operator):
     bl_options = {'REGISTER'}
 
     @classmethod
-    def poll(cls, context: bpy.types.Context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         return context.mode in {'OBJECT', 'POSE'} and polib.rigs_shared_bpy.is_object_rigged(
             context.active_object
         )
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         if context.scene.tq_ground_object is None:
             self.report({'INFO'}, "No ground object selected!")
             return {'CANCELLED'}
@@ -609,12 +614,12 @@ class FollowPath(bpy.types.Operator):
         return f'pose.bones["{root_bone_name}"].constraints["{fp_constraint_name}"].offset_factor'
 
     @classmethod
-    def poll(cls, context: bpy.types.Context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         return context.mode == 'OBJECT' and polib.rigs_shared_bpy.is_object_rigged(
             context.active_object
         )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         rig_properties = preferences.prefs_utils.get_preferences(context).traffiq_rigs_preferences
         layout = self.layout
         layout.prop(rig_properties, "auto_bake_steering", text="Bake Steering")
@@ -632,10 +637,12 @@ class FollowPath(bpy.types.Operator):
             col.label(text="Ground needs applied scale for the ground sensors.")
             col.label(text="For more info check Follow Path Constraint Blender docs.")
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         return context.window_manager.invoke_props_dialog(self)
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         rig_properties = preferences.prefs_utils.get_preferences(context).traffiq_rigs_preferences
         target_path = context.scene.tq_target_path_object
         if target_path is None:
@@ -762,7 +769,9 @@ class ChangeFollowPathSpeed(bpy.types.Operator):
     def poll(cls, context: bpy.types.Context) -> bool:
         return polib.rigs_shared_bpy.is_object_rigged(context.active_object)
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         active_object: bpy.types.Object = context.active_object
         self.root_bone: bpy.types.PoseBone | None = active_object.pose.bones.get("Root", None)
         if self.root_bone is None:
@@ -812,7 +821,7 @@ class ChangeFollowPathSpeed(bpy.types.Operator):
     def get_animation_frames(spline_length: float, target_velocity: float, fps: float) -> float:
         return (spline_length / target_velocity) * fps
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         if not hasattr(self, "spline_len"):
             self.report({'ERROR'}, "This operator requires 'invoke' to be called before 'execute'!")
             return {'CANCELLED'}
@@ -876,7 +885,7 @@ class RemoveAnimation(bpy.types.Operator):
     bl_options = {'REGISTER'}
 
     @classmethod
-    def poll(cls, context: bpy.types.Context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         return (
             context.mode in {'OBJECT', 'POSE'}
             and polib.rigs_shared_bpy.is_object_rigged(context.active_object)
@@ -930,7 +939,7 @@ class RemoveAnimation(bpy.types.Operator):
         if follow_path_constraint is not None:
             root_bone.constraints.remove(follow_path_constraint)
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         active_object = context.active_object
         logger.info(f"Working on active object {active_object.name}")
         for prop in active_object.keys():
@@ -990,7 +999,7 @@ class TraffiqRigsPanel(bpy.types.Panel, feature_utils.PropertyAssetFeatureContro
     def draw_properties(self, datablock: bpy.types.ID, layout: bpy.types.UILayout) -> None:
         raise NotImplementedError()
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout.column()
         layout.use_property_decorate = False
         layout.use_property_split = True
@@ -1092,7 +1101,7 @@ class RigsGroundSensorsPanel(TraffiqRigsSubPanel):
     def draw_header(self, context: bpy.types.Context):
         self.layout.label(text="", icon=self.get_feature_icon())
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout.column()
         if self.conditionally_draw_warning_no_adjustable_active_object(
             context, layout, warning_text="Active asset is not rigged or is not editable"
@@ -1156,7 +1165,7 @@ class RigsRigPropertiesPanel(TraffiqRigsSubPanel):
     def draw_header(self, context: bpy.types.Context):
         self.layout.label(text="", icon=self.get_feature_icon())
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
 
         if self.conditionally_draw_warning_no_adjustable_active_object(

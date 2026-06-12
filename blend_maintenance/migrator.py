@@ -34,6 +34,9 @@ from .. import polib
 from .. import hatchery
 from .. import mapr
 
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 MODULE_CLASSES: list[type] = []
@@ -46,7 +49,7 @@ class RemoveDuplicates(bpy.types.Operator):
     bl_description = "Merges duplicate materials, node groups and images. Saves memory"
     bl_options = {'REGISTER'}
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         pack_paths = asset_registry.instance.get_packs_paths()
         filters = [polib.remove_duplicates_bpy.polygoniq_duplicate_data_filter]
         removed_material_names = polib.remove_duplicates_bpy.remove_duplicate_datablocks(
@@ -153,7 +156,7 @@ class FindMissingFiles(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     @polib.utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         found_datablocks = find_missing_files()
         if found_datablocks > 0:
             self.report(
@@ -172,7 +175,7 @@ class MigrateFromMaterialiq4(bpy.types.Operator):
     bl_label = "Migrate from materialiq4"
     bl_description = "Finds materialiq4 materials and replaces them with their equivalents from the latest version of materialiq"
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         spawn_options = preferences.prefs_utils.get_preferences(
             context
         ).browser_preferences.spawn_options
@@ -472,7 +475,7 @@ class MigrateLibraryPaths(bpy.types.Operator):
                         continue
                     hatchery.utils.copy_custom_prop(child_obj, root_obj, prop_name)
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         """Relink broken paths caused by renaming blends in major version bump.
 
         We have unified addon prefix for all asset packs, meaning we had to rename the blends, and

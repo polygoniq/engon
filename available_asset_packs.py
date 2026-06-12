@@ -22,6 +22,7 @@ import bpy
 import typing
 import logging
 import dataclasses
+import datetime
 import os
 import urllib.request
 import urllib.error
@@ -31,18 +32,23 @@ import functools
 from . import polib
 from . import asset_registry
 
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
 MODULE_CLASSES: list[type] = []
 
-
+API_VERSION = "v1"
 WORK_FOLDER = os.path.join(
-    polib.utils_bpy.get_user_data_resource_path("engon"), "available_asset_packs"
+    polib.utils_bpy.get_user_data_resource_path("engon"), "available_asset_packs", API_VERSION
 )
 INDEX_FILENAME = "index.json"
 INDEX_LOCAL_FILE_PATH = os.path.join(WORK_FOLDER, INDEX_FILENAME)
-INDEX_REMOTE_URL = f"https://docs.polygoniq.com/api/v1/available_asset_packs/{INDEX_FILENAME}"
+INDEX_REMOTE_URL = f"https://extensions-extras.polygoniq.com/{API_VERSION}/available-asset-packs"
+TIMEOUT_SECONDS = 30
+PACK_REFRESH_INTERVAL_DAYS = 1
 
 
 pack_thumbnail_icon_manager = polib.preview_manager_bpy.OnlinePreviewManager(
@@ -84,9 +90,9 @@ class AvailableAssetPackMetadata:
     description: str
     icon_url: str | None
     # List of full_names of possible variants e. g. botaniq_full, botaniq_lite, ...
-    variants: list[str]
-    markets: list[AssetPackMarket]
-    tags: list[str]
+    variants: list[str] | None = None
+    markets: list[AssetPackMarket] | None = None
+    tags: list[str] | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, typing.Any]) -> "AvailableAssetPackMetadata":
@@ -133,93 +139,135 @@ class AvailableAssetPackMetadata:
 AVAILABLE_ASSET_PACKS: list[AvailableAssetPackMetadata] = []
 
 
-def _materialize_asset_packs_index(
+@dataclasses.dataclass
+class AvailableAssetPacksIndex:
+    version: int
+    items: list[AvailableAssetPackMetadata]
+
+    @classmethod
+    def from_dict(cls, data: dict[str, typing.Any]) -> "AvailableAssetPacksIndex":
+        version = data.get("version", None)
+        if version is None:
+            raise ValueError("Asset pack index must have a 'version' field.")
+        items_data = data.get("items", None)
+        if items_data is None:
+            raise ValueError("Asset pack index must have an 'items' field.")
+        if not isinstance(items_data, list):
+            raise ValueError("Asset pack index 'items' field must be a list.")
+
+        items = []
+        for item_data in items_data:
+            if not isinstance(item_data, dict):
+                raise ValueError("Asset pack metadata must be a dictionary.")
+            items.append(AvailableAssetPackMetadata.from_dict(item_data))
+
+        return cls(
+            version=version,
+            items=items,
+        )
+
+
+def _get_local_asset_packs_index() -> AvailableAssetPacksIndex | None:
+    """If possible, loads the available asset packs index from the local file and returns it."""
+    if not os.path.isfile(INDEX_LOCAL_FILE_PATH):
+        return None
+
+    with open(INDEX_LOCAL_FILE_PATH) as f:
+        index_json = json.load(f)
+        return AvailableAssetPacksIndex.from_dict(index_json)
+
+
+def _download_asset_packs_index(
     timeout: float | None = None,
-) -> list[AvailableAssetPackMetadata]:
-    """Returns a list of available asset packs, downloading the index file if necessary."""
+    etag: str | None = None,
+) -> AvailableAssetPacksIndex | None:
+    """If possible, downloads the available asset packs index from the remote server and returns it"""
     if not bpy.app.online_access:
-        return []
-    ret = []
-    update_needed = False
-    if not os.path.exists(INDEX_LOCAL_FILE_PATH):
-        logger.info(
-            f"Local index file {INDEX_LOCAL_FILE_PATH} does not exist, downloading from {INDEX_REMOTE_URL}."
-        )
-        update_needed = True
-    else:
-        local_mtime = polib.utils_bpy.get_local_file_last_modified_utc(INDEX_LOCAL_FILE_PATH)
-        remote_mtime = polib.utils_bpy.get_remote_file_last_modified_utc(
-            INDEX_REMOTE_URL, timeout=timeout
-        )
-        if remote_mtime is None:
-            return []
-        if remote_mtime > local_mtime:
-            logger.info(
-                f"Remote index '{INDEX_REMOTE_URL}' is newer than local file '{INDEX_LOCAL_FILE_PATH}', "
-                "downloading new version."
-            )
-            update_needed = True
+        return None
+
+    logger.info(f"Retrieving available asset packs index from {INDEX_REMOTE_URL}.")
 
     raw_data = None
-    if update_needed:
-        if not os.path.exists(WORK_FOLDER):
-            os.makedirs(WORK_FOLDER, exist_ok=True)
-        try:
-            with urllib.request.urlopen(INDEX_REMOTE_URL, timeout=timeout) as response:
-                raw_data = response.read()
-                with open(INDEX_LOCAL_FILE_PATH, "wb") as f:
-                    f.write(raw_data)
-                indexed_asset_packs = json.loads(raw_data)
-        except (urllib.error.HTTPError, urllib.error.URLError) as e:
-            logger.warning(f"Failed to download '{INDEX_REMOTE_URL}'. Reason: {e}")
-            return []
-
+    if not os.path.exists(WORK_FOLDER):
+        os.makedirs(WORK_FOLDER, exist_ok=True)
     try:
-        if raw_data is None:
-            with open(INDEX_LOCAL_FILE_PATH) as f:
-                indexed_asset_packs = json.load(f)
+        request = urllib.request.Request(INDEX_REMOTE_URL)
+        if etag is not None:
+            request.add_header("If-None-Match", etag)
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            raw_data = response.read()
+            with open(INDEX_LOCAL_FILE_PATH, "wb") as f:
+                f.write(raw_data)
+            return AvailableAssetPacksIndex.from_dict(json.loads(raw_data))
+    except Exception as e:
+        if isinstance(e, urllib.error.HTTPError) and e.code == 304:
+            logger.info("Available asset packs index not modified since last download.")
         else:
-            indexed_asset_packs = json.loads(raw_data)
-    except json.JSONDecodeError as e:
-        logger.exception("Downloaded index file has invalid JSON format")
-        return []
-
-    for asset_pack in indexed_asset_packs:
-        if not isinstance(asset_pack, dict):
-            logger.error("Asset pack metadata must be a dictionary")
-            continue
-        try:
-            metadata = AvailableAssetPackMetadata.from_dict(asset_pack)
-            ret.append(metadata)
-        except ValueError as e:
-            logger.exception(f"Invalid asset pack metadata: {e}")
-
-    return ret
+            logger.error(f"Failed to download '{INDEX_REMOTE_URL}'. Reason: {e}")
+        return None
 
 
 def _refresh_available_asset_packs() -> None:
-    """Populates the AVAILABLE_ASSET_PACKS list based on the remote index.json content.
+    """Populates the AVAILABLE_ASSET_PACKS list based on the available asset packs index.
 
-    Downloads and assigns the pack preview to 'pack_thumbnail_icon_manager'.
+    Once per day, a new index is downloaded from the API endpoint, otherwise the local index file is used.
+    Uses 'pack_thumbnail_icon_manager' for loading pack previews. If the version field in the downloaded index is newer than the local version,
+    previews are re-downloaded, otherwise the local previews are used.
     Clears AVAILABLE_ASSET_PACKS access methods caches.
     """
     if not bpy.app.online_access:
         return
-    # Avoid multiple asset registry refreshes manipulating the same list
+    # Avoid multiple asset registry refreshes manipulating the same asset packs list and the local index file at the same time.
     with available_pack_refresh_lock:
+        current_time = datetime.datetime.now(tz=datetime.timezone.utc)
+        etag = None
+        used_index = None
+
+        remote_index = None
+        local_index = _get_local_asset_packs_index()
+        if local_index is not None:
+            etag = f'"{local_index.version}"'
+            local_index_mtime = polib.utils_bpy.get_local_file_last_modified_utc(
+                INDEX_LOCAL_FILE_PATH
+            )
+            if (
+                local_index_mtime + datetime.timedelta(days=PACK_REFRESH_INTERVAL_DAYS)
+                > current_time
+            ):
+                logger.info("Using local available asset packs index.")
+                used_index = local_index
+        if used_index is None:
+            logger.info("Trying to download new available asset packs index.")
+            remote_index = _download_asset_packs_index(timeout=TIMEOUT_SECONDS, etag=etag)
+            if remote_index is not None:
+                used_index = remote_index
+
+        if used_index is None:
+            return
+
+        is_preview_update_needed = local_index is None or used_index.version > local_index.version
+
         AVAILABLE_ASSET_PACKS.clear()
-        for available_pack_metadata in _materialize_asset_packs_index():
+        for available_pack_metadata in used_index.items:
             if available_pack_metadata.icon_url is not None:
-                pack_thumbnail_icon_manager.request_preview_url(
-                    available_pack_metadata.icon_url,
-                    id_override=pack_thumbnail_icon_manager.preview_id_from_url(
-                        available_pack_metadata.icon_url
-                    ),
+                id_override = pack_thumbnail_icon_manager.preview_id_from_url(
+                    available_pack_metadata.icon_url
                 )
+                if is_preview_update_needed:
+                    pack_thumbnail_icon_manager.request_preview_url(
+                        available_pack_metadata.icon_url,
+                        id_override=id_override,
+                    )
+                else:
+                    basename = os.path.basename(available_pack_metadata.icon_url)
+                    full_path = os.path.join(
+                        pack_thumbnail_icon_manager.downloads_folder_path, basename
+                    )
+                    pack_thumbnail_icon_manager.add_preview_path(full_path, id_override=id_override)
             AVAILABLE_ASSET_PACKS.append(available_pack_metadata)
 
-    # Clear the cache once all new packs are updated.
-    get_available_pack_from_full_name.cache_clear()
+        # Clear the cache once all new packs are updated.
+        get_available_pack_from_full_name.cache_clear()
 
 
 @functools.lru_cache
@@ -263,7 +311,7 @@ def get_not_installed_available_asset_packs() -> list[AvailableAssetPackMetadata
 def refresh_available_asset_packs_background() -> None:
     """Refreshes the available asset packs in the background.
 
-    Populates the AVAILABLE_ASSET_PACKS list based on the remote index.json content in a background
+    Populates the AVAILABLE_ASSET_PACKS list based on the available asset packs index in a background
     thread.
     """
     threading.Thread(
@@ -312,7 +360,7 @@ class ShowAvailablePackInfo(bpy.types.Operator):
             for tag in pack_metadata.tags:
                 row.label(text=tag.capitalize())
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         available_pack_metadata = next(
             filter(lambda pack: pack.id_ == self.pack_id, AVAILABLE_ASSET_PACKS), None
         )
@@ -334,7 +382,8 @@ MODULE_CLASSES.append(ShowAvailablePackInfo)
 
 
 def draw_available_asset_packs(
-    context: bpy.types.Context, layout: bpy.types.UILayout, icon_scale: float = 6.0
+    layout: bpy.types.UILayout,
+    icon_scale: float = 6.0,
 ) -> None:
     grid_flow = layout.grid_flow(
         row_major=True,

@@ -55,6 +55,9 @@ BQ_VINE_GENERATOR_NODE_GROUP_NAME = "bq_Vine_Generator"
 BQ_CURVES_SCATTER_NODE_GROUP_NAME = "bq_Curve_Scatter"
 BQ_ANIM_LIBRARY_BLEND = "bq_Library_Animation_Data.blend"
 
+# humaniq constants
+HQ_CROWD_GENERATOR_NODE_GROUP_NAME = "hq_Curve_Crowd"
+
 # traffiq constants
 TQ_MODIFIER_LIBRARY_BLEND = "tq_Library_Modifiers.blend"
 TQ_EMERGENCY_LIGHTS_NODE_GROUP_NAME = "tq_Emergency_Lights"

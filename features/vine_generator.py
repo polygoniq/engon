@@ -58,7 +58,7 @@ class VineGeneratorPanel(
             emboss=False,
         ).engon_feature_name = self.__class__.feature_name
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout: bpy.types.UILayout = self.layout
         self.conditionally_draw_warning_no_adjustable_active_object(context, layout)
 
@@ -92,7 +92,7 @@ class VineGeneratorGeneralAdjustmentsPanel(
         socket_names_drawn_first=["Target Object", "Target Collection"],
     )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         self.draw_active_object_modifiers_node_group_inputs_template(
             self.layout,
             context,
@@ -125,7 +125,7 @@ class VineGeneratorStemAdjustmentsPanel(
         ],
     )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         self.draw_active_object_modifiers_node_group_inputs_template(
             self.layout,
             context,
@@ -163,7 +163,7 @@ class VineGeneratorLeavesAdjustmentsPanel(
         ],
     )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         self.draw_active_object_modifiers_node_group_inputs_template(
             self.layout,
             context,

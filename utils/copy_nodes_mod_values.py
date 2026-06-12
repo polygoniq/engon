@@ -23,6 +23,9 @@ import logging
 import typing
 from .. import polib
 
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -57,7 +60,7 @@ class CopyGeonodesModifierValues(bpy.types.Operator):
         min=0,
     )
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         src_object = bpy.data.objects.get(self.src_name)
         dst_object = bpy.data.objects.get(self.dst_name)
         if src_object is None or dst_object is None:

@@ -109,7 +109,7 @@ class LicensePlatesGeneratorPanel(
             emboss=False,
         ).engon_feature_name = self.__class__.feature_name
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout: bpy.types.UILayout = self.layout
         self.conditionally_draw_warning_no_adjustable_assets(
             LicensePlatesGeneratorPanelMixin.get_possible_assets(context),
@@ -133,7 +133,7 @@ class LicensePlatesAdjustmentsPanelMixin(
     )
 
     @classmethod
-    def poll(cls, context: bpy.types.Context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         filtered_assets = list(cls.get_multiedit_adjustable_assets(context))
         return len(filtered_assets) > 0
 
@@ -141,7 +141,7 @@ class LicensePlatesAdjustmentsPanelMixin(
         # We do not want to see the select adjustable objects button in the secondary panel.
         return None
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         # We need to call self.__class__ to use a class-specific filter_ function
         filtered_assets = list(self.__class__.get_multiedit_adjustable_assets(context))
         if not 0 < len(filtered_assets) < 2:
@@ -162,9 +162,15 @@ class FrontPlatePanel(
     bl_idname = "VIEW_3D_PT_engon_license_plates_generator_front"
     bl_label = "Front Plate"
 
-    filter_ = lambda obj: obj.parent is not None and polib.utils_bpy.remove_object_duplicate_suffix(
-        obj.parent.name
-    ).endswith(FRONT_PLATE_PARENT_NAME_SUFFIX)
+    filter_ = (
+        lambda obj: obj.parent is not None
+        and polib.utils_bpy.remove_object_duplicate_suffix(obj.parent.name).endswith(
+            FRONT_PLATE_PARENT_NAME_SUFFIX
+        )
+        or polib.utils_bpy.remove_object_duplicate_suffix(obj.name).endswith(
+            FRONT_PLATE_PARENT_NAME_SUFFIX
+        )
+    )
 
     def draw(self, context: bpy.types.Context) -> None:
         if context.active_object is None:
@@ -209,9 +215,15 @@ class BackPlatePanel(
     bl_idname = "VIEW_3D_PT_engon_license_plates_generator_back"
     bl_label = "Back Plate"
 
-    filter_ = lambda obj: obj.parent is not None and polib.utils_bpy.remove_object_duplicate_suffix(
-        obj.parent.name
-    ).endswith(BACK_PLATE_PARENT_NAME_SUFFIX)
+    filter_ = (
+        lambda obj: obj.parent is not None
+        and polib.utils_bpy.remove_object_duplicate_suffix(obj.parent.name).endswith(
+            BACK_PLATE_PARENT_NAME_SUFFIX
+        )
+        or polib.utils_bpy.remove_object_duplicate_suffix(obj.name).endswith(
+            BACK_PLATE_PARENT_NAME_SUFFIX
+        )
+    )
 
     def draw(self, context: bpy.types.Context) -> None:
         if context.active_object is None:
@@ -261,6 +273,12 @@ class GenericPlatePanel(
             FRONT_PLATE_PARENT_NAME_SUFFIX
         )
         or polib.utils_bpy.remove_object_duplicate_suffix(obj.parent.name).endswith(
+            BACK_PLATE_PARENT_NAME_SUFFIX
+        )
+        or polib.utils_bpy.remove_object_duplicate_suffix(obj.name).endswith(
+            FRONT_PLATE_PARENT_NAME_SUFFIX
+        )
+        or polib.utils_bpy.remove_object_duplicate_suffix(obj.name).endswith(
             BACK_PLATE_PARENT_NAME_SUFFIX
         )
     )

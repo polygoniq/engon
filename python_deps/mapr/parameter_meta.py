@@ -1,7 +1,7 @@
 # copyright (c) 2018- polygoniq xyz s.r.o.
 
 import typing
-import mathutils
+import functools
 from . import asset
 
 
@@ -32,17 +32,22 @@ class TextParameterMeta:
 
 
 class VectorParameterMeta:
-    def __init__(self, name: str, value: mathutils.Vector):
+    def __init__(self, name: str, value: typing.Sequence[float]):
         self.name: str = name
         self.length = len(value)
-        self.min_ = value
-        self.max_ = value
+        self.min_: list[float] = list(value)
+        self.max_: list[float] = list(value)
 
-    def register_value(self, value: mathutils.Vector) -> None:
+    def register_value(self, value: typing.Sequence[float]) -> None:
         # The vector length should be the same for all values of one parameter
         assert len(value) == self.length
-        self.min_ = mathutils.Vector(min(value[i], self.min_[i]) for i in range(self.length))
-        self.max_ = mathutils.Vector(max(value[i], self.max_[i]) for i in range(self.length))
+        min_, max_ = self.min_, self.max_
+        for i in range(self.length):
+            v = value[i]
+            if v < min_[i]:
+                min_[i] = v
+            elif v > max_[i]:
+                max_[i] = v
 
     def __repr__(self):
         return f"{self.name}: Length: {self.length} Min: {self.min_} Max: {self.max_}"
@@ -60,6 +65,13 @@ class LocationParameterMeta:
         return f"{self.name}"
 
 
+class ParameterRanges(typing.NamedTuple):
+    numeric: dict[str, NumericParameterMeta]
+    text: dict[str, TextParameterMeta]
+    vector: dict[str, VectorParameterMeta]
+    location: dict[str, LocationParameterMeta]
+
+
 class AssetParametersMeta:
     """Stores and provides meta (ranges, values, ...) information about parameters and tags.
 
@@ -68,54 +80,92 @@ class AssetParametersMeta:
     - 'num:width', 'num:image_count'
     - 'text:bpy.data.version'
     - 'tag:outdoor'
+
+    The unique parameter names and tags are constructed right away. The expensive per-parameter
+    metadata are constructed lazily on demand and cached.
     """
 
-    def __init__(self, assets: typing.Iterable[asset.Asset]):
-        self.numeric: dict[str, NumericParameterMeta] = {}
-        self.text: dict[str, TextParameterMeta] = {}
-        self.vector: dict[str, VectorParameterMeta] = {}
-        self.location: dict[str, LocationParameterMeta] = {}
-        self.unique_tags: set[str] = set()
-        self.unique_parameter_names: set[str] = set()
+    def __init__(self, assets: typing.Sequence[asset.Asset]):
+        # This references the original assets from DataView if it a tuple is passed in.
+        # If a list is passed in, we make a tuple copy to ensure immutability.
+        self._assets: tuple[asset.Asset, ...] = tuple(assets)
 
-        for asset_ in assets:
+        # Collect raw names first, then construct the unique names with prefixes.
+        # This way we don't have to check for the existence of the unique name in the loop and
+        # can just construct it directly as a set operation.
+        numeric_names: set[str] = set()
+        text_names: set[str] = set()
+        vector_names: set[str] = set()
+        location_names: set[str] = set()
+        tags: set[str] = set()
+        for asset_ in self._assets:
+            numeric_names.update(asset_.numeric_parameters)
+            text_names.update(asset_.text_parameters)
+            vector_names.update(asset_.vector_parameters)
+            location_names.update(asset_.location_parameters)
+            tags.update(asset_.tags)
+
+        self.unique_tags: set[str] = {f"tag:{t}" for t in tags}
+        self.unique_parameter_names: set[str] = set()
+        self.unique_parameter_names.update(f"num:{n}" for n in numeric_names)
+        self.unique_parameter_names.update(f"text:{n}" for n in text_names)
+        self.unique_parameter_names.update(f"vec:{n}" for n in vector_names)
+        self.unique_parameter_names.update(f"loc:{n}" for n in location_names)
+        self.unique_parameter_names.update(self.unique_tags)
+
+    @functools.cached_property
+    def _ranges(self) -> ParameterRanges:
+        numeric: dict[str, NumericParameterMeta] = {}
+        text: dict[str, TextParameterMeta] = {}
+        vector: dict[str, VectorParameterMeta] = {}
+        location: dict[str, LocationParameterMeta] = {}
+
+        for asset_ in self._assets:
             for param, value in asset_.numeric_parameters.items():
                 unique_name = f"num:{param}"
-                if unique_name not in self.numeric:
-                    self.numeric[unique_name] = NumericParameterMeta(unique_name, value)
+                if unique_name not in numeric:
+                    numeric[unique_name] = NumericParameterMeta(unique_name, value)
                 else:
-                    self.numeric[unique_name].register_value(value)
+                    numeric[unique_name].register_value(value)
 
             for param, value in asset_.text_parameters.items():
                 unique_name = f"text:{param}"
-                if unique_name not in self.text:
-                    self.text[unique_name] = TextParameterMeta(unique_name, value)
+                if unique_name not in text:
+                    text[unique_name] = TextParameterMeta(unique_name, value)
                 else:
-                    self.text[unique_name].register_value(value)
+                    text[unique_name].register_value(value)
 
             for param, value in asset_.vector_parameters.items():
                 unique_name = f"vec:{param}"
-                if unique_name not in self.vector:
-                    self.vector[unique_name] = VectorParameterMeta(
-                        unique_name, mathutils.Vector(value)
-                    )
+                if unique_name not in vector:
+                    vector[unique_name] = VectorParameterMeta(unique_name, value)
                 else:
-                    self.vector[unique_name].register_value(mathutils.Vector(value))
+                    vector[unique_name].register_value(value)
 
             for param, value in asset_.location_parameters.items():
                 unique_name = f"loc:{param}"
-                if unique_name not in self.location:
-                    self.location[unique_name] = LocationParameterMeta(unique_name, value)
+                if unique_name not in location:
+                    location[unique_name] = LocationParameterMeta(unique_name, value)
                 else:
-                    self.location[unique_name].register_value(value)
+                    location[unique_name].register_value(value)
 
-            self.unique_tags.update({f"tag:{t}" for t in asset_.tags})
+        return ParameterRanges(numeric, text, vector, location)
 
-        self.unique_parameter_names.update(self.text)
-        self.unique_parameter_names.update(self.numeric)
-        self.unique_parameter_names.update(self.vector)
-        self.unique_parameter_names.update(self.location)
-        self.unique_parameter_names.update(self.unique_tags)
+    @property
+    def numeric(self) -> dict[str, NumericParameterMeta]:
+        return self._ranges.numeric
+
+    @property
+    def text(self) -> dict[str, TextParameterMeta]:
+        return self._ranges.text
+
+    @property
+    def vector(self) -> dict[str, VectorParameterMeta]:
+        return self._ranges.vector
+
+    @property
+    def location(self) -> dict[str, LocationParameterMeta]:
+        return self._ranges.location
 
     def __repr__(self) -> str:
         import pprint

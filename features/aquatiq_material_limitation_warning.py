@@ -86,7 +86,7 @@ class AquatiqMaterialLimitationsPanel(feature_utils.EngonFeaturePanelMixin, bpy.
         return warnings
 
     @classmethod
-    def poll(cls, context: bpy.types.Context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         return (
             super().poll(context)
             and context.active_object is not None
@@ -113,7 +113,7 @@ class AquatiqMaterialLimitationsPanel(feature_utils.EngonFeaturePanelMixin, bpy.
         op.title = "Material limitations warning"
         op.icon = 'ERROR'
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         self.draw_material_limitations(self.layout, context.active_object)
 
 

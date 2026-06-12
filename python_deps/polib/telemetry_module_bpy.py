@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 # copyright (c) 2018- polygoniq xyz s.r.o.
 
+import hashlib
+
 import bpy
 import addon_utils
 import datetime
@@ -149,6 +151,31 @@ class Message:
         self.product = product
 
 
+# NOTE: Currently unused, but ready for future use if we want to send local logs to a remote server.
+class PrivateWrapper:
+    """Used to wrap private data such as object names or paths in a way
+    that can be recovered locally but is hidden when telemetry is sent remotely.
+
+    This allows more information to be used in local debugging without leaking
+    users scene data.
+    """
+
+    __slots__ = ("_value", "_private")
+
+    def __init__(self, value: typing.Any):
+        assert isinstance(value, str)
+        self._value = value
+        self._private = "private: " + hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+    def __str__(self) -> str:
+        return f"{self._value} -> {self._private}"
+
+    __repr__ = __str__
+
+    def to_json(self) -> dict:
+        return {"value": self._private}
+
+
 BOOTSTRAPPED = False
 BOOTSTRAP_LOCK = threading.Lock()
 SESSION: Session | None = None
@@ -172,6 +199,8 @@ class TelemetryJSONEncoder(json.JSONEncoder):
             altered_dict = obj.__dict__.copy()
             altered_dict["__class__"] = "telemetry.Message"
             return altered_dict
+        elif isinstance(obj, PrivateWrapper):
+            return obj.to_json()
 
         return json.JSONEncoder.default(self, obj)
 

@@ -36,6 +36,9 @@ from . import preferences
 from . import blend_maintenance
 from . import convert_selection
 
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -57,10 +60,10 @@ class SnapToGround(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         return context.mode == 'OBJECT' and len(context.selected_objects) > 0
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         # We have no way to know which objects are part of ground so we ray-cast all of them except
         # what's selected. The objects that the user wants to snap to ground are the selected objects.
         # Since we are going to be moving all of those we can't do self-collisions.
@@ -191,10 +194,10 @@ class RandomizeTransform(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
-    def poll(cls, context: bpy.types.Context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         return context.mode == 'OBJECT' and len(context.selected_objects) > 0
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         selected_objects_names = [obj.name for obj in context.selected_objects]
         logger.info(f"Working on selected objects: {selected_objects_names}")
         bpy.ops.object.randomize_transform(
@@ -220,10 +223,10 @@ class ResetTransform(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
-    def poll(cls, context: bpy.types.Context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         return context.mode == 'OBJECT' and len(context.selected_objects) > 0
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         selected_objects_names = [obj.name for obj in context.selected_objects]
         logger.info(f"Working on selected objects: {selected_objects_names}")
 
@@ -294,14 +297,16 @@ class SpreadObjects(bpy.types.Operator):
     )
 
     @classmethod
-    def poll(cls, context: bpy.types.Context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         # at least two objects required to do anything useful
         return len(context.selected_objects) >= 2
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         return context.window_manager.invoke_props_dialog(self, width=300)
 
-    def draw(self, context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
 
         row = layout.row(align=False)
@@ -320,7 +325,7 @@ class SpreadObjects(bpy.types.Operator):
             row = layout.row(align=False)
             row.prop(self, "objects_in_a_row", text="")
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         if self.distribution_type == self.DistributionType.LINE:
             row_size = len(context.selected_objects)
         elif self.distribution_type == self.DistributionType.ROWS:
@@ -376,6 +381,58 @@ class SpreadObjects(bpy.types.Operator):
 
 MODULE_CLASSES.append(SpreadObjects)
 
+INSTANCES_COLL_NAME = "Instances"
+INSTANCES_COLL_COLOR = 'COLOR_07'
+INSTANCE_EMPTY_SUFFIX = "_instance"
+COLLECTION_INSTANCE_SUFFIX = "_instance_collection"
+
+
+def setup_instance_collection_hierarchy(
+    context: bpy.types.Context,
+    target_collection: bpy.types.Collection,
+    parent_collections: list[bpy.types.Collection],
+    unlink_fn: typing.Callable[[bpy.types.Collection], None],
+    link_fn: typing.Callable[[bpy.types.Collection], None],
+) -> None:
+    """Setup collection hierarchy for object or collection instancing.
+
+    First we unlink the object/collection from its parent collections (instance empty will be linked there later).
+    Then we link the collection that we want to instance to instances_master_coll. The object/collection
+    is passed within the link/unlink function because the functions differ for objects and collections.
+    The target_collection is the collection that we want to instance.
+    """
+    for coll in parent_collections:
+        unlink_fn(coll)
+
+    instances_master_coll = polib.asset_pack_bpy.collection_get(context, INSTANCES_COLL_NAME)
+    instances_master_coll.color_tag = INSTANCES_COLL_COLOR
+    link_fn(instances_master_coll)
+
+    layer_collection = polib.asset_pack_bpy.find_layer_collection(
+        context.view_layer.layer_collection, target_collection
+    )
+    if layer_collection is not None:
+        layer_collection.exclude = True
+
+
+def setup_instance_empty(
+    context: bpy.types.Context,
+    empty: bpy.types.Object,
+    instance_collection: bpy.types.Collection,
+    parent_collections: list[bpy.types.Collection],
+) -> None:
+    """Setup an empty object as a collection instance with appropriate linking."""
+    assert empty.type == 'EMPTY'
+    empty.instance_collection = instance_collection
+    empty.instance_type = 'COLLECTION'
+    if len(parent_collections) > 0:
+        for coll in parent_collections:
+            coll.objects.link(empty)
+    else:
+        context.scene.collection.objects.link(empty)
+    empty.empty_display_size = hatchery.utils.get_empty_display_size(empty)
+    empty.select_set(True)
+
 
 @polib.log_helpers_bpy.logged_operator
 class MakeObjectsInstanced(bpy.types.Operator):
@@ -386,22 +443,12 @@ class MakeObjectsInstanced(bpy.types.Operator):
     )
     bl_options = {'UNDO', 'REGISTER'}
 
-    INSTANCES_COLL_NAME = "instances"
-    INSTANCES_COLL_COLOR = 'COLOR_07'
-
-    use_common_collection: bpy.props.BoolProperty(
-        name="Use Common Collection",
-        description="If True new instances are created in one common collection, otherwise active "
-        "collection is used",
-        default=True,
-    )
-
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         return (
             next(
                 filter(
-                    lambda obj: obj.type == 'MESH' and obj.data is not None,
+                    lambda obj: obj.data is not None,
                     context.selected_objects,
                 ),
                 None,
@@ -410,62 +457,149 @@ class MakeObjectsInstanced(bpy.types.Operator):
         )
 
     @polib.utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
-        mesh_data_obj_map: collections.defaultdict[bpy.types.Mesh, set[bpy.types.Object]] = (
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
+        data_obj_map: collections.defaultdict[bpy.types.ID, set[bpy.types.Object]] = (
             collections.defaultdict(set)
         )
 
         for obj in context.selected_objects:
-            if obj.type != 'MESH' or obj.data is None:
+            if obj.data is None:
                 continue
 
-            assert isinstance(obj.data, bpy.types.Mesh)
-            mesh_data_obj_map[obj.data].update({obj})
+            data_obj_map[obj.data].update({obj})
 
-        for mesh in mesh_data_obj_map:
-            obj_users = list(mesh_data_obj_map[mesh])
-            matrices = [o.matrix_world.copy() for o in obj_users]
+        for data in data_obj_map:
+            obj_users = list(data_obj_map[data])
+            # Capture per-object data before any modifications so each empty is placed
+            # into the collections its source object originally belonged to
+            matrices = {o: o.matrix_world.copy() for o in obj_users}
+            per_obj_collections = {o: list(o.users_collection) for o in obj_users}
 
             first_obj: bpy.types.Object = obj_users[0]
+            parent = first_obj.parent
+            children = first_obj.children
+            parent_collections = per_obj_collections[first_obj]
+
+            first_obj.parent = None
             # Reset first object transform with identity matrix
             first_obj.matrix_world = mathutils.Matrix()
-
-            for coll in first_obj.users_collection:
-                coll.objects.unlink(first_obj)
-
-            instance_coll = bpy.data.collections.new("Instance_" + mesh.name)
-
-            if self.use_common_collection:
-                instances_master_coll = polib.asset_pack_bpy.collection_get(
-                    context, self.INSTANCES_COLL_NAME
-                )
-                instances_master_coll.color_tag = self.INSTANCES_COLL_COLOR
-                instances_master_coll.children.link(instance_coll)
-            else:
-                context.scene.collection.children.link(instance_coll)
-
+            instance_coll = bpy.data.collections.new(data.name + COLLECTION_INSTANCE_SUFFIX)
             instance_coll.objects.link(first_obj)
-            layer_collection = polib.asset_pack_bpy.find_layer_collection(
-                context.view_layer.layer_collection, instance_coll
-            )
-            if layer_collection is not None:
-                layer_collection.exclude = True
 
-            for matrix in matrices:
-                empty: bpy.types.Object = bpy.data.objects.new(mesh.name, None)
-                empty.matrix_world = matrix
-                empty.instance_collection = instance_coll
-                empty.instance_type = 'COLLECTION'
-                context.scene.collection.objects.link(empty)
-                empty.select_set(True)
+            setup_instance_collection_hierarchy(
+                context,
+                instance_coll,
+                parent_collections,
+                lambda coll: coll.objects.unlink(first_obj),
+                lambda coll: coll.children.link(instance_coll),
+            )
+
+            for obj in obj_users:
+                empty: bpy.types.Object = bpy.data.objects.new(
+                    obj.name + INSTANCE_EMPTY_SUFFIX, None
+                )
+                empty.parent = parent
+                empty.matrix_world = matrices[obj]
+                for child in children:
+                    child_matrix = child.matrix_world.copy()
+                    child.parent = empty
+                    child.matrix_world = child_matrix
+                setup_instance_empty(context, empty, instance_coll, per_obj_collections[obj])
 
             for obj in obj_users[1:]:
                 bpy.data.objects.remove(obj)
 
+        logger.info(
+            f"Made objects '{', '.join(obj.name for obj in data_obj_map.keys())}' into collection instances"
+        )
         return {'FINISHED'}
 
 
 MODULE_CLASSES.append(MakeObjectsInstanced)
+
+
+@polib.log_helpers_bpy.logged_operator
+class MakeCollectionsInstanced(bpy.types.Operator):
+    bl_idname = "engon.tools_make_collections_instances"
+    bl_label = "Make Collections Instanced"
+    bl_description = "Makes selected collections instanced using collection instances"
+    bl_options = {'UNDO', 'REGISTER'}
+
+    @classmethod
+    def _get_target_collections(cls, context: bpy.types.Context) -> list[bpy.types.Collection]:
+        """Return all valid collections to instance from the current selection."""
+        scene_coll = context.scene.collection
+
+        def is_valid(coll: bpy.types.Collection) -> bool:
+            return (
+                coll != scene_coll
+                and coll.name != INSTANCES_COLL_NAME
+                and len(coll.all_objects) > 0
+            )
+
+        for area in bpy.context.screen.areas:
+            if area.type == 'OUTLINER':
+                for region in area.regions:
+                    if region.type == 'WINDOW':
+                        with bpy.context.temp_override(area=area, region=region):
+                            return [
+                                id_block
+                                for id_block in bpy.context.selected_ids
+                                if isinstance(id_block, bpy.types.Collection) and is_valid(id_block)
+                            ]
+        return []
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        return len(cls._get_target_collections(context)) > 0
+
+    @polib.utils_bpy.blender_cursor('WAIT')
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
+        target_collections = self._get_target_collections(context)
+        for target_coll in target_collections:
+            parent_collections = [
+                coll
+                for coll in list(bpy.data.collections) + [context.scene.collection]
+                if target_coll.name in coll.children
+            ]
+
+            setup_instance_collection_hierarchy(
+                context,
+                target_coll,
+                parent_collections,
+                lambda coll: coll.children.unlink(target_coll),
+                lambda coll: coll.children.link(target_coll),
+            )
+
+            # Calculate place for the instance empty. It should be at the center of the bottom plane of the bounding box.
+            bbox = hatchery.bounding_box.BoundingBox()
+            for obj in target_coll.all_objects:
+                bbox.extend_by_object(obj)
+
+            if bbox.is_valid():
+                bbox_center = bbox.get_center(world=True)
+                bbox_min = bbox.get_min(world=True)
+                empty_location = mathutils.Vector((bbox_center.x, bbox_center.y, bbox_min.z))
+                offset = empty_location
+            else:
+                empty_location = mathutils.Vector((0.0, 0.0, 0.0))
+                offset = mathutils.Vector((0.0, 0.0, 0.0))
+
+            for obj in target_coll.all_objects:
+                obj.matrix_world.translation -= offset
+
+            empty: bpy.types.Object = bpy.data.objects.new(
+                target_coll.name + INSTANCE_EMPTY_SUFFIX, None
+            )
+            empty.location = empty_location
+            setup_instance_empty(context, empty, target_coll, parent_collections)
+
+            target_coll.name = target_coll.name + COLLECTION_INSTANCE_SUFFIX
+            logger.info(f"Made collection '{target_coll.name}' into a collection instance")
+        return {'FINISHED'}
+
+
+MODULE_CLASSES.append(MakeCollectionsInstanced)
 
 
 @polib.log_helpers_bpy.logged_operator
@@ -495,11 +629,55 @@ class GroupObjects(bpy.types.Operator):
         default=False,
     )
 
+    children_handling: bpy.props.EnumProperty(
+        name="Handle Non-Selected Children",
+        description="What to do with children of selected objects that are not selected",
+        items=[
+            (
+                'INCLUDE',
+                'Include in selection',
+                'Include non-selected children into the grouping and bounding box',
+            ),
+            ('UNPARENT', 'Unparent non-selected', 'Unparent non-selected children before grouping'),
+        ],
+        default='INCLUDE',
+    )
+
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         return len(context.selected_objects) > 0
 
-    def execute(self, context: bpy.types.Context):
+    def get_unselected_children(self, context: bpy.types.Context) -> set[bpy.types.Object]:
+        unselected_children = set()
+        for obj in context.selected_objects:
+            for child in obj.children_recursive:
+                if child.select_get() is False:
+                    unselected_children.add(child)
+        return unselected_children
+
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
+        unselected_children = self.get_unselected_children(context)
+
+        if len(unselected_children) == 0:
+            return self.execute(context)
+        return context.window_manager.invoke_props_dialog(self, width=420)
+
+    def draw(self, context: bpy.types.Context) -> None:
+        layout = self.layout
+        count = len(self.get_unselected_children(context))
+
+        if count > 0:
+            layout.label(
+                text=f"Selected objects have {count} child object(s) that are not selected",
+                icon='INFO',
+            )
+            layout.separator()
+            layout.label(text="Choose how to handle these objects when grouping:")
+        layout.prop(self, "children_handling", expand=True)
+
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         assert len(context.selected_objects) > 0
 
         # We need to force-update matrix world of all selected objects
@@ -513,9 +691,23 @@ class GroupObjects(bpy.types.Operator):
             bbox_rot = mathutils.Quaternion()
             bbox_matrix = mathutils.Matrix.Identity(4)
 
+        selected_objects = context.selected_objects.copy()
+        unselected_children = self.get_unselected_children(context)
+        if len(unselected_children) > 0:
+            for child_obj in unselected_children:
+                if self.children_handling == 'INCLUDE':
+                    selected_objects.append(child_obj)
+                elif (
+                    self.children_handling == 'UNPARENT'
+                    and child_obj.parent in context.selected_objects
+                ):
+                    world_mat = child_obj.matrix_world.copy()
+                    child_obj.parent = None
+                    child_obj.matrix_world = world_mat
+
         bbox = hatchery.bounding_box.BoundingBox(bbox_matrix)
         object_filter = lambda o: o.type == 'MESH' if self.only_mesh else lambda o: True
-        for obj in context.selected_objects:
+        for obj in selected_objects:
             bbox.extend_by_object(obj, object_filter=object_filter)
 
         bbox_center = bbox.get_center(world=True)
@@ -540,21 +732,24 @@ class GroupObjects(bpy.types.Operator):
 
         bbox_obj.display_type = 'BOUNDS'
 
-        ancestors = polib.asset_pack_bpy.filter_out_descendants_from_objects(
-            context.selected_objects
-        )
+        ancestors = polib.asset_pack_bpy.filter_out_descendants_from_objects(selected_objects)
 
+        bpy.ops.object.select_all(action="DESELECT")
+        for obj in ancestors:
+            obj.select_set(True)
+        context.view_layer.objects.active = bbox_obj
         # NOTE: Typically using an operator is not desired,
         # but in this case the parent_set operator handles for us complicated transformations
         # and edge cases in existing parenting relations of ancestors
-        with context.temp_override(
-            selected_objects=ancestors, active_object=bbox_obj, object=bbox_obj
-        ):
-            bpy.ops.object.parent_set(type='OBJECT', keep_transform=True)
+        bpy.ops.object.parent_set(type='OBJECT', keep_transform=True)
+        scene_col = context.scene.collection
+        for child in bbox_obj.children_recursive:
+            if scene_col not in child.users_collection:
+                scene_col.objects.link(child)
 
-        context.view_layer.objects.active = bbox_obj
+        bpy.ops.object.select_all(action="DESELECT")
         bbox_obj.select_set(True)
-        surrounding_object_names = ", ".join(o.name for o in context.selected_objects)
+        surrounding_object_names = ", ".join(o.name for o in selected_objects)
         logger.info(f"Bounding box surrounding objects {surrounding_object_names} created")
         return {'FINISHED'}
 
@@ -593,7 +788,7 @@ class EngonPanel(EngonPanelMixin, bpy.types.Panel):
             master_row.row(), __package__, rel_url="panels/engon/panel_overview"
         )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         polib.ui_bpy.draw_conflicting_addons(
             self.layout, __package__, preferences.CONFLICTING_ADDONS
         )
@@ -642,6 +837,7 @@ class EngonPanel(EngonPanelMixin, bpy.types.Panel):
         col.label(text="Object tools:")
         col.operator(SpreadObjects.bl_idname, icon='IMGDISPLAY')
         col.operator(MakeObjectsInstanced.bl_idname, icon='OUTLINER_OB_GROUP_INSTANCE')
+        col.operator(MakeCollectionsInstanced.bl_idname, icon='COLLECTION_NEW')
         col.operator(GroupObjects.bl_idname, icon='SELECT_SET')
 
 
@@ -660,7 +856,7 @@ class MaintenancePanel(EngonPanelMixin, bpy.types.Panel):
     def draw_header(self, context: bpy.types.Context):
         self.layout.label(text="", icon='BLENDER')
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         col = layout.column(align=True)
         col.operator(blend_maintenance.migrator.RemoveDuplicates.bl_idname, icon='FULLSCREEN_EXIT')

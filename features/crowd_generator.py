@@ -33,28 +33,28 @@ MODULE_CLASSES: list[type] = []
 
 
 @feature_utils.register_feature
-class CurveScatterPanelMixin(feature_utils.GeonodesAssetFeatureControlPanelMixin):
-    feature_name = "curve_scatter"
-    node_group_name = asset_helpers.BQ_CURVES_SCATTER_NODE_GROUP_NAME
+class CrowdGeneratorPanelMixin(feature_utils.GeonodesAssetFeatureControlPanelMixin):
+    feature_name = "crowd_generator"
+    node_group_name = asset_helpers.HQ_CROWD_GENERATOR_NODE_GROUP_NAME
 
 
 @polib.log_helpers_bpy.logged_panel
-class CurveScatterPanel(
-    CurveScatterPanelMixin,
+class CrowdGeneratorPanel(
+    CrowdGeneratorPanelMixin,
     bpy.types.Panel,
 ):
-    bl_idname = "VIEW_3D_PT_engon_curve_scatter"
-    bl_parent_id = asset_pack_panels.BotaniqPanel.bl_idname
-    bl_label = "Curve Scatter"
+    bl_idname = "VIEW_3D_PT_engon_crowd_generator"
+    bl_parent_id = asset_pack_panels.HumaniqPanel.bl_idname
+    bl_label = "Crowd Generator"
     bl_options = {'DEFAULT_CLOSED'}
 
     template = polib.node_utils_bpy.NodeSocketsDrawTemplate(
-        asset_helpers.BQ_CURVES_SCATTER_NODE_GROUP_NAME,
+        asset_helpers.HQ_CROWD_GENERATOR_NODE_GROUP_NAME,
     )
 
     @classmethod
     def get_feature_icon(cls) -> str:
-        return 'OUTLINER_DATA_CURVES'
+        return 'COMMUNITY'
 
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon=self.get_feature_icon())
@@ -74,11 +74,11 @@ class CurveScatterPanel(
         self.draw_active_object_modifiers_node_group_inputs_template(
             self.layout,
             context,
-            CurveScatterPanel.template,
+            CrowdGeneratorPanel.template,
         )
 
 
-MODULE_CLASSES.append(CurveScatterPanel)
+MODULE_CLASSES.append(CrowdGeneratorPanel)
 
 
 def register():

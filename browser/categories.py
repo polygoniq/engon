@@ -26,6 +26,9 @@ from . import filters
 from . import utils
 from .. import asset_registry
 
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -50,7 +53,7 @@ class MAPR_BrowserEnterCategory(bpy.types.Operator):
     def enter_category(context: bpy.types.Context, category: str):
         filters.get_filters().query_and_reconstruct(category)
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         MAPR_BrowserEnterCategory.enter_category(context, self.category_id)
         return {'FINISHED'}
 
@@ -194,7 +197,7 @@ class ExpandCategory(bpy.types.Operator):
         options={'HIDDEN'},
     )
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         get_category_navigation(context).toggle_expand_category(self.category_id)
         return {'FINISHED'}
 

@@ -7,7 +7,6 @@ import os
 import urllib.request
 import urllib.error
 import logging
-import typing
 
 from . import utils_bpy
 

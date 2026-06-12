@@ -49,6 +49,8 @@ from . import vine_generator
 from . import river_generator
 from . import rain_generator
 
+from . import crowd_generator
+
 from . import frame_generator
 
 from . import feature_pie_menu
@@ -85,6 +87,8 @@ def register():
     river_generator.register()
     rain_generator.register()
 
+    crowd_generator.register()
+
     frame_generator.register()
 
     feature_pie_menu.register()
@@ -94,6 +98,7 @@ def unregister():
     feature_pie_menu.unregister()
 
     frame_generator.unregister()
+    crowd_generator.unregister()
     rain_generator.unregister()
     river_generator.unregister()
     vine_generator.unregister()

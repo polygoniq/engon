@@ -139,7 +139,7 @@ def find_nodes_by_bl_idname(
     for node in nodes:
         if node.bl_idname == bl_idname:
             yield node
-        if recursive and node.node_tree is not None:
+        if recursive and hasattr(node, "node_tree") and node.node_tree is not None:
             yield from find_nodes_by_bl_idname(node.node_tree.nodes, bl_idname)
 
 
@@ -589,15 +589,29 @@ def draw_node_inputs_filtered(
             layout.row().prop(input_, "default_value", text=input_.name)
 
 
+def _get_mod_input_prop_target(
+    mod: bpy.types.NodesModifier, identifier: str
+) -> tuple[bpy.types.bpy_struct, str]:
+    """Returns (data, data_path) for layout.prop/prop_search"""
+    if bpy.app.version >= (5, 2, 0):
+        # Blender 5.2+: geo nodes modifier inputs live in mod.properties.inputs and are accessed as attributes
+        # Values of inputs are stored in the value attribute of the input
+        input_ = getattr(mod.properties.inputs, identifier)
+        return input_, "value"
+
+    return mod, f'["{identifier}"]'
+
+
 def draw_modifier_input_socket(
     layout: bpy.types.UILayout,
     mod: bpy.types.NodesModifier,
     input_: bpy.types.NodeTreeInterfaceSocket,
 ):
+    data, data_path = _get_mod_input_prop_target(mod, input_.identifier)
     if get_socket_type(input_) == 'NodeSocketObject':
         layout.row().prop_search(
-            mod,
-            f"[\"{input_.identifier}\"]",
+            data,
+            data_path,
             bpy.data,
             "objects",
             text=input_.name,
@@ -605,8 +619,8 @@ def draw_modifier_input_socket(
         )
     elif get_socket_type(input_) == 'NodeSocketMaterial':
         layout.row().prop_search(
-            mod,
-            f"[\"{input_.identifier}\"]",
+            data,
+            data_path,
             bpy.data,
             "materials",
             text=input_.name,
@@ -614,15 +628,15 @@ def draw_modifier_input_socket(
         )
     elif get_socket_type(input_) == 'NodeSocketCollection':
         layout.row().prop_search(
-            mod,
-            f"[\"{input_.identifier}\"]",
+            data,
+            data_path,
             bpy.data,
             "collections",
             text=input_.name,
             icon='OUTLINER_COLLECTION',
         )
     else:
-        layout.row().prop(mod, f"[\"{input_.identifier}\"]", text=input_.name)
+        layout.row().prop(data, data_path, text=input_.name)
 
 
 def draw_modifier_input_panel(

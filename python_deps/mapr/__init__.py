@@ -18,7 +18,6 @@ from . import local_json_provider
 from . import parameter_meta
 from . import query
 
-
 # fake bl_info so that this gets picked up by vscode blender integration
 bl_info = {
     "name": "mapr",

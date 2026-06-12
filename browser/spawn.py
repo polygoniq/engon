@@ -33,6 +33,9 @@ from .. import preferences
 from .. import asset_registry
 from .. import asset_helpers
 
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 SPAWN_ALL_DISPLAYED_ASSETS_WARNING_LIMIT = 30
@@ -76,7 +79,8 @@ class MAPR_SpawnAssetBase(bpy.types.Operator):
                 spawn_options.target_objects = set()
             if isinstance(spawn_options, hatchery.spawn.SceneSpawnOptions):
                 spawn_options.activate_spawned = False
-
+            if isinstance(spawn_options, hatchery.spawn.ModelSpawnOptions):
+                spawn_options.make_active = True
             # TODO: We use MAPR_SpawnAssetBase instead of self here, because of how the
             # MAPR_SpawnAllDisplayed operator is implemented out of the hierarchy, this is not ideal.
             MAPR_SpawnAssetBase._spawn(self, context, asset, spawn_options)
@@ -127,7 +131,9 @@ class MAPR_SpawnSingleAssetBase(MAPR_SpawnAssetBase):
         box.label(text=str(suggestion), icon='QUESTION')
         box.label(text="Or adjust your spawning options.", icon='OPTIONS')
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         prefs = preferences.prefs_utils.get_preferences(context).browser_preferences
         asset_provider = asset_registry.instance.master_asset_provider
         asset = asset_provider.get_asset(self.asset_id)
@@ -157,7 +163,7 @@ class MAPR_BrowserMainAssetAction(MAPR_SpawnSingleAssetBase):
         return super().description(context, props) + ". Hold 'SHIFT' or 'CTRL' to select the asset"
 
     @polib.utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         prefs = preferences.prefs_utils.get_preferences(context).browser_preferences
         asset = self._get_asset()
         if asset is None:
@@ -172,6 +178,8 @@ class MAPR_BrowserMainAssetAction(MAPR_SpawnSingleAssetBase):
             return {'CANCELLED'}
 
         spawn_options = prefs.spawn_options.get_spawn_options(asset, context)
+        if isinstance(spawn_options, hatchery.spawn.ModelSpawnOptions):
+            spawn_options.make_active = True
 
         self._spawn(context, asset, spawn_options)
 
@@ -188,7 +196,9 @@ class MAPR_BrowserMainAssetAction(MAPR_SpawnSingleAssetBase):
 
         return {'FINISHED'}
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         if event.shift or event.ctrl:
             # Select the asset (range)
             return self._handle_selection(event)
@@ -241,7 +251,9 @@ class MAPR_BrowserSpawnDisplayed(bpy.types.Operator):
     bl_label = "Spawn Displayed"
     bl_description = "Spawn all currently displayed assets"
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         if len(filters.asset_repository.current_assets) > SPAWN_ALL_DISPLAYED_ASSETS_WARNING_LIMIT:
             return context.window_manager.invoke_props_dialog(self)
         else:
@@ -254,7 +266,7 @@ class MAPR_BrowserSpawnDisplayed(bpy.types.Operator):
         )
 
     @polib.utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         prefs = preferences.prefs_utils.get_preferences(context).browser_preferences
         assets = filters.asset_repository.current_assets
         prev_objects = set(bpy.context.selectable_objects)
@@ -286,6 +298,7 @@ class MAPR_BrowserDrawGeometryNodesAsset(MAPR_SpawnSingleAssetBase):
     bl_label = "Draw Geometry Nodes"
 
     draw_2d_handler_ref = None
+    ui_layout = None
     is_running = False
 
     @classmethod
@@ -305,6 +318,40 @@ class MAPR_BrowserDrawGeometryNodesAsset(MAPR_SpawnSingleAssetBase):
         self.original_tool_idname: str | None = None
         self.original_curve_paint_depth_mode: str | None = None
         self.original_curve_paint_surface_offset: float | None = None
+
+        if type(self).ui_layout is None:
+            type(self)._init_ui_layout()
+
+    @classmethod
+    def _init_ui_layout(cls) -> None:
+        ui = polib.pq_render_bpy.ui_bpy
+        styles = polib.pq_render_bpy.styles
+        comp = polib.pq_render_bpy.components_bpy
+
+        MB = comp.MouseButton
+        Mouse = comp.InputCombo.Mouse
+        Key = comp.InputCombo.Key
+
+        cls.ui_layout = ui.RootFixed(
+            [
+                ui.Flex(
+                    style=styles.StyleFlex(
+                        anchor=styles.Anchor.BOTTOM_LEFT,
+                        width=styles.SizeMode.FULL,
+                        padding=(20, 10),
+                        gap=30,
+                        justify_content=styles.JustifyContent.CENTER,
+                    ),
+                    children=[
+                        comp.InputCombo("Draw", [Mouse(MB.LEFT)]),
+                        comp.InputCombo(
+                            "Exit", [Key(polib.pq_render_bpy.components_bpy.ESCAPE_KEY)]
+                        ),
+                    ],
+                )
+            ],
+            avoid_ui_region_overlap=True,
+        )
 
     @staticmethod
     def remove_draw_handler() -> None:
@@ -346,19 +393,15 @@ class MAPR_BrowserDrawGeometryNodesAsset(MAPR_SpawnSingleAssetBase):
         MAPR_BrowserDrawGeometryNodesAsset.is_running = False
 
     def draw_px(self):
-        ui_scale = bpy.context.preferences.system.ui_scale
-        half_width = bpy.context.region.width / 2.0
-
-        polib.render_bpy.mouse_info(half_width - 120 * ui_scale / 2, 20, "Draw", left_click=True)
-        polib.render_bpy.key_info(
-            half_width + 20 * ui_scale, 20, polib.render_bpy.ESCAPE_KEY, "Exit"
-        )
+        cls = type(self)
+        assert cls.ui_layout is not None
+        cls.ui_layout.draw()
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         return not MAPR_BrowserDrawGeometryNodesAsset.is_running
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         prefs = preferences.prefs_utils.get_preferences(context).browser_preferences
         # We spawn the container object to spawn all modifiers and dependencies with it.
         # Then we clear the data (currently splines, mesh) so the object data is empty, and
@@ -426,7 +469,9 @@ class MAPR_BrowserDrawGeometryNodesAsset(MAPR_SpawnSingleAssetBase):
         return {'FINISHED'}
 
     @polib.utils_bpy.safe_modal(on_exception=_cleanup)
-    def modal(self, context: bpy.types.Context, event: bpy.types.Event):
+    def modal(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         if event.type == 'ESC':
             self._cleanup(context)
             return {'FINISHED'}
@@ -441,7 +486,9 @@ class MAPR_BrowserDrawGeometryNodesAsset(MAPR_SpawnSingleAssetBase):
     def cancel(self, context: bpy.types.Context) -> None:
         self._cleanup(context)
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         # Setup the draw mode
         invoke_result = super().invoke(context, event)
         if invoke_result != {'FINISHED'}:
@@ -478,7 +525,7 @@ class MAPR_BrowserSpawnModelIntoParticleSystem(MAPR_SpawnSingleAssetBase):
         return f"Spawn model '{asset.title}' into active particle system"
 
     @classmethod
-    def poll(cls, context: bpy.types.Context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         return (
             asset_helpers.has_active_object_with_particle_system(context)
             and context.active_object.particle_systems.active.settings.instance_collection
@@ -486,7 +533,7 @@ class MAPR_BrowserSpawnModelIntoParticleSystem(MAPR_SpawnSingleAssetBase):
         )
 
     @polib.utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         prefs = preferences.prefs_utils.get_preferences(context).browser_preferences
         asset = self._get_asset()
         if asset is None:
@@ -542,6 +589,11 @@ class MAPR_BrowserSpawnModelIntoParticleSystem(MAPR_SpawnSingleAssetBase):
             instance_collection
         )
 
+        # Keep only active pps object selected
+        for obj in context.selected_objects:
+            obj.select_set(False)
+        context.active_object.select_set(True)
+
         return {'FINISHED'}
 
 
@@ -578,7 +630,7 @@ class MAPR_BrowserReplaceSelected(MAPR_SpawnSingleAssetBase):
         return len(cls.get_objects_to_replace(context)) > 0
 
     @polib.utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         prefs = preferences.prefs_utils.get_preferences(context).browser_preferences
         asset = self._get_asset()
         if asset is None:
@@ -678,7 +730,7 @@ class MAPR_BrowserReplaceActiveMaterials(MAPR_SpawnSingleAssetBase):
         return len(cls.get_materials_to_replace(context)) > 0
 
     @polib.utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         prefs = preferences.prefs_utils.get_preferences(context).browser_preferences
         asset = self._get_asset()
         if asset is None:
@@ -735,7 +787,7 @@ class MAPR_BrowserSelectedAssetsOperatorBase(MAPR_SpawnAssetBase):
     """Base class for manipulating selected assets from engon browser."""
 
     @classmethod
-    def poll(cls, context: bpy.types.Context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         return state.get_browser_state(context).is_at_least_one_asset_selected()
 
 
@@ -746,10 +798,16 @@ class MAPR_BrowserSpawnSelected(MAPR_BrowserSelectedAssetsOperatorBase):
     bl_description = "Spawn all currently selected assets"
 
     @polib.utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
 
         assets = list(state.get_browser_state(context).selected_assets)
+        prev_objects = set(bpy.context.selectable_objects)
+
         self._spawn_multiple(context, assets)
+
+        spawned_objects = set(bpy.context.selectable_objects) - prev_objects
+        for obj in spawned_objects:
+            obj.select_set(True)
         self.report({'INFO'}, f"Spawned {len(assets)} asset(s)")
         return {'FINISHED'}
 
@@ -774,7 +832,7 @@ class MAPR_BrowserScatterSelected(MAPR_BrowserSelectedAssetsOperatorBase):
         )
 
     @polib.utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         selected_models = [
             asset
             for asset in state.get_browser_state(context).selected_assets
@@ -835,7 +893,7 @@ class MAPR_BrowserClickSelected(MAPR_BrowserSelectedAssetsOperatorBase):
         ).is_at_least_one_asset_of_type_selected(mapr.asset_data.AssetDataType.blender_model)
 
     @polib.utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         prefs = preferences.prefs_utils.get_preferences(context).browser_preferences
         selected_models = [
             asset
@@ -912,7 +970,7 @@ class SpawnOptionsPopoverPanel(bpy.types.Panel):
     bl_space_type = 'PREFERENCES'
     bl_region_type = 'HEADER'
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         prefs = preferences.prefs_utils.get_preferences(context)
         spawning_options = prefs.browser_preferences.spawn_options
         layout = self.layout
@@ -920,6 +978,7 @@ class SpawnOptionsPopoverPanel(bpy.types.Panel):
         col.label(text="Asset Spawn Options", icon='OPTIONS')
         col.prop(spawning_options, "remove_duplicates")
         col.prop(spawning_options, "make_editable")
+        col.prop(spawning_options, "debug_spawn_as_objects")
         col.separator()
 
         col.label(text="Model", icon='OBJECT_DATA')

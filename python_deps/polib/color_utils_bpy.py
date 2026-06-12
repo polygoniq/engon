@@ -6,6 +6,7 @@
 # adapted code from http://www.easyrgb.com/en/math.php
 import numpy
 import math
+import typing
 
 
 def RGB_to_XYZ(rgb: tuple[float, float, float]) -> tuple[float, float, float]:
@@ -146,10 +147,66 @@ def perceptual_color_distance(
     # distance can be theoretically uncapped, but values above 100 are considered extremely different
     cap = 100
     if distance > cap:
-        distance == cap
+        distance = cap
 
     return distance / cap
 
 
 def is_close_color(color1, color2):
     return all([math.isclose(c1, c2, abs_tol=0.001) for (c1, c2) in zip(color1, color2)])
+
+
+class Color:
+    """Yet another color class. Immutable color with explicit color space handling.
+
+    Use class methods to construct from a known color space.
+    """
+
+    __slots__ = ('_linear_rgb', '_srgb_rgb', '_alpha')
+
+    def __init__(self, linear_rgb: tuple[float, float, float], alpha: float) -> None:
+        object.__setattr__(self, '_linear_rgb', linear_rgb)
+        object.__setattr__(self, '_alpha', alpha)
+        r, g, b = linear_rgb
+        sr = 12.92 * r if r <= 0.0031308 else 1.055 * (r ** (1 / 2.4)) - 0.055
+        sg = 12.92 * g if g <= 0.0031308 else 1.055 * (g ** (1 / 2.4)) - 0.055
+        sb = 12.92 * b if b <= 0.0031308 else 1.055 * (b ** (1 / 2.4)) - 0.055
+        object.__setattr__(self, '_srgb_rgb', (sr, sg, sb))
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError("Color is immutable")
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Color):
+            return NotImplemented
+        return self._linear_rgb == other._linear_rgb and self._alpha == other._alpha
+
+    def __hash__(self) -> int:
+        return hash((self._linear_rgb, self._alpha))
+
+    def __repr__(self) -> str:
+        r, g, b = self._linear_rgb
+        return f"Color.from_linear({r}, {g}, {b}, {self._alpha})"
+
+    @classmethod
+    def from_linear(cls, r: float, g: float, b: float, a: float = 1.0) -> 'Color':
+        return cls((r, g, b), a)
+
+    @classmethod
+    def from_srgb(cls, r: float, g: float, b: float, a: float = 1.0) -> 'Color':
+        lr = r / 12.92 if r <= 0.04045 else ((r + 0.055) / 1.055) ** 2.4
+        lg = g / 12.92 if g <= 0.04045 else ((g + 0.055) / 1.055) ** 2.4
+        lb = b / 12.92 if b <= 0.04045 else ((b + 0.055) / 1.055) ** 2.4
+        return cls((lr, lg, lb), a)
+
+    @property
+    def alpha(self) -> float:
+        return self._alpha
+
+    @property
+    def linear(self) -> tuple[float, float, float, float]:
+        return (*self._linear_rgb, self._alpha)
+
+    @property
+    def srgb(self) -> tuple[float, float, float, float]:
+        return (*self._srgb_rgb, self._alpha)

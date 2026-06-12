@@ -11,6 +11,54 @@ logger = logging.getLogger(f"polygoniq.{__name__}")
 NodeGroupInputs = dict[str, tuple[bpy.types.NodeTreeInterfaceSocket, typing.Any]]
 
 
+# In Blender 5.2+, the way to access geo nodes modifier inputs changed, so we need to abstract it away
+def get_mod_input_keys(mod: bpy.types.NodesModifier) -> list[str]:
+    if bpy.app.version >= (5, 2, 0):
+        return list(mod.properties.inputs.keys())
+    return list(mod.keys())
+
+
+def has_mod_input(mod: bpy.types.NodesModifier, identifier: str) -> bool:
+    if bpy.app.version >= (5, 2, 0):
+        return hasattr(mod.properties.inputs, identifier)
+    return identifier in mod
+
+
+def has_mod_input_value_attr(mod: bpy.types.NodesModifier, identifier: str) -> bool:
+    if bpy.app.version >= (5, 2, 0):
+        input_ = getattr(mod.properties.inputs, identifier)
+        return hasattr(input_, "value")
+    return True
+
+
+def get_mod_input_value(mod: bpy.types.NodesModifier, identifier: str) -> typing.Any:
+    if not has_mod_input(mod, identifier):
+        raise KeyError(f"Modifier {mod.name} doesn't have input with identifier '{identifier}'")
+    if not has_mod_input_value_attr(mod, identifier):
+        raise ValueError(
+            f"Input '{identifier}' of modifier {mod.name} doesn't have a value attribute"
+        )
+    if bpy.app.version >= (5, 2, 0):
+        input_ = getattr(mod.properties.inputs, identifier)
+        return input_.value
+    return mod[identifier]
+
+
+def set_mod_input_value(mod: bpy.types.NodesModifier, identifier: str, value: typing.Any) -> None:
+    if not has_mod_input(mod, identifier):
+        raise KeyError(f"Modifier {mod.name} doesn't have input with identifier '{identifier}'")
+    if not has_mod_input_value_attr(mod, identifier):
+        raise ValueError(
+            f"Input '{identifier}' of modifier {mod.name} doesn't have a value attribute"
+        )
+
+    if bpy.app.version >= (5, 2, 0):
+        input_ = getattr(mod.properties.inputs, identifier)
+        setattr(input_, "value", value)
+    else:
+        mod[identifier] = value
+
+
 class NodesModifierInput:
     """Mapping of one node group and its inputs"""
 
@@ -20,8 +68,13 @@ class NodesModifierInput:
         self.node_group = modifier.node_group
         self.original_inputs = node_utils_bpy.get_node_tree_inputs_map(modifier.node_group)
         for input_ in self.original_inputs.values():
-            if input_.identifier in modifier:
-                self.inputs[input_.identifier] = (input_, modifier[input_.identifier])
+            if has_mod_input(modifier, input_.identifier) and has_mod_input_value_attr(
+                modifier, input_.identifier
+            ):
+                self.inputs[input_.identifier] = (
+                    input_,
+                    get_mod_input_value(modifier, input_.identifier),
+                )
 
 
 def get_modifiers_inputs_map(
@@ -45,14 +98,16 @@ def get_modifiers_inputs_map(
 class NodesModifierInputsNameView:
     """View of Geometry Nodes modifier that allows changing inputs by input name"""
 
-    def __init__(self, mod: bpy.types.Modifier):
+    def __init__(self, mod: bpy.types.NodesModifier) -> None:
         assert mod.type == 'NODES'
         self.mod = mod
         self.name_to_identifier_map = {}
         self.node_tree_inputs = node_utils_bpy.get_node_tree_inputs_map(mod.node_group)
         for input_ in self.node_tree_inputs.values():
             # Is the input exposed in the modifier -> modifiers["RG_"]
-            if input_.identifier in mod:
+            if has_mod_input(mod, input_.identifier) and has_mod_input_value_attr(
+                mod, input_.identifier
+            ):
                 self.name_to_identifier_map[input_.name] = input_.identifier
 
     def set_input_value(self, input_name: str, value: typing.Any) -> None:
@@ -67,33 +122,34 @@ class NodesModifierInputsNameView:
         # bool needs special handling, as through versions it became statically typed
         # boolean from an integer value of 0 or 1
         if socket_type == "NodeSocketBool":
-            self.mod[identifier] = bool(value)
+            set_mod_input_value(self.mod, identifier, bool(value))
         else:
-            self.mod[identifier] = value
+            set_mod_input_value(self.mod, identifier, value)
 
     def set_obj_input_value(self, input_name: str, obj_name: str) -> None:
         identifier = self.name_to_identifier_map.get(input_name)
         # Object reference has to be set directly from bpy.data.objects
-        self.mod[identifier] = bpy.data.objects[obj_name]
+        set_mod_input_value(self.mod, identifier, bpy.data.objects[obj_name])
 
     def set_material_input_value(self, input_name: str, mat_name: str) -> None:
         identifier = self.name_to_identifier_map.get(input_name)
         # Materials reference has to be set directly from bpy.data.materials
-        self.mod[identifier] = bpy.data.materials[mat_name]
+        set_mod_input_value(self.mod, identifier, bpy.data.materials[mat_name])
 
     def set_collection_input_value(self, input_name: str, collection_name: str) -> None:
         identifier = self.name_to_identifier_map.get(input_name)
         # Collections reference has to be set directly from bpy.data.collections
-        self.mod[identifier] = bpy.data.collections[collection_name]
+        set_mod_input_value(self.mod, identifier, bpy.data.collections[collection_name])
 
     def set_array_input_value(self, input_name: str, value: list[typing.Any]) -> None:
         identifier = self.name_to_identifier_map.get(input_name)
+        current_value = get_mod_input_value(self.mod, identifier)
         for i, v in enumerate(value):
-            self.mod[identifier][i] = v
+            current_value[i] = v
 
     def get_input_value(self, input_name: str) -> typing.Any:
         identifier = self.name_to_identifier_map.get(input_name)
-        return self.mod[identifier]
+        return get_mod_input_value(self.mod, identifier)
 
     def __contains__(self, input_name: str) -> bool:
         return input_name in self.name_to_identifier_map
@@ -170,6 +226,20 @@ class GeoNodesModifierInputsPanelMixin:
         return box
 
 
+def has_geometry_nodes_modifier_with_node_group(
+    obj: bpy.types.Object, node_group_name_prefix: str, exact_match: bool = True
+) -> bool:
+    return any(
+        mod.type == 'NODES'
+        and mod.node_group is not None
+        and (
+            (exact_match and mod.node_group.name == node_group_name_prefix)
+            or (not exact_match and mod.node_group.name.startswith(node_group_name_prefix))
+        )
+        for mod in obj.modifiers
+    )
+
+
 def get_geometry_nodes_modifiers_by_node_group(
     obj: bpy.types.Object, node_group_name_prefix: str, exact_match: bool = True
 ) -> list[bpy.types.NodesModifier]:
@@ -215,12 +285,14 @@ def copy_geometry_nodes_modifier_inputs(
 
     # If all inputs match, we can copy the values
     # If we don't materialize the .keys(), blender complaints about the dict changing size during iteration
-    for input_ in list(src_mod.keys()):
+    for input_ in get_mod_input_keys(src_mod):
+        if not has_mod_input_value_attr(src_mod, input_):
+            continue
         # setting these utility attributes causes issues with, e.g., the attribute subtype
         # it should be safe to assume they are set correctly in the destination modifier
         if input_.endswith("_use_attribute") or input_.endswith("_attribute_name"):
             continue
 
-        dst_mod[input_] = src_mod[input_]
+        set_mod_input_value(dst_mod, input_, get_mod_input_value(src_mod, input_))
 
     return True

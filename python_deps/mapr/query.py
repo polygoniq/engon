@@ -10,6 +10,7 @@ class SortMode:
     ALPHABETICAL_ASC = "ABC (A)"
     ALPHABETICAL_DESC = "ABC (D)"
     MOST_RELEVANT = "Most Relevant"
+    SORTED_MOST_RELEVANT = "Sorted Most Relevant"
 
 
 class Query:

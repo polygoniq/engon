@@ -8,6 +8,9 @@ from . import filters
 from .. import asset_registry
 from .. import preferences
 
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -123,7 +126,7 @@ class MAPR_BrowserDisplayNewAssets(bpy.types.Operator):
         name="Category ID", description="Category ID belonging to the asset pack to search from"
     )
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         prefs = preferences.prefs_utils.get_preferences(context)
         what_is_new_pref = prefs.what_is_new_preferences
         seen_pack = what_is_new_pref.latest_seen_asset_packs.get(self.pack_name)
@@ -159,7 +162,7 @@ class MAPR_BrowserDismissNewAssets(bpy.types.Operator):
     bl_label = "Dismiss New Assets"
     bl_description = "Marks all installed asset pack versions as seen"
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         prefs = preferences.prefs_utils.get_preferences(context)
         what_is_new_pref = prefs.what_is_new_preferences
         for pack in asset_registry.instance.get_registered_packs():

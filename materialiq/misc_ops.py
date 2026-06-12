@@ -23,6 +23,9 @@ import typing
 import logging
 from .. import polib
 
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -67,14 +70,16 @@ class ReplaceMaterial(bpy.types.Operator):
         layout.prop(self, "only_selected")
         layout.prop(self, "update_selection")
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         active_material = polib.material_utils_bpy.safe_get_active_material(context.active_object)
         if self.mat_orig_name == "" and active_material is not None:
             self.mat_orig_name = active_material.name
 
         return context.window_manager.invoke_props_dialog(self)
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         mat_orig = bpy.data.materials.get(self.mat_orig_name, None)
         mat_rep = bpy.data.materials.get(self.mat_rep_name, None)
 

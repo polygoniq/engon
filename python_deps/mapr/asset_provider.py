@@ -19,17 +19,29 @@ class DataView:
     """One view of data - lists of assets based on provided Query and AssetProvider."""
 
     def __init__(self, asset_provider: 'AssetProvider', query_: query.Query):
-        self.assets: list[asset.Asset] = []
+        assets: list[asset.Asset] = []
         for asset_ in asset_provider.list_assets(query_.category_id, query_.recursive):
             if all(f.filter_(asset_) for f in query_.filters):
-                self.assets.append(asset_)
+                assets.append(asset_)
 
         sort_lambda, reverse = self._get_sort_parameters(query_.sort_mode)
-        self.assets.sort(key=lambda x: sort_lambda(x), reverse=reverse)
+        assets.sort(key=lambda x: sort_lambda(x), reverse=reverse)
 
+        # Freeze the result into a tuple for the public API. This allows us to construct the
+        # internal incrementally and then pass immutable references to the AssetParametersMeta.
+        self.assets: tuple[asset.Asset, ...] = tuple(assets)
         self.parameters_meta = parameter_meta.AssetParametersMeta(self.assets)
         self.used_query = query_
         logger.debug(f"Created DataView {self}")
+
+    @staticmethod
+    def sorted_most_relevant_key(x: asset.Asset) -> tuple[float, tuple[str] | None, str]:
+        """Sort key for SORTED_MOST_RELEVANT mode: (-score, category_path, title)."""
+        return (
+            -filters.SEARCH_ASSET_SCORE.get(x.id_, 1.0),
+            x.category_path,
+            x.title,
+        )
 
     def _get_sort_parameters(
         self, sort_mode: str
@@ -38,12 +50,15 @@ class DataView:
 
         Returns tuple of (lambda, reverse)
         """
+
         if sort_mode == query.SortMode.ALPHABETICAL_ASC:
             return (lambda x: x.title, False)
         elif sort_mode == query.SortMode.ALPHABETICAL_DESC:
             return (lambda x: x.title, True)
         elif sort_mode == query.SortMode.MOST_RELEVANT:
             return (lambda x: filters.SEARCH_ASSET_SCORE.get(x.id_, 1.0), True)
+        elif sort_mode == query.SortMode.SORTED_MOST_RELEVANT:
+            return (self.sorted_most_relevant_key, False)
         else:
             raise NotImplementedError(f"Unknown sort mode {sort_mode}")
 
@@ -68,7 +83,7 @@ class EmptyDataView(DataView):
     """Data view containing no data - useful on places, where DataView cannot be constructed yet."""
 
     def __init__(self):
-        self.assets = []
+        self.assets: tuple[asset.Asset, ...] = ()
         self.parameters_meta = parameter_meta.AssetParametersMeta(self.assets)
         self.used_query = None
         logger.debug(f"Created EmptyDataView {self}")

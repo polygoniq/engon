@@ -1,9 +1,13 @@
 # copyright (c) 2018- polygoniq xyz s.r.o.
 
 import bpy
+import logging
+import typing
 from .. import polib
 from . import feature_utils
-import logging
+
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
@@ -19,7 +23,7 @@ class ENGON_OpenFeaturePanelFromPie(bpy.types.Operator):
 
     panel_bl_idname: bpy.props.StringProperty(name="", default="")
 
-    def execute(self, context: bpy.types.Context) -> set[str]:
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         bpy.ops.wm.call_panel(name=self.panel_bl_idname)
         return {'FINISHED'}
 
@@ -39,7 +43,7 @@ class ENGON_FeaturePieMenu(bpy.types.Menu):
     bl_label = "Asset Features"
     bl_description = "Quick access to Engon asset feature adjustments"
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         pie_menu_features = feature_utils.get_property_features_panels_with_pie_menu()
         # We draw only features that have adjustable assets in the current context

@@ -162,14 +162,15 @@ def can_have_materials_assigned(obj: bpy.types.Object) -> bool:
 
 
 def get_empty_display_size(obj: bpy.types.Object) -> float:
-    """Returns unified empty display size based on bounding box of objects in the instanced collection"""
+    """Returns unified empty display size based on bounding box of objects in the instanced collection or children of the empty"""
     assert obj.type == 'EMPTY'
-    if obj.instance_collection is None or obj.instance_type != 'COLLECTION':
-        raise RuntimeError("Passed empty object has to be a collection instance!")
-
-    bbox = bounding_box.BoundingBox()
-    for obj in obj.instance_collection.all_objects:
-        bbox.extend_by_object(obj)
+    if obj.instance_collection is not None and obj.instance_type == 'COLLECTION':
+        bbox = bounding_box.BoundingBox()
+        for obj in obj.instance_collection.all_objects:
+            bbox.extend_by_object(obj)
+    elif len(obj.children) > 0:
+        bbox = bounding_box.BoundingBox()
+        bbox.extend_by_object(obj, recursive=True)
 
     # Calculate empty size based on model's size. To simplify the math, we assume the object origin
     # is somewhere in the middle which allows us to divide the max dimension by 2 instead of

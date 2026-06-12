@@ -27,6 +27,9 @@ from .. import mapr
 from .. import polib
 from .. import asset_registry
 
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -42,7 +45,7 @@ class MAPR_BrowserDeleteCache(bpy.types.Operator):
     bl_idname = "engon.dev_browser_delete_cache"
     bl_label = "Delete Cache"
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         filters.asset_repository.clear_cache()
         return {'FINISHED'}
 
@@ -55,7 +58,7 @@ class MAPR_BrowserReconstructFilters(bpy.types.Operator):
     bl_idname = "engon.dev_browser_reconstruct_filters"
     bl_label = "Reconstruct Filters"
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         filters_ = filters.get_filters()
         filters_.clear_and_reconstruct()
         filters_.reenable()
@@ -81,14 +84,16 @@ class MAPR_BrowserOpenAssetSourceBlend(bpy.types.Operator):
         self.layout.label(text=f"Asset ID: {self.asset_id}")
         self.layout.label(text=f"Path: {self.asset_path}")
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         if getattr(self, "asset_path", None) is None:
             raise RuntimeError("asset_path is initialized in invoke, use INVOKE_DEFAULT!")
 
         polib.utils_bpy.fork_running_blender(self.asset_path)
         return {'FINISHED'}
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         assert IS_DEV is True
 
         self.asset_path = self._get_asset_dev_path()

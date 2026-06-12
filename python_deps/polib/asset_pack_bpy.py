@@ -326,11 +326,13 @@ def decompose_traffiq_vehicle(obj: bpy.types.Object) -> DecomposedCar | None:
             brakes.append(hierarchy_obj)
         elif is_traffiq_asset_part(hierarchy_obj, TraffiqAssetPart.LicensePlate):
             _, suffix = utils_bpy.remove_object_duplicate_suffix(hierarchy_obj.name).rsplit("_", 1)
-            license_plate = (
-                hierarchy_obj
-                if hierarchy_obj.instance_type == 'COLLECTION'
-                else hierarchy_obj.children[0]
-            )
+            # License plate can be an instance collection, single object parented to an empty (legacy) or just a single object.
+            if hierarchy_obj.instance_type == 'COLLECTION':
+                license_plate = hierarchy_obj
+            elif hierarchy_obj.type == 'EMPTY' and len(hierarchy_obj.children) > 0:
+                license_plate = hierarchy_obj.children[0]
+            else:
+                license_plate = hierarchy_obj
             if suffix == "F":
                 front_license_plate = license_plate
             elif suffix == "B":
@@ -552,6 +554,7 @@ def make_selection_editable(
         source_obj: bpy.types.Object,
         target_obj: bpy.types.Object,
         instanced_to_realized_name_map: dict[bpy.types.Object, bpy.types.Object],
+        copy_between_realized_objects: bool = False,
     ) -> None:
         """Copy constraints from 'source_obj' to 'target_obj' recursively.
 
@@ -562,18 +565,23 @@ def make_selection_editable(
         This is not an exhaustive implementation for all constraint types, but it covers all known
         constraints used in our assets for now.
 
+        When we want to copy constraints between two realized objects, setting the 'copy_between_realized_objects'
+        to True will skip some asserts, as we can't rely on names and types to be the same
+        (e.g. copying from empty to child object).
+
         This function asserts that 'source_obj' and 'target_obj' have the same name, type and children,
         as it counts on 'target_obj' being a realized copy of 'source_obj'.
         """
-        assert utils_bpy.remove_object_duplicate_suffix(
-            source_obj.name
-        ) == utils_bpy.remove_object_duplicate_suffix(target_obj.name)
-        if source_obj.type != target_obj.type:
-            logger.warning(
-                f"Expected realized object '{target_obj.name}' of type '{target_obj.type}' and "
-                f"instance object '{source_obj.name}' of type '{source_obj.type}' to share the same type."
-            )
-            return
+        if not copy_between_realized_objects:
+            assert utils_bpy.remove_object_duplicate_suffix(
+                source_obj.name
+            ) == utils_bpy.remove_object_duplicate_suffix(target_obj.name)
+            if source_obj.type != target_obj.type:
+                logger.warning(
+                    f"Expected realized object '{target_obj.name}' of type '{target_obj.type}' and "
+                    f"instance object '{source_obj.name}' of type '{source_obj.type}' to share the same type."
+                )
+                return
 
         for source_constraint in source_obj.constraints:
             target_constraint = target_obj.constraints.new(source_constraint.type)
@@ -596,7 +604,10 @@ def make_selection_editable(
                 for target in source_constraint.targets:
                     target_copy = target_constraint.targets.new()
                     # only copy target if we found the realized object in the map
-                    if target.target in instanced_to_realized_name_map:
+                    if copy_between_realized_objects:
+                        target_copy.target = target.target
+                        target_copy.subtarget = target.subtarget
+                    elif target.target in instanced_to_realized_name_map:
                         # We need to get the object from the data, so it is the realized copy and not the original
                         target_copy.target = instanced_to_realized_name_map[target.target]
                         # subtarget is a string, so we can just copy it safely
@@ -618,6 +629,29 @@ def make_selection_editable(
                 source_child, target_child, instanced_to_realized_name_map
             )
 
+    def remove_unnecessary_empties(obj: bpy.types.Object) -> None:
+        """Removes unnecessary empties from the hierarchy of 'obj'.
+
+        Unnecessary empties are empties without instance collection and with only one child.
+        """
+        for child in obj.children:
+            if (
+                child.type == 'EMPTY'
+                and child.instance_collection is None
+                and len(child.children) == 1
+            ):
+                nested_child = child.children[0]
+                child_matrix = nested_child.matrix_world.copy()
+                nested_child.parent = obj
+                nested_child.matrix_world = child_matrix
+                copy_constraints_from_instance_to_realized(child, nested_child, {}, True)
+                name = child.name
+                bpy.data.objects.remove(child)
+                nested_child.name = name
+
+        for child in obj.children:
+            remove_unnecessary_empties(child)
+
     def get_instance_object_to_realized_object_map(
         root: bpy.types.Object, instance_collection: bpy.types.Collection
     ) -> dict[bpy.types.Object, bpy.types.Object]:
@@ -626,16 +660,41 @@ def make_selection_editable(
         During realization of instanced objects, duplicate suffixes might be added.
         The original names are obtained by removing the duplicate suffixes from the realized names.
         We rely on the original assets having no duplicate suffixes in their names.
+
+        Nested instance collections (assets held inside the primary linked collection) are
+        also scanned so that their objects appear in the map and bone parenting can be restored
+        for them too. duplicates_make_real realizes nested instances recursively, but their
+        objects are not in instance_collection.all_objects.
         """
+
+        def collect_source_objects(
+            collection: bpy.types.Collection,
+            result: dict[str, bpy.types.Object],
+        ) -> None:
+            """Populate result with two keys per object: its exact name and its suffix-stripped name.
+
+            setdefault is used so that when two objects share the same base name (e.g. 'Bone' and
+            'Bone.001'), the first one wins the stripped key while each still has its own exact key.
+            Nested instance collections are walked recursively so their objects are included too.
+            """
+            for obj in collection.all_objects:
+                result.setdefault(obj.name, obj)
+                result.setdefault(utils_bpy.remove_object_duplicate_suffix(obj.name), obj)
+                if obj.instance_type == 'COLLECTION' and obj.instance_collection is not None:
+                    collect_source_objects(obj.instance_collection, result)
+
+        all_source_objects: dict[str, bpy.types.Object] = {}
+        collect_source_objects(instance_collection, all_source_objects)
+
         instance_object_to_realized_map = {}
 
         for realized_obj in get_entire_object_hierarchy(root):
             suffixed_name = realized_obj.name
             clean_name = utils_bpy.remove_object_duplicate_suffix(suffixed_name)
 
-            instance_obj = instance_collection.all_objects.get(suffixed_name, None)
+            instance_obj = all_source_objects.get(suffixed_name, None)
             if instance_obj is None:
-                instance_obj = instance_collection.all_objects.get(clean_name, None)
+                instance_obj = all_source_objects.get(clean_name, None)
 
             # This can happen if the asset contains object with duplicate suffix in its name,
             # or if the asset contains instanced objects. Some features might not work correctly,
@@ -662,6 +721,11 @@ def make_selection_editable(
         obj_name for obj_name in selected_objects_names if obj_name in bpy.data.objects
     ]
 
+    # Maps realized object name to (realized armature, bone_name).
+    # Keyed by name (not object ref) so the lookup survives remove_unnecessary_empties,
+    # which may delete an empty and rename its promoted child to the same name.
+    bone_parent_registry: dict[str, tuple[bpy.types.Object, str]] = {}
+
     clear_selection(context)
     for instance_object, _, _, _ in instanced_collection_objects.values():
         # Operator duplicates_make_real converts each instance collection to empty (base parent) and its contents,
@@ -682,6 +746,15 @@ def make_selection_editable(
 
     for obj, instance_collection, parent_name, prev_color in instanced_collection_objects.values():
         assert obj is not None
+
+        instance_to_realized_map = get_instance_object_to_realized_object_map(
+            obj, instance_collection
+        )
+        for src_obj, realized_obj in instance_to_realized_map.items():
+            if src_obj.parent_type == 'BONE' and src_obj.parent is not None:
+                realized_parent = instance_to_realized_map.get(src_obj.parent)
+                if realized_parent is not None:
+                    bone_parent_registry[realized_obj.name] = (realized_parent, src_obj.parent_bone)
 
         for child in obj.children:
             set_object_empties_size(child, obj.empty_display_size)
@@ -714,15 +787,15 @@ def make_selection_editable(
                     child_source_name in instance_collection.objects
                     and instance_collection.objects[child_source_name].parent is not None
                 ):
+                    source_child = instance_collection.objects[child_source_name]
                     # set parent_type from source blend, for example our _Lights need to have parent_type = 'BONE'
-                    child.parent_type = instance_collection.objects[child_source_name].parent_type
+                    child.parent_type = source_child.parent_type
+                    if child.parent_type == 'BONE':
+                        bone_parent_registry[child.name] = (parent, source_child.parent_bone)
                 child.matrix_world = child_matrix
             bpy.data.objects.remove(obj)
             continue
 
-        instance_to_realized_map = get_instance_object_to_realized_object_map(
-            obj, instance_collection
-        )
         realized_to_instance_map = {r: i for i, r in instance_to_realized_map.items()}
         for child in obj.children:
             # Blender operator duplicates_make_real doesn't append object constraints.
@@ -737,6 +810,7 @@ def make_selection_editable(
                 continue
             copy_constraints_from_instance_to_realized(original, child, instance_to_realized_map)
 
+        remove_unnecessary_empties(obj)
         if delete_base_empty:
             if len(obj.children) > 1:
                 # instanced collection contained multiple top-level objects, keep base empty as container
@@ -745,7 +819,6 @@ def make_selection_editable(
                     obj.name = splitted_name[1]
                 # empty parent newly created in duplicates_make_real does not have polygoniq custom properties
                 copy_polygoniq_custom_props_from_children(obj)
-
             else:
                 # remove the parent from children which were not reparented above
                 # if they were reparented they are no longer in obj.children and we can
@@ -758,6 +831,23 @@ def make_selection_editable(
                     # was removed
                     child.matrix_world = child_matrix
                 bpy.data.objects.remove(obj)
+
+    # Restore bone parenting destroyed by duplicates_make_real.
+    for obj_name, (realized_parent, bone_name) in bone_parent_registry.items():
+        realized_obj = bpy.data.objects.get(obj_name)
+        if realized_obj is None:
+            continue
+        if (
+            realized_obj.parent_type == 'BONE'
+            and realized_obj.parent is realized_parent
+            and realized_obj.parent_bone == bone_name
+        ):
+            continue  # already correct
+        world_matrix = realized_obj.matrix_world.copy()
+        realized_obj.parent = realized_parent
+        realized_obj.parent_type = 'BONE'
+        realized_obj.parent_bone = bone_name
+        realized_obj.matrix_world = world_matrix
 
     selected_objects = []
     for obj_name in selected_objects_names:

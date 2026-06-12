@@ -30,12 +30,15 @@ from . import prefs_utils
 from . import general_preferences
 from . import browser_preferences
 from . import what_is_new_preferences
+from .. import utils
 from .. import available_asset_packs
 from .. import keymaps
-from .. import utils
 from .. import features
 from .. import polib
 from .. import __package__ as base_package
+
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
 
 
 telemetry = polib.get_telemetry("engon")
@@ -63,7 +66,7 @@ class ShowReleaseNotes(bpy.types.Operator):
         default="",
     )
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         polib.ui_bpy.show_release_notes_popup(
             context, base_package, self.release_tag, self.update_operator_bl_idname
         )
@@ -79,7 +82,7 @@ MODULE_CLASSES.append(ShowReleaseNotes)
 class Preferences(bpy.types.AddonPreferences, polib.serialization_bpy.Savable):
     bl_idname = base_package
     addon_name = base_package.split('.')[-1]  # Use only the last part in case of development
-    save_version = 2
+    save_version = 3
     strict_mode = False
 
     @property
@@ -293,10 +296,7 @@ class Preferences(bpy.types.AddonPreferences, polib.serialization_bpy.Savable):
                 self,
                 "show_available_packs",
                 f"Discover Available Asset Packs ({len(not_installed_available_packs)})",
-                functools.partial(
-                    available_asset_packs.draw_available_asset_packs,
-                    context,
-                ),
+                available_asset_packs.draw_available_asset_packs,
             )
 
         # Keymaps section
@@ -333,7 +333,11 @@ class Preferences(bpy.types.AddonPreferences, polib.serialization_bpy.Savable):
             ImportPreferences.bl_idname,
             SearchPreferences.bl_idname,
         )
-
+        cooldown_seconds = polib.bug_report_bpy.get_cooldown_remaining_seconds()
+        label = "Report a Bug" + (
+            f" (Cooldown: {cooldown_seconds}s)" if cooldown_seconds > 0 else ""
+        )
+        self.layout.operator(ReportBug.bl_idname, text=label, icon='URL')
         # Open Log Folder button
         self.layout.operator(PackLogs.bl_idname, icon='EXPERIMENTAL')
 
@@ -397,6 +401,23 @@ MODULE_CLASSES.extend(
 )
 
 
+(
+    ReportBug,
+    AddAttachment,
+    RemoveAttachment,
+) = polib.bug_report_bpy.bug_report_operators_factory(
+    "engon", telemetry, utils.show_popup.ShowPopup
+)
+
+MODULE_CLASSES.extend(
+    [
+        ReportBug,
+        AddAttachment,
+        RemoveAttachment,
+    ]
+)
+
+
 @polib.log_helpers_bpy.logged_operator
 class PackLogs(bpy.types.Operator):
     bl_idname = "engon.pack_logs"
@@ -404,7 +425,7 @@ class PackLogs(bpy.types.Operator):
     bl_description = "Archives polygoniq logs as zip file and opens its location"
     bl_options = {'REGISTER'}
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         packed_logs_directory_path = polib.log_helpers_bpy.pack_logs(telemetry)
         polib.utils_bpy.xdg_open_file(packed_logs_directory_path)
         return {'FINISHED'}

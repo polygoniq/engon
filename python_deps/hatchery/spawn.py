@@ -18,6 +18,7 @@ import mathutils
 import typing
 import logging
 import hashlib
+import os
 
 from . import utils
 from . import load
@@ -44,11 +45,13 @@ class SpawnedData(abc.ABC):
 
 @dataclasses.dataclass
 class ModelSpawnOptions(DatablockSpawnOptions):
+    spawn_as_object: bool = False
     collection_factory_method: typing.Callable[[], bpy.types.Collection | None] | None = None
     # If present the spawned model instancer is selected, other objects are deselected
     select_spawned: bool = False
     location_override: mathutils.Vector | None = None
     rotation_euler_override: mathutils.Euler | None = None
+    make_active: bool = False
 
 
 class ModelSpawnedData(SpawnedData):
@@ -112,8 +115,96 @@ def spawn_model(
                 selected_obj.select_set(False)
 
             root_empty.select_set(True)
+            if options.make_active:
+                context.view_layer.objects.active = root_empty
 
     return ModelSpawnedData(root_collection, root_empty)
+
+
+def spawn_model_as_object(
+    path: str, context: bpy.types.Context, options: ModelSpawnOptions
+) -> ModelSpawnedData:
+    """Loads model from given 'path' and spawns it as an object with linked data on cursor position.
+
+    This assumes the path contains 'master' collection - check load.load_master_collection.
+    Further spawn behavior like parent collection can be tweaked in ModelSpawnOptions.
+
+    Returns the root object/empty that was spawned.
+    """
+
+    # Make all children local, starting from the lowest level in hierarchy (bottom-up)
+    def make_hierarchy_local_bottom_up(obj: bpy.types.Object) -> bpy.types.Object:
+        """Recursively make object and its children local, starting from deepest children."""
+        for child in obj.children:
+            make_hierarchy_local_bottom_up(child)
+        if obj.library is not None:
+            return obj.make_local()
+
+    parent_collection = None
+    if options.collection_factory_method is not None:
+        parent_collection = options.collection_factory_method()
+
+    if parent_collection is None and options.select_spawned:
+        raise RuntimeError(
+            "Wrong arguments: Cannot select spawned model objects without a parent collection. "
+            "The object wouldn't be present in the View Layer!"
+        )
+
+    asset_name, _ = os.path.splitext(os.path.basename(path))
+    master_collection = load.load_master_collection(path, link=True)
+    master_objects = master_collection.objects
+    root_obj = None
+
+    if parent_collection is not None:
+        for master_object in master_objects:
+            parent_collection.objects.link(master_object)
+
+    for master_object in master_objects:
+        if master_object.parent is None:
+            master_object = make_hierarchy_local_bottom_up(master_object)
+            if len(master_objects) == 1 or (
+                master_object.type == 'EMPTY' and master_object.instance_collection is None
+            ):
+                root_obj = master_object
+            else:
+                root_obj = bpy.data.objects.new(name=asset_name, object_data=None)
+                master_object.parent = root_obj
+                root_obj.empty_display_size = utils.get_empty_display_size(root_obj)
+
+    assert root_obj is not None
+    root_obj.location = context.scene.cursor.location
+    if options.location_override is not None:
+        root_obj.location = options.location_override
+    if options.rotation_euler_override is not None:
+        root_obj.rotation_euler = options.rotation_euler_override
+
+    # Copy all children properties from the instanced objects to the instancer object
+    for master_object in master_objects:
+        if master_object.library is not None:
+            utils.copy_custom_props(master_object, root_obj)
+
+    for col in root_obj.users_collection:
+        if col.library is None:
+            col.objects.unlink(root_obj)
+
+    # Clean up the linked data after we made objects local to not clutter the unused data
+    if master_collection.users == 0:
+        for obj in master_collection.objects:
+            bpy.data.objects.remove(obj, do_unlink=True)
+        bpy.data.collections.remove(master_collection)
+
+    if parent_collection is not None:
+        parent_collection.objects.link(root_obj)
+
+        # Only change selection if we linked the object, so it is present in view layer and if
+        # caller wants to.
+        if options.select_spawned:
+            for selected_obj in context.selected_objects:
+                selected_obj.select_set(False)
+
+            root_obj.select_set(True)
+
+    return ModelSpawnedData(parent_collection, root_obj)
 
 
 @dataclasses.dataclass

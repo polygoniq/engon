@@ -33,6 +33,9 @@ from . import polib
 from . import asset_registry
 from . import __package__ as base_package
 
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -542,6 +545,13 @@ class AssetPackInstaller:
             self._operation == InstallerOperation.INSTALL
             or self._operation == InstallerOperation.UPDATE
         ):
+            # Check whether the pack is supported
+            if not pack.is_supported:
+                assert pack.unsupported_reason is not None
+                self.record_error_message(pack.unsupported_reason)
+                self.abort_operation()
+                return
+
             # Check min engon version
             try:
                 engon_version = addon_utils.module_bl_info(sys.modules[base_package])["version"]
@@ -863,11 +873,13 @@ class AssetPackInstallerDialogMixin:
     def check_should_dialog_close(self) -> bool:
         return not instance.can_installer_proceed
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         # When the dialog is supposed to close, we don't want to show the OK and Cancel buttons
         if self.check_should_dialog_close():
             return context.window_manager.invoke_popup(self, width=550)
         return context.window_manager.invoke_props_dialog(self, width=550)
 
-    def cancel(self, context: bpy.types.Context):
+    def cancel(self, context: bpy.types.Context) -> None:
         instance.exit_installer_operation()

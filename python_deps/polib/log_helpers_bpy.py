@@ -3,13 +3,90 @@
 
 import bpy
 import datetime
+import glob
 import tempfile
 import typing
 import time
 import logging
+import logging.handlers
 import os
 import shutil
 from . import telemetry_module_bpy
+
+LOG_BACKUP_COUNT = (
+    2  # Number of backup log files from one session (1 file per hour from TimedRotatingFileHandler)
+)
+LOG_FILE_RETENTION_DAYS = 7  # Number of days to keep log files from previous sessions
+
+
+def try_initialize_addon_logging(logger: logging.Logger, from_module: str, from_file: str) -> None:
+    root_logger = logging.getLogger("polygoniq")
+    if getattr(root_logger, "polygoniq_initialized", False):
+        return
+
+    log_dir = os.path.join(tempfile.gettempdir(), "polygoniq_logs")
+    # Delete old log files from previous sessions
+    for old_file in glob.glob(os.path.join(log_dir, "blender_addons*.txt*")):
+        try:
+            if (
+                time.time() - os.path.getmtime(old_file)
+                > datetime.timedelta(days=LOG_FILE_RETENTION_DAYS).total_seconds()
+            ):
+                os.remove(old_file)
+        except OSError:
+            pass
+    # Setup root logger with a formatter, filter and handlers
+    root_logger_formatter = logging.Formatter(
+        "P%(process)d:%(asctime)s:%(name)s:%(levelname)s: [%(filename)s:%(lineno)d] %(message)s",
+        "%H:%M:%S",
+    )
+    _pq_base_level = logging.INFO
+    try:
+        _pq_base_level = int(os.environ.get("POLYGONIQ_LOG_LEVEL", logging.INFO))
+    except (ValueError, TypeError):
+        pass
+    _pq_debug_modules = [
+        m.strip() for m in os.environ.get("POLYGONIQ_LOG_DEBUG_MODULES", "").split(",") if m.strip()
+    ]
+
+    class _PolygoniqLogFilter(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            if record.levelno >= _pq_base_level:
+                return True
+            if record.levelno == logging.DEBUG and len(_pq_debug_modules) > 0:
+                return any(module in record.name for module in _pq_debug_modules)
+            return False
+
+    _pq_log_filter = _PolygoniqLogFilter()
+
+    root_logger.setLevel(logging.DEBUG)
+    root_logger.propagate = False
+    root_logger_stream_handler = logging.StreamHandler()
+    root_logger_stream_handler.setFormatter(root_logger_formatter)
+    root_logger_stream_handler.addFilter(_pq_log_filter)
+    root_logger.addHandler(root_logger_stream_handler)
+
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+        root_logger_handler = logging.handlers.TimedRotatingFileHandler(
+            os.path.join(log_dir, f"blender_addons_p{os.getpid()}.txt"),
+            when="H",
+            interval=1,
+            backupCount=LOG_BACKUP_COUNT,
+            utc=True,
+        )
+        root_logger_handler.setFormatter(root_logger_formatter)
+        root_logger_handler.addFilter(_pq_log_filter)
+        root_logger.addHandler(root_logger_handler)
+    except:
+        logger.exception(
+            f"Can't create rotating log handler for polygoniq root logger "
+            f"in module \"{from_module}\", file \"{from_file}\""
+        )
+    setattr(root_logger, "polygoniq_initialized", True)
+    logger.info(
+        f"polygoniq root logger initialized in module \"{from_module}\", file \"{from_file}\" -----"
+    )
 
 
 def logged_operator(cls: type[bpy.types.Operator]):
@@ -19,6 +96,27 @@ def logged_operator(cls: type[bpy.types.Operator]):
 
     logger = logging.getLogger(f"polygoniq.{cls.__module__}")
 
+    if hasattr(cls, "poll"):
+        cls._original_poll = cls.poll
+
+        @classmethod
+        def new_poll(klass, context: bpy.types.Context):
+            try:
+                return cls._original_poll(context)
+            except:
+                logger.exception(
+                    f"Uncaught exception raised in {cls}.poll",
+                    extra={
+                        "_log_data": {
+                            "event": "operator_poll_exception",
+                            "operator": cls.bl_idname,
+                        },
+                    },
+                )
+                return False
+
+        cls.poll = new_poll
+
     if hasattr(cls, "draw"):
         cls._original_draw = cls.draw
 
@@ -26,7 +124,16 @@ def logged_operator(cls: type[bpy.types.Operator]):
             try:
                 return cls._original_draw(self, context)
             except:
-                logger.exception(f"Uncaught exception raised in {cls}.draw")
+                logger.exception(
+                    f"Uncaught exception raised in {cls}.draw",
+                    extra={
+                        "_log_data": {
+                            "event": "operator_draw_exception",
+                            "operator_args": self.as_keywords(),
+                            "operator": cls.bl_idname,
+                        },
+                    },
+                )
 
         cls.draw = new_draw
 
@@ -37,7 +144,16 @@ def logged_operator(cls: type[bpy.types.Operator]):
             try:
                 return cls._original_modal(self, context, event)
             except:
-                logger.exception(f"Uncaught exception raised in {cls}.modal")
+                logger.exception(
+                    f"Uncaught exception raised in {cls}.modal",
+                    extra={
+                        "_log_data": {
+                            "event": "operator_modal_exception",
+                            "event_type": event.type,
+                            "operator": cls.bl_idname,
+                        },
+                    },
+                )
                 # If exception is thrown out of the modal we want to exit it. If there are possible
                 # exceptions that can occur, they should be handled in the modal itself.
                 return {'FINISHED'}
@@ -54,13 +170,31 @@ def logged_operator(cls: type[bpy.types.Operator]):
             start_time = time.time()
             try:
                 ret = cls._original_execute(self, context)
+                execute_time = time.time() - start_time
                 logger.info(
-                    f"{cls.__name__} operator execute finished in {time.time() - start_time:.3f} "
-                    f"seconds with result {ret}"
+                    f"{cls.__name__} operator execute finished in {execute_time:.3f} "
+                    f"seconds with result {ret}",
+                    extra={
+                        "_log_data": {
+                            "event": "operator_execute",
+                            "operator": cls.bl_idname,
+                            "result": ret,
+                            "execute_time": execute_time,
+                            "operator_args": self.as_keywords(),
+                        },
+                    },
                 )
                 return ret
             except:
-                logger.exception(f"Uncaught exception raised in {cls}.execute")
+                logger.exception(
+                    f"Uncaught exception raised in {cls}.execute",
+                    extra={
+                        "_log_data": {
+                            "event": "operator_exception",
+                            "operator": cls.bl_idname,
+                        },
+                    },
+                )
                 # We return finished even in case an error happened, that way the user will be able
                 # to undo any changes the operator has made up until the error happened
                 return {'FINISHED'}
@@ -74,10 +208,28 @@ def logged_operator(cls: type[bpy.types.Operator]):
             logger.debug(f"{cls.__name__} operator invoke started")
             try:
                 ret = cls._original_invoke(self, context, event)
-                logger.debug(f"{cls.__name__} operator invoke finished")
+                logger.info(
+                    f"{cls.__name__} operator invoke finished",
+                    extra={
+                        "_log_data": {
+                            "event": "operator_invoke",
+                            "operator": cls.bl_idname,
+                            "invoke_result": ret,
+                            "operator_args": self.as_keywords(),
+                        },
+                    },
+                )
                 return ret
             except:
-                logger.exception(f"Uncaught exception raised in {cls}.invoke")
+                logger.exception(
+                    f"Uncaught exception raised in {cls}.invoke",
+                    extra={
+                        "_log_data": {
+                            "event": "operator_invoke_exception",
+                            "operator": cls.bl_idname,
+                        },
+                    },
+                )
                 # We return finished even in case an error happened, that way the user will be able
                 # to undo any changes the operator has made up until the error happened
                 return {'FINISHED'}
@@ -130,7 +282,15 @@ def logged_panel(cls: type[bpy.types.Panel]):
             try:
                 return cls._original_draw_header(self, context)
             except:
-                logger.exception(f"Uncaught exception raised in {cls}.draw_header")
+                logger.exception(
+                    f"Uncaught exception raised in {cls}.draw_header",
+                    extra={
+                        "_log_data": {
+                            "event": "panel_draw_header_exception",
+                            "panel": cls.bl_idname,
+                        },
+                    },
+                )
 
         cls.draw_header = new_draw_header
 
@@ -141,7 +301,15 @@ def logged_panel(cls: type[bpy.types.Panel]):
             try:
                 return cls._original_draw(self, context)
             except:
-                logger.exception(f"Uncaught exception raised in {cls}.draw")
+                logger.exception(
+                    f"Uncaught exception raised in {cls}.draw",
+                    extra={
+                        "_log_data": {
+                            "event": "panel_draw_exception",
+                            "panel": cls.bl_idname,
+                        },
+                    },
+                )
 
         cls.draw = new_draw
 
@@ -162,7 +330,15 @@ def logged_preferences(cls: type[bpy.types.AddonPreferences]):
             try:
                 return cls._original_draw(self, context)
             except:
-                logger.exception(f"Uncaught exception raised in {cls}.draw")
+                logger.exception(
+                    f"Uncaught exception raised in {cls}.draw",
+                    extra={
+                        "_log_data": {
+                            "event": "prefs_draw_exception",
+                            "prefs": cls.bl_idname,
+                        },
+                    },
+                )
 
         cls.draw = new_draw
 

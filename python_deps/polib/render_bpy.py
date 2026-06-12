@@ -64,6 +64,49 @@ def line(v1: mathutils.Vector, v2: mathutils.Vector, color: Color, width: float)
     batch.draw(SHADER_LINE_BUILTIN)
 
 
+def arrow_3d(
+    pos: mathutils.Vector,
+    direction: mathutils.Vector,
+    color: Color = (1.0, 1.0, 1.0, 1.0),
+    line_width: float = 1.0,
+) -> None:
+    """Draws an arrow in 3D space.
+
+    Starting at 'pos' in 'direction' of desired 'color' and 'width'
+    """
+    transfor_mat = (
+        mathutils.Matrix.Translation(pos)
+        @ direction.to_track_quat("Y", "Z").to_matrix().to_4x4()
+        @ mathutils.Matrix.Scale(direction.length, 4)
+    )
+    verts = [
+        transfor_mat @ mathutils.Vector(co)
+        for co in [
+            (0.0, 0.0, 0.0),
+            (0.0, 1.0, 0.0),
+            (0.0, 1.0, 0.0),
+            (1.0 / 3.0, 2.0 / 3.0, 0.0),
+            (1.0 / 3.0, 2.0 / 3.0, 0.0),
+            (-1.0 / 3.0, 2.0 / 3.0, 0.0),
+            (-1.0 / 3.0, 2.0 / 3.0, 0.0),
+            (0.0, 1.0, 0.0),
+        ]
+    ]
+
+    batch = gpu_extras.batch.batch_for_shader(
+        SHADER_LINE_BUILTIN,
+        'LINES',
+        {
+            "pos": verts,
+        },
+    )
+    SHADER_LINE_BUILTIN.bind()
+    SHADER_LINE_BUILTIN.uniform_float("color", color)
+    SHADER_LINE_BUILTIN.uniform_float("lineWidth", line_width)
+    SHADER_LINE_BUILTIN.uniform_float("viewportSize", VIEWPORT_SIZE)
+    batch.draw(SHADER_LINE_BUILTIN)
+
+
 def rectangle(pos: tuple[float, float], size: tuple[float, float], color: Color):
     """Draws rectangle starting at 'pos' of width and height from 'size' of desired 'color'"""
     batch = gpu_extras.batch.batch_for_shader(
@@ -458,7 +501,8 @@ def text_3d(
     rv3d: bpy.types.RegionView3D,
 ) -> None:
     pos_2d = bpy_extras.view3d_utils.location_3d_to_region_2d(region, rv3d, world_pos)
-    text(pos_2d, string, style)
+    if pos_2d is not None:  # Do not draw if the position is behind the camera
+        text(pos_2d, string, style)
 
 
 def text_box(

@@ -18,7 +18,7 @@
   <br />
 
   [![Buy on Superhive](https://img.shields.io/badge/Buy_on-Superhive-orange?style=flat)](https://superhivemarket.com/products/engon?ref=673)
-  [![Buy on Gumroad](https://img.shields.io/badge/Buy_on-Gumroad-blue?style=flat&color=%23fb80e8)](https://polygoniq.gumroad.com/l/engon/)
+  [![Buy on Gumroad](https://img.shields.io/badge/Buy_on-Gumroad-blue?style=flat&color=%23fb80e8)](https://polygoniq.gumroad.com/l/engon?affiliate_id=844930739)
   [![Project license](https://img.shields.io/github/license/polygoniq/engon.svg?style=flat)](LICENSE)
   [![Pull Requests welcome](https://img.shields.io/badge/PRs-welcome-ff69b4.svg?style=flat)](https://github.com/polygoniq/engon/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
 

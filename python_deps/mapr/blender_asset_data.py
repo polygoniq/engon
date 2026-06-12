@@ -34,6 +34,8 @@ class BlenderModelAssetData(BlenderAssetData):
     def spawn(
         self, path: str, context: bpy.types.Context, options: hatchery.spawn.ModelSpawnOptions
     ) -> hatchery.spawn.ModelSpawnedData:
+        if options.spawn_as_object:
+            return hatchery.spawn.spawn_model_as_object(path, context, options)
         return hatchery.spawn.spawn_model(path, context, options)
 
 

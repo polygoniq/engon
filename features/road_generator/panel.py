@@ -20,12 +20,16 @@
 
 import bpy
 import logging
+import typing
 from . import props
 from . import build_roads_modal
 from . import asset_helpers
 from .. import feature_utils
 from .. import asset_pack_panels
 from ... import polib
+
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
@@ -43,7 +47,7 @@ class ConvertToMesh(bpy.types.Operator):
     def poll(cls, context: bpy.types.Context) -> bool:
         return context.mode == 'OBJECT' and len(context.selected_objects) > 0
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         road_generator_objects = [
             o for o in context.selected_objects if asset_helpers.is_road_generator_obj(o)
         ]
@@ -101,7 +105,7 @@ class MassChangeResample(bpy.types.Operator):
 
         layout.prop(resample_props, "only_selected")
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         resample_props = props.get_rg_props(context).resample
         resample_targets = set()
         if resample_props.include_input:
@@ -138,7 +142,9 @@ class MassChangeResample(bpy.types.Operator):
         self.report({'INFO'}, f"Changed {len(changed_inputs)} input(s).")
         return {'FINISHED'}
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         return context.window_manager.invoke_props_dialog(self)
 
 
@@ -165,7 +171,7 @@ class MassChangeFillet(bpy.types.Operator):
         layout.prop(fillet_props, "value")
         layout.prop(fillet_props, "only_selected")
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         fillet_props = props.get_rg_props(context).fillet
         changed_inputs = []
         for obj in context.selected_objects if fillet_props.only_selected else bpy.data.objects:
@@ -190,7 +196,9 @@ class MassChangeFillet(bpy.types.Operator):
         self.report({'INFO'}, f"Changed {len(changed_inputs)} input(s).")
         return {'FINISHED'}
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         return context.window_manager.invoke_props_dialog(self)
 
 
@@ -212,7 +220,7 @@ class AddRoadGeneratorModifier(bpy.types.Operator):
     def poll(cls, context: bpy.types.Context) -> bool:
         return context.active_object is not None and context.active_object.type == 'CURVE'
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         lib_path = props.get_rg_props(context).geonodes_lib_path
         with bpy.data.libraries.load(lib_path, link=True) as (data_from, data_to):
             data_to.node_groups = [ng for ng in data_from.node_groups if ng == self.mod_type]
@@ -354,7 +362,7 @@ class RoadGeneratorInputCurvePanel(RoadGeneratorPanelMixin, bpy.types.Panel):
             > 0
         )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         self.draw_active_object_modifiers_node_group_inputs_template(
             self.layout,
             context,
@@ -390,7 +398,7 @@ class RoadGeneratorProfilePanel(RoadGeneratorPanelMixin, bpy.types.Panel):
             > 0
         )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         self.draw_active_object_modifiers_node_group_inputs_template(
             self.layout,
             context,
@@ -427,7 +435,7 @@ class RoadGeneratorRoadMarkingPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
             > 0
         )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         self.draw_active_object_modifiers_node_group_inputs_template(
             self.layout,
             context,
@@ -464,7 +472,7 @@ class RoadGeneratorDistributePanel(RoadGeneratorPanelMixin, bpy.types.Panel):
             > 0
         )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         self.draw_active_object_modifiers_node_group_inputs_template(
             self.layout,
             context,
@@ -501,7 +509,7 @@ class RoadGeneratorCrosswalkPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
             > 0
         )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         self.draw_active_object_modifiers_node_group_inputs_template(
             self.layout,
             context,
@@ -539,7 +547,7 @@ class RoadGeneratorScatterPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
             > 0
         )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         self.draw_active_object_modifiers_node_group_inputs_template(
             self.layout,
             context,
@@ -574,7 +582,7 @@ class RoadGeneratorCleanupPanel(RoadGeneratorPanelMixin, bpy.types.Panel):
             > 0
         )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         self.draw_active_object_modifiers_node_group_inputs_template(
             self.layout, context, RoadGeneratorCleanupPanel.template
         )

@@ -27,6 +27,9 @@ import logging
 from . import asset_registry
 from . import polib
 
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -204,7 +207,9 @@ class PackInfoSearchPathMixin:
         else:
             raise ValueError(f"Unknown Pack Info Search Path Type {self.path_type}")
 
-    def get_discovered_asset_packs(self) -> list[asset_registry.AssetPack]:
+    def get_discovered_asset_packs(
+        self,
+    ) -> list[asset_registry.AssetPack]:
         if not self.enabled:
             return []
         return PackInfoSearchPath._get_discovered_asset_packs(
@@ -285,7 +290,7 @@ class ShowDiscoveredPacks(bpy.types.Operator):
 
     pack_info_search_path: bpy.props.PointerProperty(type=PackInfoSearchPathForOP)
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         discovered_packs = self.pack_info_search_path.get_discovered_asset_packs()
 
         def _draw_discovered_packs(menu: bpy.types.UIPopupMenu, context: bpy.types.Context) -> None:
@@ -295,7 +300,9 @@ class ShowDiscoveredPacks(bpy.types.Operator):
             col = layout.column(align=True)
             for index, pack in enumerate(discovered_packs):
                 if index != 0:
-                    col.label(text=20 * "-")
+                    col.separator(type='LINE')
+                if not pack.is_supported:
+                    col.label(text=pack.unsupported_reason, icon='ERROR')
                 col.label(text=f"Full Name: {pack.full_name}")
                 col.label(text=f"Version: {pack.get_version_str()}")
                 col.label(text=f"Vendor: {pack.vendor}")
@@ -357,10 +364,16 @@ class MY_UL_PackInfoSearchPathList(bpy.types.UIList):
         row = split.row(align=True)
         if not item.enabled:
             return
-        discovered_packs_count = len(item.get_discovered_asset_packs())
+        discovered_packs = item.get_discovered_asset_packs()
+        unsupported_packs = [pack for pack in discovered_packs if not pack.is_supported]
+        discovered_packs_count = len(discovered_packs)
+        unsupported_packs_count = len(unsupported_packs)
         label_text = "Pack"
         if discovered_packs_count != 1:
             label_text += "s"
+        if unsupported_packs_count > 0:
+            row.alert = True
+            label_text += f" ({unsupported_packs_count} Unsupported)"
         row.label(text=f"{str(discovered_packs_count)} {label_text}")
         op = row.operator(ShowDiscoveredPacks.bl_idname, icon='PRESET', text="")
         # We cannot assign the whole item into pack_info_search_path

@@ -51,8 +51,8 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
         )
 
         # maps asset ID to IDs of categories it is in (including parents recursively)
-        self.asset_categories: collections.defaultdict[asset.AssetID, set[category.CategoryID]] = (
-            collections.defaultdict(set)
+        self.asset_categories: collections.defaultdict[asset.AssetID, list[category.CategoryID]] = (
+            collections.defaultdict(list)
         )
 
         # maps category ID to its metadata
@@ -132,12 +132,14 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
             vector_parameters.update(asset_metadata_json.get("color_parameters", {}))
 
             foreign_search_matter: dict[str, float] = {}
-            foreign_search_matter.update(
-                {
-                    self.categories[category_id].title: category.TITLE_SEARCH_WEIGHT
-                    for category_id in self.asset_categories.get(asset_id, set())
-                }
-            )
+            category_list = [
+                part.replace("_", " ")
+                for part in max(
+                    self.asset_categories.get(asset_id, set()), key=len, default=""
+                ).split("/")
+                if part != ""
+            ]
+            category_path = None if len(category_list) == 0 else tuple(category_list)
 
             # Convert country of origin to location parameters to make the country of origin
             # compatible with the search map feature. This is relevant for asset packs with
@@ -167,6 +169,7 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
                 type_=asset_data.AssetDataType[asset_metadata_json.get("type", "unknown")],
                 preview_file=asset_metadata_json.get("preview_file", ""),
                 tags=asset_metadata_json.get("tags", []),
+                category_path=category_path,
                 numeric_parameters=asset_metadata_json.get("numeric_parameters", {}),
                 vector_parameters=vector_parameters,
                 text_parameters=asset_metadata_json.get("text_parameters", {}),
@@ -253,7 +256,7 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
 
     def map_assets_to_categories(
         self,
-    ) -> collections.defaultdict[asset.AssetID, set[category.CategoryID]]:
+    ) -> collections.defaultdict[asset.AssetID, list[category.CategoryID]]:
         """Returns a mapping of asset ID to category IDs it is in, including parent categories.
 
         Constructed based on 'child_asset_data' and 'child_categories' mappings. These
@@ -268,15 +271,15 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
         def find_parents(category_id, all_parents):
             if category_id in category_parent_mapping:
                 parent = category_parent_mapping[category_id]
-                all_parents.add(parent)
+                all_parents.append(parent)
                 find_parents(parent, all_parents)
 
-        asset_to_categories: collections.defaultdict[asset.AssetID, set[category.CategoryID]] = (
-            collections.defaultdict(set)
+        asset_to_categories: collections.defaultdict[asset.AssetID, list[category.CategoryID]] = (
+            collections.defaultdict(list)
         )
         for category_id, asset_ids in self.child_assets.items():
             for asset_id in asset_ids:
-                asset_to_categories[asset_id].add(category_id)
+                asset_to_categories[asset_id].append(category_id)
                 find_parents(category_id, asset_to_categories[asset_id])
 
         return asset_to_categories

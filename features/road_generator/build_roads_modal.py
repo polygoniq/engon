@@ -34,6 +34,9 @@ from . import road_builder
 from . import props
 from . import road_type
 
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -42,9 +45,16 @@ MODULE_CLASSES = []
 HIGHLIGHT_COLOR = (0.991102, 0.258183, 0.0, 1.0)
 OVERLAY_COLOR = (0.205079, 1.0, 1.0, 0.1)
 CX_OVERLAY_COLOR = (0.012983, 0.174648, 0.982251, 1.0)
-TEXT_COLOR = (0.8, 0.8, 0.8, 1.0)
-TEXT_COLOR_BRIGHTER = (0.9, 0.9, 0.9, 1.0)
-TEXT_HEADING_COLOR = (1.0, 1.0, 1.0, 1.0)
+TEXT_COLOR = polib.color_utils_bpy.Color.from_linear(0.8, 0.8, 0.8)
+TEXT_HEADING_COLOR = polib.color_utils_bpy.Color.from_linear(1.0, 1.0, 1.0)
+BACKGROUND_COLOR = polib.color_utils_bpy.Color.from_linear(0.0, 0.0, 0.0, 0.7)
+DEBUG_3D_LABEL_STYLE = polib.pq_render_bpy.styles.StyleText(
+    font_size=12,
+    color=TEXT_COLOR,
+    outline_color=polib.color_utils_bpy.Color.from_linear(0.0, 0.0, 0.0, 1.0),
+    anchor=polib.pq_render_bpy.styles.Anchor.BOTTOM_CENTER,
+    offset=(0, 5),
+)
 OVERLAY_Z = 0.0
 
 
@@ -69,6 +79,8 @@ class BuildRoads(bpy.types.Operator):
 
     is_running = False
 
+    ui_layout = None
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.mouse_point: road_builder.BuildPoint | None = None
@@ -77,13 +89,119 @@ class BuildRoads(bpy.types.Operator):
         self.snapped_point = None
 
         self.grid_snap = False
-        self.text_ui_origin = mathutils.Vector((50, 50))
-        self.text_help_ui_origin = mathutils.Vector((60, 310))
 
         self.road_type_idx = -1
         self.road_types_len = 1
 
         self.curves: dict[str, bpy.types.Object] = {}
+
+        if type(self).ui_layout is None:
+            type(self)._init_ui_layout()
+
+    @classmethod
+    def _init_ui_layout(cls) -> None:
+        ui = polib.pq_render_bpy.ui_bpy
+        styles = polib.pq_render_bpy.styles
+        comp = polib.pq_render_bpy.components_bpy
+
+        Key = comp.InputCombo.Key
+        Mouse = comp.InputCombo.Mouse
+        MB = comp.MouseButton
+
+        info_text_style = styles.StyleText(font_size=15, line_height=2, color=TEXT_COLOR)
+        heading_text_style = styles.StyleText(
+            font_size=18, padding=(8, 0, 2, 0), color=TEXT_HEADING_COLOR
+        )
+
+        # Info panel texts
+        cls.ui_heading = ui.Text("Build Roads Information", style=heading_text_style.copy())
+        cls.ui_crossroad_offset = ui.Text("", style=info_text_style.copy())
+        cls.ui_road_heading = ui.Text("Current Road", style=heading_text_style.copy())
+        cls.ui_road_type = ui.Text("", style=info_text_style.copy())
+        cls.ui_total_width = ui.Text("", style=info_text_style.copy())
+        cls.ui_road_width = ui.Text("", style=info_text_style.copy())
+
+        cls.ui_info_panel = ui.Flex(
+            style=styles.StyleFlex(
+                direction=styles.Direction.COLUMN,
+                padding=(2, 10, 10, 10),
+                background=BACKGROUND_COLOR,
+                corner_radius=4.0,
+            ),
+            children=[
+                cls.ui_heading,
+                cls.ui_crossroad_offset,
+                cls.ui_road_heading,
+                cls.ui_road_type,
+                cls.ui_total_width,
+                cls.ui_road_width,
+            ],
+        )
+
+        # Help input combos
+        cls.ui_place = comp.InputCombo("Start Segment", [Mouse(buttons=MB.LEFT)])
+        cls.ui_road_type_key = comp.InputCombo("Change Road Type", [Key("Q")])
+        cls.ui_snap_key = comp.InputCombo("Snap To Grid (Hold)", [Key(comp.CTRL_KEY)])
+        cls.ui_exit_key = comp.InputCombo("Exit", [Key(comp.ESCAPE_KEY)])
+
+        cls.ui_help_panel = ui.Flex(
+            style=styles.StyleFlex(
+                direction=styles.Direction.COLUMN,
+                gap=8,
+            ),
+            children=[
+                cls.ui_place,
+                cls.ui_road_type_key,
+                cls.ui_snap_key,
+                cls.ui_exit_key,
+            ],
+        )
+
+        # Debug panel texts
+        cls.ui_dbg_first_point = ui.Text("", style=info_text_style.copy())
+        cls.ui_dbg_mouse_point = ui.Text("", style=info_text_style.copy())
+        cls.ui_dbg_segments_count = ui.Text("", style=info_text_style.copy())
+        cls.ui_dbg_cx_count = ui.Text("", style=info_text_style.copy())
+
+        cls.ui_debug_panel = ui.Flex(
+            style=styles.StyleFlex(
+                anchor=styles.Anchor.TOP_LEFT,
+                offset=(60, -40),
+                direction=styles.Direction.COLUMN,
+                padding=(10, 10),
+                background=BACKGROUND_COLOR,
+                corner_radius=4.0,
+                hidden=True,
+            ),
+            children=[
+                cls.ui_dbg_first_point,
+                cls.ui_dbg_mouse_point,
+                cls.ui_dbg_segments_count,
+                cls.ui_dbg_cx_count,
+            ],
+        )
+
+        cls.ui_layout = ui.RootFixed(
+            [
+                ui.Flex(
+                    style=styles.StyleFlex(
+                        anchor=styles.Anchor.BOTTOM_LEFT,
+                        offset=(60, 10),
+                        direction=styles.Direction.COLUMN,
+                        gap=15,
+                    ),
+                    children=[
+                        cls.ui_help_panel,
+                        cls.ui_info_panel,
+                        cls.ui_debug_panel,
+                    ],
+                )
+            ],
+            avoid_ui_region_overlap=True,
+        )
+
+        # Container for 3D projected debug labels for bezier points (populated as needed in draw_px)
+        cls.ui_debug_3d_root = ui.RootProjected(name="Debug 3D Labels")
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
@@ -149,18 +267,20 @@ class BuildRoads(bpy.types.Operator):
                 self.first_point_position, self.mouse_point.position, OVERLAY_COLOR, 1
             )
 
-        if self.props.debug:
-            if self.road_builder.provisional_spline_end_point:
-                spline, idx = self.road_builder.provisional_spline_end_point
-                polib.render_bpy.circle(spline.bezier_points[idx].co, 5.0, (0, 1, 0, 1), 5)
-            if self.road_builder.provisional_cx is not None:
-                polib.render_bpy.circle(
-                    self.road_builder.provisional_cx.midpoint, 5.0, (1, 0, 0, 1), 5
-                )
-                if self.road_builder.provisional_cx.adj_point is not None:
-                    polib.render_bpy.circle(
-                        self.road_builder.provisional_cx.adj_point, 5.0, (0, 0, 1, 1), 5
-                    )
+        # TODO: This block of code throws errors. Keeping it here as a comment for now...
+        # AttributeError: 'RoadBuilder' object has no attribute 'provisional_spline_end_point'
+        # if self.props.debug:
+        #     if self.road_builder.provisional_spline_end_point:
+        #         spline, idx = self.road_builder.provisional_spline_end_point
+        #         polib.render_bpy.circle(spline.bezier_points[idx].co, 5.0, (0, 1, 0, 1), 5)
+        #     if self.road_builder.provisional_cx is not None:
+        #         polib.render_bpy.circle(
+        #             self.road_builder.provisional_cx.midpoint, 5.0, (1, 0, 0, 1), 5
+        #         )
+        #         if self.road_builder.provisional_cx.adj_point is not None:
+        #             polib.render_bpy.circle(
+        #                 self.road_builder.provisional_cx.adj_point, 5.0, (0, 0, 1, 1), 5
+        #             )
 
     def draw_view(self) -> None:
         """Draws in the 3D world coordinate space"""
@@ -168,101 +288,59 @@ class BuildRoads(bpy.types.Operator):
 
     def draw_px(self) -> None:
         """Draws in the 2D coordinate space after projection is applied"""
-        region = bpy.context.region
-        region_3d = bpy.context.space_data.region_3d
+        cls = type(self)
+        assert cls.ui_layout is not None
+
         current_road_type = self._get_current_road_type()
 
-        info_text_style = polib.render_bpy.TextStyle(font_size=15, color=TEXT_COLOR)
-        heading_text_style = polib.render_bpy.TextStyle(font_size=15, color=TEXT_HEADING_COLOR)
-        # Draw modal information
-        polib.render_bpy.text_box(
-            self.text_ui_origin,
-            10 * self.ui_scale,
-            10 * self.ui_scale,
-            (0, 0, 0, 0.5),
-            [
-                ("Build Roads Information", heading_text_style),
-                (
-                    f"Crossroad Road Offset: {self.props.crossroad.points_offset:.2f}",
-                    info_text_style,
-                ),
-                ("Current Road", heading_text_style),
-                (f"Road Type: {current_road_type.name}", info_text_style),
-                (f"Total Width: {current_road_type.total_width:.2f}", info_text_style),
-                (f"Road Width: {current_road_type.road_surface_width:.2f}", info_text_style),
-            ],
+        # Update dynamic info panel texts
+        cls.ui_crossroad_offset.text = (
+            f"Crossroad Road Offset: {self.props.crossroad.points_offset:.2f}"
         )
+        cls.ui_road_type.text = f"Road Type: {current_road_type.name}"
+        cls.ui_total_width.text = f"Total Width: {current_road_type.total_width:.2f}"
+        cls.ui_road_width.text = f"Road Width: {current_road_type.road_surface_width:.2f}"
 
-        # Draw guidance for user
-        polib.render_bpy.text(
-            self.text_help_ui_origin,
-            (
-                "Left Click - Start Segment"
-                if self.first_point is None
-                else "Left Click - Finish Segment"
-            ),
-            polib.render_bpy.TextStyle(font_size=20, color=TEXT_COLOR_BRIGHTER),
-        )
+        # Update help panel dynamic state
+        cls.ui_place.description = "Start Segment" if self.first_point is None else "Finish Segment"
+        snap_symbol = cls.ui_snap_key.symbols[0]
+        snap_symbol.pressed = self.grid_snap
 
-        polib.render_bpy.text(
-            self.text_help_ui_origin - mathutils.Vector((0, 25 * self.ui_scale)),
-            "Q - Change Road Type",
-            polib.render_bpy.TextStyle(font_size=17, color=TEXT_COLOR_BRIGHTER),
-        )
-
-        polib.render_bpy.text(
-            self.text_help_ui_origin - mathutils.Vector((0, 50 * self.ui_scale)),
-            "CTRL - Grid Snap is ON" if self.grid_snap else "CTRL - Snap To Grid (Hold)",
-            polib.render_bpy.TextStyle(font_size=17, color=TEXT_COLOR_BRIGHTER),
-        )
-        polib.render_bpy.text(
-            self.text_help_ui_origin - mathutils.Vector((0, 75 * self.ui_scale)),
-            "ESC - Exit",
-            polib.render_bpy.TextStyle(font_size=17, color=TEXT_COLOR_BRIGHTER),
-        )
-
+        # Update debug panel visibility and contents
+        cls.ui_debug_panel.style.hidden = not self.props.debug
         if self.props.debug:
-            dbg_style = polib.render_bpy.TextStyle()
-            polib.render_bpy.text_box(
-                self.text_ui_origin + mathutils.Vector((0, 300)),
-                10,
-                10,
-                (0, 0, 0, 0.5),
-                [
-                    (f"First Point: {self.first_point}", dbg_style),
-                    (f"Mouse Point: {self.mouse_point}", dbg_style),
-                    (
-                        f"Segments Count: {len(list(self.road_builder.road_network.segments))}",
-                        dbg_style,
-                    ),
-                    (
-                        f"CX Count: {len(list(self.road_builder.road_network.crossroads))}",
-                        dbg_style,
-                    ),
-                ],
+            cls.ui_dbg_first_point.text = f"First Point: {self.first_point}"
+            cls.ui_dbg_mouse_point.text = f"Mouse Point: {self.mouse_point}"
+            cls.ui_dbg_segments_count.text = (
+                f"Segments Count: {len(list(self.road_builder.road_network.segments))}"
+            )
+            cls.ui_dbg_cx_count.text = (
+                f"CX Count: {len(list(self.road_builder.road_network.crossroads))}"
             )
 
-            polib.render_bpy.text_box(
-                self.text_ui_origin + mathutils.Vector((50, 600)),
-                10,
-                10,
-                None,
-                [("Road Network Debug", dbg_style), ("Segments:", dbg_style)]
-                + [(str(seg), dbg_style) for seg in self.road_builder.road_network.segments]
-                + [("Crossroads:", dbg_style)]
-                + [(str(cx), dbg_style) for cx in self.road_builder.road_network.crossroads],
-            )
-
+            # Update 3D projected debug labels for bezier points
+            label_idx = 0
             for segment in self.road_builder.road_network.segments:
                 for i, bezier_point in enumerate(segment.spline.bezier_points):
                     is_endpoint = self.road_builder.road_network.is_crossroad_endpoint(segment, i)
-                    polib.render_bpy.text_3d(
-                        bezier_point.co,
-                        f"{repr(segment.spline)[-3:]}[{i}]: {is_endpoint}",
-                        dbg_style,
-                        region,
-                        region_3d,
-                    )
+                    if label_idx < len(cls.ui_debug_3d_root):
+                        label = cls.ui_debug_3d_root[label_idx]
+                    else:
+                        label = polib.pq_render_bpy.ui_bpy.Text(
+                            "", style=DEBUG_3D_LABEL_STYLE.copy()
+                        )
+                        cls.ui_debug_3d_root.add_child(label)
+                    label.text = f"{repr(segment.spline)[-3:]}[{i}]: {is_endpoint}"
+                    label.style.world_position = bezier_point.co
+                    label_idx += 1
+            if label_idx < len(cls.ui_debug_3d_root):
+                cls.ui_debug_3d_root.remove_children_range(label_idx, -1)
+
+            # Draw the 3D debug labels
+            cls.ui_debug_3d_root.draw()
+
+        # Draw the rest of the UI
+        cls.ui_layout.draw()
 
     def _cleanup(
         self,
@@ -274,12 +352,14 @@ class BuildRoads(bpy.types.Operator):
         context.area.tag_redraw()
         BuildRoads.is_running = False
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         # This is needed so the operator call without invoke does not throw an error
         return {'FINISHED'}
 
     @polib.utils_bpy.safe_modal(on_exception=_cleanup)
-    def modal(self, context: bpy.types.Context, event: bpy.types.Event):
+    def modal(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         event_handled = False
 
         # Pass through all events that are not directly in the 3D viewport
@@ -339,17 +419,15 @@ class BuildRoads(bpy.types.Operator):
     def cancel(self, context: bpy.types.Context) -> None:
         self._cleanup(context)
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         if BuildRoads.is_running:
             logger.error("Another instance of the operator is already running!")
             return {'CANCELLED'}
 
         polib.render_bpy.set_context(context)
         self.props = props.get_rg_props(context)
-        # Save ui_scale and scale text origins
-        self.ui_scale = context.preferences.system.ui_scale
-        self.text_help_ui_origin *= self.ui_scale
-        self.text_ui_origin *= self.ui_scale
 
         if not os.path.exists(self.props.roads_path):
             self.report({'ERROR'}, f"Road generator files do not exist at {self.props.roads_path}")

@@ -32,6 +32,9 @@ from .. import polib
 from .. import hatchery
 from .. import asset_helpers
 
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 MODULE_CLASSES = []
@@ -62,7 +65,7 @@ class FrameGeneratorPanel(FrameGeneratorPanelMixin, bpy.types.Panel):
     def draw_header(self, context: bpy.types.Context) -> None:
         self.layout.label(text="", icon=self.get_feature_icon())
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         layout.operator(FrameImage.bl_idname, text="Frame New Image", icon='SEQ_PREVIEW')
 
@@ -81,11 +84,13 @@ class FrameGeneratorOpenImage(bpy.types.Operator):
     filter_image: bpy.props.BoolProperty(default=True, options={'HIDDEN'})
     filter_folder: bpy.props.BoolProperty(default=True, options={'HIDDEN'})
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         if self.filepath and pathlib.Path(self.filepath).is_file():
             image = bpy.data.images.load(self.filepath)
             context.window_manager.pq_frame_gen_image_source = image  # type: ignore
@@ -215,12 +220,14 @@ class FrameImage(bpy.types.Operator):
             return None
         return self._compute_auto_width(selected_image)
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         # Only load pictoral materials here, to avoid loading them in draw but having them ready in draw
         ensure_pictoral_materials()
         return context.window_manager.invoke_props_dialog(self)
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         wm = context.window_manager
         layout = self.layout
         layout.prop(self, "source_type", text="")
@@ -262,7 +269,7 @@ class FrameImage(bpy.types.Operator):
         if not self.auto_width:
             layout.prop(self, "width")
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         wm = context.window_manager
         if self.source_type == 'LOCAL':
             selected_image = getattr(wm, WM_PROP_PQ_FRAME_GEN_IMAGE_SOURCE, None)
@@ -423,7 +430,7 @@ class FrameGeneratorControlPanel(
         # poll returns true as expected, but the draw method is not called
         return True
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         if self.conditionally_draw_warning_no_adjustable_active_object(context, self.layout):
             return
         self.draw_active_object_modifiers_node_group_inputs_template(

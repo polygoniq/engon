@@ -18,6 +18,7 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
+
 import bpy
 import os
 import typing
@@ -83,6 +84,8 @@ class AssetPack:
         engon_features = json_dict.get("engon_features", [])
         # min_engon_version default is the version, when the field was introduced - 1.2.0
         min_engon_version = json_dict.get("min_engon_version", [1, 2, 0])
+        # min_blender_version default is the version, when the field was introduced - 4.2
+        min_blender_version = json_dict.get("min_blender_version", [4, 2])
         pack_info_path = os.path.realpath(os.path.abspath(pack_info_path))
         pack_info_parent_path = os.path.dirname(pack_info_path)
         install_path = os.path.realpath(os.path.abspath(pack_info_parent_path))
@@ -126,6 +129,7 @@ class AssetPack:
             vendor,
             engon_features,
             tuple(min_engon_version),
+            tuple(min_blender_version),
             install_path,
             pack_info_path,
             index_paths,
@@ -154,6 +158,7 @@ class AssetPack:
         vendor: str,
         engon_features: list[str],
         min_engon_version: tuple[int, int, int],
+        min_blender_version: tuple[int, int],
         install_path: str,
         pack_info_path: str,
         index_paths: list[str],
@@ -179,6 +184,7 @@ class AssetPack:
         # The same features are also opened by the Evermotion asset packs.
         self.engon_features = engon_features
         self.min_engon_version = min_engon_version
+        self.min_blender_version = min_blender_version
         self.install_path = install_path
         self.pack_info_path = pack_info_path
         self.index_paths = index_paths
@@ -188,6 +194,12 @@ class AssetPack:
         self.pack_icon: str | None = None
         self.vendor_icon: str | None = None
         valid_icon_paths: list[str] = []
+
+        self._is_supported = True
+        self._unsupported_reason = None
+        if bpy.app.version < self.min_blender_version:
+            self._is_supported = False
+            self._unsupported_reason = f"The Asset Pack requires Blender version {'.'.join(map(str, self.min_blender_version))} or higher."
 
         for icon_path, icon_prop_name in zip(
             (pack_icon_path, vendor_icon_path), ("pack_icon", "vendor_icon")
@@ -215,6 +227,14 @@ class AssetPack:
 
         # we remember which blender asset library entry we added
         self.blender_asset_library_entry: bpy.types.UserAssetLibrary | None = None
+
+    @property
+    def is_supported(self) -> bool:
+        return self._is_supported
+
+    @property
+    def unsupported_reason(self) -> str | None:
+        return self._unsupported_reason
 
     def __del__(self):
         del self.icon_manager
@@ -376,10 +396,13 @@ class AssetPack:
                     # commonpath raises ValueError if the two paths have a different drive
                     pass
             else:
-                bpy.ops.preferences.asset_library_add()
+                kwargs = {"directory": self.install_path}
+                if bpy.app.version >= (5, 2, 0):
+                    # Blender 5.2 introduced remote asset libraries, adding new library defaults the type to 'REMOTE'
+                    kwargs["type"] = 'LOCAL'
+                bpy.ops.preferences.asset_library_add(**kwargs)
                 self.blender_asset_library_entry = preferences.filepaths.asset_libraries[-1]
                 self.blender_asset_library_entry.name = f"{self.full_name} (engon)"
-                self.blender_asset_library_entry.path = self.install_path
 
     def _unregister_blender_asset_library(self) -> None:
         if self.blender_asset_library_entry is not None:
@@ -557,7 +580,22 @@ class AssetRegistry:
     def refresh_packs_from_pack_info_paths(
         self, pack_info_paths: dict[str, RegisterOptions]
     ) -> None:
-        input_pack_info_files: set[str] = set(pack_info_paths.keys())
+        input_pack_info_files: set[str] = set()
+        for pack_info_path in set(pack_info_paths.keys()):
+            try:
+                asset_pack = AssetPack.load_from_json(pack_info_path)
+                if not asset_pack.is_supported:
+                    logger.warning(
+                        f"Asset pack '{asset_pack.full_name}' from '{pack_info_path}' is not "
+                        f"supported and won't be registered! Reason: '{asset_pack.unsupported_reason}'"
+                    )
+                    continue
+                input_pack_info_files.add(pack_info_path)
+            except:
+                logger.warning(
+                    f"Failed parsing asset pack from '{pack_info_path}', skipping registration of this pack!"
+                )
+
         logger.info(
             f"Refreshing registered asset packs from pack-info files: {input_pack_info_files}"
         )

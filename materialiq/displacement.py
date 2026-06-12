@@ -24,6 +24,9 @@ import logging
 from .. import polib
 from .. import hatchery
 
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -230,13 +233,15 @@ class AddDisplacement(bpy.types.Operator):
         for dc in self.displacement_object_candidates:
             col.label(text=f"{dc.obj.name} : {dc.mat.name}")
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         self.displacement_object_candidates = list(
             get_displacement_object_candidates(context.selected_objects)
         )
         return context.window_manager.invoke_props_dialog(self, width=600)
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         for displacement_candidate in self.displacement_object_candidates:
             hatchery.displacement.link_displacement(displacement_candidate.mat)
             if self.add_subdiv_mod:
@@ -273,7 +278,7 @@ class RemoveDisplacement(bpy.types.Operator):
     def poll(cls, context: bpy.types.Context) -> bool:
         return next(get_displacement_object_candidates(context.selected_objects), None) is not None
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         displacement_candidates = list(get_displacement_object_candidates(context.selected_objects))
         for displacement_candidate in displacement_candidates:
             hatchery.displacement.unlink_displacement(displacement_candidate.mat)

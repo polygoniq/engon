@@ -21,11 +21,15 @@
 
 import bpy
 import logging
+import typing
 from . import feature_utils
 from . import asset_pack_panels
 from .. import polib
 from .. import preferences
 from .. import asset_helpers
+
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
@@ -66,7 +70,7 @@ class EnterVertexPaintMode(bpy.types.Operator):
         self.should_create_mask = False
         self.display_mask_warning = False
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         if self.display_mask_warning:
             col = layout.column(align=True)
@@ -94,7 +98,7 @@ class EnterVertexPaintMode(bpy.types.Operator):
 
         return True
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         # This is guaranteed by the poll method
         assert context.active_object is not None
         assert context.active_object.data is not None
@@ -122,7 +126,9 @@ class EnterVertexPaintMode(bpy.types.Operator):
 
         return {'FINISHED'}
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         # This is guaranteed by the poll method
         assert context.active_object is not None
         assert context.active_object.data is not None
@@ -162,14 +168,14 @@ class ApplyMask(bpy.types.Operator):
     )
 
     @classmethod
-    def poll(cls, context: bpy.types.Context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         return (
             context.mode == 'PAINT_VERTEX'
             and context.vertex_paint_object is not None
             and context.vertex_paint_object.data is not None
         )
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         assert context.vertex_paint_object is not None
         assert context.vertex_paint_object.data is not None
 
@@ -205,10 +211,10 @@ class ReturnToObjectMode(bpy.types.Operator):
     bl_options = {'REGISTER'}
 
     @classmethod
-    def poll(cls, context: bpy.types.Context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         return context.mode == 'PAINT_VERTEX'
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         if context.mode != 'OBJECT':
             bpy.ops.object.mode_set(mode='OBJECT')
 
@@ -238,8 +244,13 @@ class AquatiqPaintMaskPanel(feature_utils.EngonFeaturePanelMixin, bpy.types.Pane
     def draw_vertex_paint_ui(self, context: bpy.types.Context):
         layout = self.layout
         prefs = preferences.prefs_utils.get_preferences(context).aquatiq_paint_mask_preferences
-        brush = context.tool_settings.vertex_paint.brush
-        unified_settings = context.tool_settings.unified_paint_settings
+        tool_settings = context.tool_settings
+        brush = tool_settings.vertex_paint.brush
+        unified_settings = (
+            tool_settings.unified_paint_settings
+            if bpy.app.version < (5, 0, 0)
+            else tool_settings.vertex_paint.unified_paint_settings
+        )
 
         if context.vertex_paint_object is None or context.vertex_paint_object.data is None:
             return
@@ -276,7 +287,7 @@ class AquatiqPaintMaskPanel(feature_utils.EngonFeaturePanelMixin, bpy.types.Pane
 
         layout.operator(ReturnToObjectMode.bl_idname, text="Return", icon='LOOP_BACK')
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         if context.mode == 'PAINT_VERTEX':
             self.draw_vertex_paint_ui(context)
             return

@@ -25,6 +25,9 @@ from .. import polib
 from .. import hatchery
 from .. import asset_helpers
 
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -43,7 +46,7 @@ class ChangeTextureSizeGlobal(bpy.types.Operator):
         name="Texture maximum side size",
     )
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         hatchery.textures.change_texture_sizes(int(self.max_size))
         self.report({"INFO"}, f"Changed global texture sizes to {self.max_size}")
         return {'FINISHED'}
@@ -73,7 +76,7 @@ class ChangeTextureSizeActiveMaterial(bpy.types.Operator):
         textures = hatchery.textures.get_used_textures(mat)
         return any(hatchery.textures.is_materialiq_texture(t) for t in textures)
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         textures = hatchery.textures.get_used_textures(context.active_object.active_material)
         hatchery.textures.change_texture_sizes(int(self.max_size), textures)
         self.report(
@@ -126,7 +129,7 @@ class SyncTextureNodes(bpy.types.Operator):
             for target in targets:
                 setattr(target, prop_name, prop_value)
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         mat = polib.material_utils_bpy.safe_get_active_material(context.active_object)
         if mat is None:
             return {'CANCELLED'}

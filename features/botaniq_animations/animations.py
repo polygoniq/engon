@@ -32,6 +32,9 @@ from ... import preferences
 from ... import asset_helpers
 from ... import asset_registry
 
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 MODULE_CLASSES: list[type] = []
@@ -655,7 +658,9 @@ class AnimationOperatorBase(bpy.types.Operator):
             raise ValueError(f"Unknown selection target '{wind_properties.operator_target}'")
         return target_objects
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         return context.window_manager.invoke_props_dialog(self)
 
     def draw(self, context: bpy.types.Context) -> None:
@@ -677,7 +682,7 @@ class AnimationAddWind(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         if context.mode != 'OBJECT':
             return False
         if not context.selected_objects:
@@ -700,10 +705,12 @@ class AnimationAddWind(bpy.types.Operator):
 
         return False
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         return context.window_manager.invoke_props_dialog(self)
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         layout.use_property_split = True
         props = preferences.prefs_utils.get_preferences(
@@ -956,7 +963,7 @@ class AnimationAddWind(bpy.types.Operator):
             "please remove old animation and re-apply new from the Animations panel.",
         )
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         prefs = preferences.prefs_utils.get_preferences(context).botaniq_animations_preferences
         props = prefs.wind_anim_properties
         selected_objects = context.selected_objects
@@ -1122,7 +1129,7 @@ class AnimationRemoveWind(bpy.types.Operator):
         ):
             root_obj.animation_data_clear()
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         animation_library_path = get_animation_library_path()
 
         removed_animation_object_names = []
@@ -1173,7 +1180,7 @@ class AnimationMute(AnimationOperatorBase):
         layout.prop_tabs_enum(self, "action")
         super().draw(context)
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         animation_library_path = get_animation_library_path()
 
         target_objects = AnimationMute.get_target_objects(context)
@@ -1233,7 +1240,7 @@ class AnimationApplyStrength(AnimationOperatorBase):
     bl_description = "Applies specified value of strength to selected objects"
     bl_options = {'REGISTER', 'UNDO'}
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         wind_properties = preferences.prefs_utils.get_preferences(
             context
         ).botaniq_animations_preferences.wind_anim_properties
@@ -1260,7 +1267,7 @@ class AnimationApplyPreset(AnimationOperatorBase):
     bl_description = "Applies specified preset to selected objects"
     bl_options = {'REGISTER', 'UNDO'}
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         wind_properties = preferences.prefs_utils.get_preferences(
             context
         ).botaniq_animations_preferences.wind_anim_properties
@@ -1294,7 +1301,7 @@ class AnimationApplyLoop(AnimationOperatorBase):
     bl_description = "Applies looping interval on animated objects"
     bl_options = {'REGISTER', 'UNDO'}
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         wind_properties = preferences.prefs_utils.get_preferences(
             context
         ).botaniq_animations_preferences.wind_anim_properties
@@ -1347,7 +1354,7 @@ class AnimationSetAnimStyle(AnimationOperatorBase):
         layout.prop_tabs_enum(self, "style")
         super().draw(context)
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         animation_library_path = get_animation_library_path()
 
         if self.style not in {
@@ -1380,7 +1387,7 @@ class AnimationSetFrames(bpy.types.Operator):
     bl_description = "Sets scene frames according to looping parameter"
     bl_options = {'REGISTER', 'UNDO'}
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         wind_properties = preferences.prefs_utils.get_preferences(
             context
         ).botaniq_animations_preferences.wind_anim_properties
@@ -1430,7 +1437,7 @@ class AnimationRandomizeOffset(AnimationOperatorBase):
                     if modifier.type == 'NOISE':
                         modifier.offset += random_offset
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         target_objects = AnimationOperatorBase.get_target_objects(context)
         animated_objects = list(get_animated_objects(target_objects))
         logger.info(f"Working with objects {[obj.name for obj in animated_objects]}")
@@ -1521,7 +1528,7 @@ class AnimationMakeInstanced(bpy.types.Operator):
 
         return new_instance_coll, instance_obj
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         active_object = context.active_object
         logger.info(f"Working with object {active_object.name}")
         AnimationMakeInstanced.wrap_to_instance_collection(context, active_object)
@@ -1577,7 +1584,7 @@ class AnimationMakeInstanceUnique(bpy.types.Operator):
         polib.asset_pack_bpy.collection_link_hierarchy(new_collection, new_object)
         return new_collection
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         active_object = context.active_object
         instance_collection: bpy.types.Collection = active_object.instance_collection
         if instance_collection is None or len(instance_collection.objects) == 0:
@@ -1617,21 +1624,23 @@ class AnimationBake(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
-    def poll(cls, context: bpy.types.Context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         return (
             context.mode == 'OBJECT'
             and context.active_object is not None
             and is_animated(context.active_object)
         )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         # TODO: calculate approx. file size
         self.layout.label(text=f"File size may be large, continue?")
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         return context.window_manager.invoke_props_dialog(self, width=600)
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         animation_library_path = get_animation_library_path()
 
         wind_properties = preferences.prefs_utils.get_preferences(

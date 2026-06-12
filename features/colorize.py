@@ -18,7 +18,10 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
+import enum
+
 import bpy
+import dataclasses
 import typing
 from . import feature_utils
 from . import asset_pack_panels
@@ -26,73 +29,96 @@ from .. import polib
 from .. import preferences
 from .. import panel
 
-
 MODULE_CLASSES = []
+
+MAX_COLOR_SLOTS = 10
+
+
+class OrdinalNames(enum.StrEnum):
+    PRIMARY = "primary"
+    SECONDARY = "secondary"
+    TERTIARY = "tertiary"
+    QUATERNARY = "quaternary"
+    # Because EEVEE has an attribute limitation of 8 attributes, and one color requires 2 attributes,
+    # we would like to avoid using colors after quaternary where possible
+    # We could rework colorize to use single RGBA attribute (encoding RGB + factor) later
+    # QUINARY = "quinary"
+    # SENARY = "senary"
+    # SEPTENARY = "septenary"
+    # OCTONARY = "octonary"
+    # NONARY = "nonary"
+    # DENARY = "denary"
+
+
+@dataclasses.dataclass
+class ColorSlotDefinition:
+    """Defines a single color slot in the colorize feature.
+
+    Only the ordinal name (e.g. "primary") and a display label are required;
+    all other attributes are derived from the name.
+    """
+
+    name: OrdinalNames
+    label: str
+
+    @property
+    def color_prop(self) -> str:
+        return f"pq_{self.name}_color"
+
+    @property
+    def factor_prop(self) -> str:
+        return f"pq_{self.name}_color_factor"
+
+    @property
+    def pref_color(self) -> str:
+        return f"{self.name}_color"
+
+    @property
+    def pref_factor(self) -> str:
+        return f"{self.name}_color_factor"
+
+
+_DEFAULT_COLOR_SLOTS: list[ColorSlotDefinition] = [
+    ColorSlotDefinition(name, name.value.capitalize()) for name in OrdinalNames
+]
+
+
+def _make_prop_update(pref_attr: str, prop_name: str):
+    """Return a property update callback that writes pref_attr's value to prop_name."""
+
+    def update(self, context: bpy.types.Context) -> None:
+        assets = ColorizePanelMixin.get_multiedit_adjustable_assets(context)
+        value = getattr(self, pref_attr)
+        polib.custom_props_bpy.update_custom_prop(context, assets, prop_name, value)
+
+    return update
 
 
 class ColorizePreferences(bpy.types.PropertyGroup):
-    primary_color: bpy.props.FloatVectorProperty(
-        name="Primary color",
+    pass
+
+
+# Populate ColorizePreferences with one color + one factor property per ordinal slot.
+for _slot in _DEFAULT_COLOR_SLOTS:
+    ColorizePreferences.__annotations__[_slot.pref_color] = bpy.props.FloatVectorProperty(
+        name=_slot.name.capitalize(),
         subtype='COLOR',
-        description="Changes primary color of assets",
+        description=f"Changes {_slot.name} color of assets",
         default=(1.0, 1.0, 1.0),
-        size=3,
         min=0.0,
         max=1.0,
         step=1,
-        update=lambda self, context: polib.custom_props_bpy.update_custom_prop(
-            context,
-            ColorizePanelMixin.get_multiedit_adjustable_assets(context),
-            polib.custom_props_bpy.CustomPropertyNames.PQ_PRIMARY_COLOR,
-            self.primary_color,
-        ),
+        size=3,
+        update=_make_prop_update(_slot.pref_color, _slot.color_prop),
     )
-
-    primary_color_factor: bpy.props.FloatProperty(
-        name="Primary factor",
-        description="Changes intensity of the primary color",
+    ColorizePreferences.__annotations__[_slot.pref_factor] = bpy.props.FloatProperty(
+        name=f"{_slot.name.capitalize()} factor",
+        description=f"Changes intensity of {_slot.name} colorization effect",
         default=0.0,
         min=0.0,
         max=1.0,
         step=1,
-        update=lambda self, context: polib.custom_props_bpy.update_custom_prop(
-            context,
-            ColorizePanelMixin.get_multiedit_adjustable_assets(context),
-            polib.custom_props_bpy.CustomPropertyNames.PQ_PRIMARY_COLOR_FACTOR,
-            self.primary_color_factor,
-        ),
-    )
-
-    secondary_color: bpy.props.FloatVectorProperty(
-        name="Secondary color",
-        subtype='COLOR',
-        description="Changes secondary color of assets",
-        default=(1.0, 1.0, 1.0),
-        size=3,
-        min=0.0,
-        max=1.0,
-        step=1,
-        update=lambda self, context: polib.custom_props_bpy.update_custom_prop(
-            context,
-            ColorizePanelMixin.get_multiedit_adjustable_assets(context),
-            polib.custom_props_bpy.CustomPropertyNames.PQ_SECONDARY_COLOR,
-            self.secondary_color,
-        ),
-    )
-
-    secondary_color_factor: bpy.props.FloatProperty(
-        name="Secondary factor",
-        description="Changes intensity of the secondary color",
-        default=0.0,
-        min=0.0,
-        max=1.0,
-        step=1,
-        update=lambda self, context: polib.custom_props_bpy.update_custom_prop(
-            context,
-            ColorizePanelMixin.get_multiedit_adjustable_assets(context),
-            polib.custom_props_bpy.CustomPropertyNames.PQ_SECONDARY_COLOR_FACTOR,
-            self.secondary_color_factor,
-        ),
+        update=_make_prop_update(_slot.pref_factor, _slot.factor_prop),
     )
 
 
@@ -105,13 +131,17 @@ class ColorizePanelMixin(feature_utils.PropertyAssetFeatureControlPanelMixin, bp
     bl_label = "Colorize"
     bl_parent_id = panel.EngonPanel.bl_idname
     feature_name = "colorize"
-    related_custom_properties = {
-        polib.custom_props_bpy.CustomPropertyNames.PQ_PRIMARY_COLOR,
-        polib.custom_props_bpy.CustomPropertyNames.PQ_SECONDARY_COLOR,
-        polib.custom_props_bpy.CustomPropertyNames.PQ_PRIMARY_COLOR_FACTOR,
-        polib.custom_props_bpy.CustomPropertyNames.PQ_SECONDARY_COLOR_FACTOR,
-    }
     bl_options = {'DEFAULT_CLOSED'}
+
+    # Default slots for ordinal color positions. Subclasses override this list to
+    # apply asset-pack-specific display labels.
+    COLOR_SLOTS: typing.ClassVar[list[ColorSlotDefinition]] = _DEFAULT_COLOR_SLOTS
+
+    # Derived from COLOR_SLOTS so that every property name reachable through this panel is
+    # automatically registered as a feature-detection property.
+    related_custom_properties: typing.ClassVar[set[str]] = {
+        prop for slot in COLOR_SLOTS for prop in (slot.color_prop, slot.factor_prop)
+    }
 
     @classmethod
     def filter_adjustable_assets(
@@ -133,31 +163,33 @@ class ColorizePanelMixin(feature_utils.PropertyAssetFeatureControlPanelMixin, bp
             text="",
             icon='RESTRICT_SELECT_ON',
             emboss=False,
-        ).engon_feature_name = self.__class__.feature_name
+        ).engon_feature_name = type(self).feature_name
 
-    def draw_properties(self, datablock: bpy.types.ID, layout: bpy.types.UILayout) -> None:
-        primary_layout = layout.column().row(align=True)
-        self.draw_property(
-            datablock,
-            primary_layout,
-            polib.custom_props_bpy.CustomPropertyNames.PQ_PRIMARY_COLOR,
-        )
-        self.draw_property(
-            datablock,
-            primary_layout,
-            polib.custom_props_bpy.CustomPropertyNames.PQ_PRIMARY_COLOR_FACTOR,
-        )
-        secondary_layout = layout.column().row(align=True)
-        self.draw_property(
-            datablock,
-            secondary_layout,
-            polib.custom_props_bpy.CustomPropertyNames.PQ_SECONDARY_COLOR,
-        )
-        self.draw_property(
-            datablock,
-            secondary_layout,
-            polib.custom_props_bpy.CustomPropertyNames.PQ_SECONDARY_COLOR_FACTOR,
-        )
+    def draw_slot_property(
+        self,
+        datablock: bpy.types.ID,
+        layout: bpy.types.UILayout,
+        prop_name: str,
+        text: str = "",
+    ) -> None:
+        """Draw prop_name if present on datablock, or a '-' placeholder."""
+        if prop_name in datablock:
+            layout.prop(datablock, f'["{prop_name}"]', text=text)
+        else:
+            layout.label(text="-")
+
+    def draw_properties(
+        self,
+        datablock: bpy.types.ID,
+        layout: bpy.types.UILayout,
+        slots: list[ColorSlotDefinition] | None = None,
+    ) -> None:
+        if slots is None:
+            slots = type(self).COLOR_SLOTS
+        for slot in slots:
+            row = layout.column().row(align=True)
+            self.draw_slot_property(datablock, row, slot.color_prop)
+            self.draw_slot_property(datablock, row, slot.factor_prop)
 
     def draw_multiedit(
         self,
@@ -169,42 +201,25 @@ class ColorizePanelMixin(feature_utils.PropertyAssetFeatureControlPanelMixin, bp
 
         adjustable_assets = list(self.filter_adjustable_assets(possible_assets))
         prefs = preferences.prefs_utils.get_preferences(context).colorize_preferences
-        row = layout.row(align=True)
 
-        if any(
-            o.get(polib.custom_props_bpy.CustomPropertyNames.PQ_PRIMARY_COLOR_FACTOR, None)
-            is not None
-            for o in adjustable_assets
-        ):
-            row.label(text="", icon='COLOR')
-            row.prop(prefs, "primary_color", text="")
-            self.draw_randomize_property_operator(
-                polib.custom_props_bpy.CustomPropertyNames.PQ_PRIMARY_COLOR,
-                feature_utils.RandomizeColorPropertyOperator,
-                row,
-            )
-            row.prop(prefs, "primary_color_factor", text="Factor", slider=True)
-            self.draw_randomize_property_operator(
-                polib.custom_props_bpy.CustomPropertyNames.PQ_PRIMARY_COLOR_FACTOR,
-                feature_utils.RandomizeFloatPropertyOperator,
-                row,
-            )
-        if any(
-            o.get(polib.custom_props_bpy.CustomPropertyNames.PQ_SECONDARY_COLOR_FACTOR, None)
-            is not None
-            for o in adjustable_assets
-        ):
+        for slot in type(self).COLOR_SLOTS:
+            if not any(o.get(slot.factor_prop, None) is not None for o in adjustable_assets):
+                continue
+
+            active_color_prop = slot.color_prop
+            active_factor_prop = slot.factor_prop
+
             row = layout.row(align=True)
-            row.label(text="", icon='RESTRICT_COLOR_ON')
-            row.prop(prefs, "secondary_color", text="")
+            row.label(text=slot.label, icon='COLOR')
+            row.prop(prefs, slot.pref_color, text="")
             self.draw_randomize_property_operator(
-                polib.custom_props_bpy.CustomPropertyNames.PQ_SECONDARY_COLOR,
+                active_color_prop,
                 feature_utils.RandomizeColorPropertyOperator,
                 row,
             )
-            row.prop(prefs, "secondary_color_factor", text="Factor", slider=True)
+            row.prop(prefs, slot.pref_factor, text="Factor", slider=True)
             self.draw_randomize_property_operator(
-                polib.custom_props_bpy.CustomPropertyNames.PQ_SECONDARY_COLOR_FACTOR,
+                active_factor_prop,
                 feature_utils.RandomizeFloatPropertyOperator,
                 row,
             )
@@ -216,33 +231,49 @@ class ColorizePanelMixin(feature_utils.PropertyAssetFeatureControlPanelMixin, bp
         if self.conditionally_draw_warning_no_adjustable_assets(possible_assets, layout):
             return
 
-        row = self.layout.row()
+        adjustable_assets = list(self.filter_adjustable_assets(possible_assets))
+        active_slots = [
+            slot
+            for slot in type(self).COLOR_SLOTS
+            if any(slot.color_prop in obj for obj in adjustable_assets)
+        ]
 
-        left_col = row.column(align=True)
-        left_col.scale_x = 2.0
-        right_col = row.column(align=True)
+        if len(active_slots) <= 2:
+            # Side-by-side table: all slots share one "Selected Assets:" header row.
+            row = self.layout.row()
+            left_col = row.column(align=True)
+            left_col.scale_x = 2.0
+            right_col = row.column(align=True)
 
-        row = left_col.row()
-        row.enabled = False
-        row.label(text="Selected Assets:")
+            row = left_col.row()
+            row.enabled = False
+            row.label(text="Selected Assets:")
 
-        right_table_header = right_col.row(align=True)
-        row = right_table_header.column().row(align=True)
-        row.enabled = False
-        row.label(text="Primary")
-        row.label(text="Factor")
+            right_table_header = right_col.row(align=True)
+            for slot in active_slots:
+                slot_header = right_table_header.column().row(align=True)
+                slot_header.enabled = False
+                slot_header.label(text=slot.label)
+                slot_header.label(text="Factor")
 
-        row = right_table_header.column().row(align=True)
-        row.enabled = False
-        row.label(text="Secondary")
-        row.label(text="Factor")
-
-        self.draw_adjustable_assets_property_table_body(
-            possible_assets,
-            left_col,
-            right_col,
-            lambda layout, obj: self.draw_properties(obj, layout),
-        )
+            self.draw_adjustable_assets_property_table_body(
+                possible_assets,
+                left_col,
+                right_col,
+                lambda layout, obj: self.draw_properties(obj, layout, active_slots),
+            )
+        else:
+            # Stacked layout: each slot gets its own labelled table.
+            for i, slot in enumerate(active_slots):
+                if i > 0:
+                    layout.separator()
+                layout.label(text=f"{slot.label}:", icon='COLOR')
+                self.draw_adjustable_assets_property_table(
+                    possible_assets,
+                    ["Color", "Factor"],
+                    layout,
+                    lambda layout, obj, s=slot: self.draw_properties(obj, layout, [s]),
+                )
 
         layout.separator()
         self.draw_multiedit(context, layout, possible_assets)
@@ -312,6 +343,36 @@ class InterniqColorizePanel(ColorizePanelMixin):
 
 
 MODULE_CLASSES.append(InterniqColorizePanel)
+
+
+@polib.log_helpers_bpy.logged_panel
+class HumaniqColorizePanel(ColorizePanelMixin):
+    bl_idname = "VIEW_3D_PT_engon_feature_colorize_humaniq"
+    bl_parent_id = asset_pack_panels.HumaniqPanel.bl_idname
+
+    COLOR_SLOTS: typing.ClassVar[list[ColorSlotDefinition]] = [
+        ColorSlotDefinition(OrdinalNames.PRIMARY, "Hair"),
+        ColorSlotDefinition(OrdinalNames.SECONDARY, "Upper Clothing"),
+        ColorSlotDefinition(OrdinalNames.TERTIARY, "Lower Clothing"),
+        ColorSlotDefinition(OrdinalNames.QUATERNARY, "Shoes"),
+    ]
+
+    @classmethod
+    def filter_adjustable_assets(
+        cls,
+        possible_assets: typing.Iterable[bpy.types.ID],
+    ) -> typing.Iterable[bpy.types.ID]:
+        return filter(
+            lambda datablock: polib.custom_props_bpy.has_property(
+                datablock,
+                "polygoniq_addon",
+                lambda v: v == "humaniq",
+            ),
+            super().filter_adjustable_assets(possible_assets),
+        )
+
+
+MODULE_CLASSES.append(HumaniqColorizePanel)
 
 
 def register():

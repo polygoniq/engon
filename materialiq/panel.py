@@ -858,8 +858,6 @@ class DisplaySettingsPanel(MaterialiqPanelMixin, bpy.types.Panel):
         layout.prop(context.scene.eevee, "use_raytracing")
         layout.prop(mat, "use_backface_culling")
         layout.prop(mat, "surface_render_method", text="Render Method")
-        if bpy.app.version < (4, 3, 0):
-            layout.prop(mat, "shadow_method")
         if advanced_ui:
             layout.prop(mat, "use_raytrace_refraction", text="Raytraced Transmission")
             layout.separator()

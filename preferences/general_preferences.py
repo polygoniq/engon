@@ -35,6 +35,9 @@ from .. import available_asset_packs
 from .. import blend_maintenance
 from .. import __package__ as base_package
 
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -360,11 +363,11 @@ class GeneralPreferences(bpy.types.PropertyGroup):
 
         discovered_asset_packs = self.get_all_discovered_asset_packs()
         registered_asset_packs = asset_registry.instance.get_registered_packs()
-        discovered_but_unregistered_packs = set(discovered_asset_packs) - set(
-            registered_asset_packs
-        )
+        discovered_valid_but_unregistered_packs = {
+            pack for pack in discovered_asset_packs if pack.is_supported
+        } - set(registered_asset_packs)
 
-        discovered_but_unregistered_packs_count = len(discovered_but_unregistered_packs)
+        discovered_valid_but_unregistered_packs_count = len(discovered_valid_but_unregistered_packs)
 
         # NOTE: This is currently handled for "blender_asset_library" register option only. Extend
         # with more register options if needed.
@@ -377,7 +380,8 @@ class GeneralPreferences(bpy.types.PropertyGroup):
                     different_register_options_packs.add(pack)
 
         refresh_highlight = (
-            discovered_but_unregistered_packs_count > 0 or len(different_register_options_packs) > 0
+            discovered_valid_but_unregistered_packs_count > 0
+            or len(different_register_options_packs) > 0
         )
         row = layout.row()
         col = row.column(align=True)
@@ -410,12 +414,12 @@ class GeneralPreferences(bpy.types.PropertyGroup):
         row.operator(PackInfoSearchPathList_Import.bl_idname, icon='IMPORT')
         row.operator(PackInfoSearchPathList_Export.bl_idname, icon='EXPORT')
 
-        if discovered_but_unregistered_packs_count > 0:
+        if discovered_valid_but_unregistered_packs_count > 0:
             row = layout.row()
             row.alert = True
             row.label(
-                text=f"Refresh Asset Packs to register {discovered_but_unregistered_packs_count} "
-                f"newly discovered pack{'' if discovered_but_unregistered_packs_count == 1 else 's'}!",
+                text=f"Refresh Asset Packs to register {discovered_valid_but_unregistered_packs_count} "
+                f"newly discovered pack{'' if discovered_valid_but_unregistered_packs_count == 1 else 's'}!",
                 icon='FILE_REFRESH',
             )
 
@@ -447,7 +451,7 @@ class PackInfoSearchPathList_Export(bpy.types.Operator, bpy_extras.io_utils.Expo
         options={'HIDDEN'},
     )
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         prefs = prefs_utils.get_preferences(context)
         search_paths_dict = prefs.general_preferences.get_search_paths_as_dict()
         data_out = json.dumps(search_paths_dict, indent=4)
@@ -472,7 +476,7 @@ class PackInfoSearchPathList_Import(bpy.types.Operator, bpy_extras.io_utils.Impo
         options={'HIDDEN'},
     )
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         prefs = prefs_utils.get_preferences(context)
         with open(self.filepath) as f:
             data_in = json.load(f)
@@ -492,7 +496,7 @@ class PackInfoSearchPathList_OT_AddItem(bpy.types.Operator):
     bl_label = "Add an item"
     bl_options = {'REGISTER', 'UNDO'}
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         general_prefs = prefs_utils.get_preferences(context).general_preferences
         general_prefs.add_new_pack_info_search_path(context)
         return {'FINISHED'}
@@ -514,7 +518,7 @@ class PackInfoSearchPathList_OT_DeleteItem(bpy.types.Operator):
         prefs = prefs_utils.get_preferences(context)
         return len(prefs.general_preferences.pack_info_search_paths) > 0
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         general_prefs = prefs_utils.get_preferences(context).general_preferences
         index = general_prefs.pack_info_search_path_index
         if index > 0:
@@ -556,7 +560,7 @@ class PackInfoSearchPathList_OT_MoveItem(bpy.types.Operator):
         prefs = prefs_utils.get_preferences(context)
         return len(prefs.general_preferences.pack_info_search_paths) > 1
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         general_prefs = prefs_utils.get_preferences(context).general_preferences
         index = general_prefs.pack_info_search_path_index
         neighbor = index + (-1 if self.direction == 'UP' else 1)
@@ -576,14 +580,16 @@ class PackInfoSearchPathList_RemoveAll(bpy.types.Operator):
     bl_description = "Remove all Search Paths from the list"
     bl_options = {'REGISTER', 'UNDO'}
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         general_prefs = prefs_utils.get_preferences(context).general_preferences
         general_prefs.pack_info_search_paths.clear()
         general_prefs.pack_info_search_path_list_ensure_valid_index()
         general_prefs._internal_on_serialized_property_update(context, "pack_info_search_paths")
         return {'FINISHED'}
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         return context.window_manager.invoke_confirm(self, event)
 
 
@@ -601,7 +607,7 @@ class PackInfoSearchPathList_RefreshPacks(bpy.types.Operator):
     bl_options = {'REGISTER'}
 
     @polib.utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         prefs = prefs_utils.get_preferences(context)
         gen_prefs = prefs.general_preferences
         gen_prefs.refresh_packs()
@@ -627,13 +633,15 @@ class InstallAssetPack(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     # NOTE: Do not change the default value or this will not work
     filepath: bpy.props.StringProperty(subtype='FILE_PATH', options={'HIDDEN', 'SKIP_SAVE'})
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         if self.filepath == "":
             # Invoke the file selection window
             return super().invoke(context, event)
         return self.execute(context)
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         # Special condition for preventing Drag & Drop triggering unwanted failed installation dialogs
         # This is a workaround as the FileHandler is not able to accept '.paq.001' files, so we allow '.001' files there
         if self.filepath.endswith(".001") and not self.filepath.endswith(".paq.001"):
@@ -770,7 +778,7 @@ class AssetPackInstallationDialog(
             blend_maintenance.migrator.find_missing_files()
 
     @polib.utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         installer = asset_pack_installer.instance
 
         if self.close:
@@ -801,7 +809,7 @@ class UninstallAssetPack(bpy.types.Operator):
 
     current_filepath: bpy.props.StringProperty(default="")
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         installer = asset_pack_installer.instance
         installer.load_uninstallation(self.current_filepath)
         bpy.ops.engon.asset_pack_uninstall_dialog('INVOKE_DEFAULT')
@@ -821,7 +829,7 @@ class AssetPackUninstallationDialog(
     bl_description = "Asset Pack Uninstallation Dialog"
     bl_options = {'REGISTER', 'INTERNAL'}
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         installer = asset_pack_installer.instance
         layout: bpy.types.UILayout = self.layout
 
@@ -868,7 +876,7 @@ class AssetPackUninstallationDialog(
             gen_prefs.refresh_packs()
 
     @polib.utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         installer = asset_pack_installer.instance
 
         if self.close:
@@ -901,13 +909,15 @@ class UpdateAssetPack(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 
     current_filepath: bpy.props.StringProperty(options={'HIDDEN'})
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         if self.filepath == "":
             # Invoke the file selection window
             return super().invoke(context, event)
         return self.execute(context)
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         installer = asset_pack_installer.instance
         installer.load_update(self.current_filepath, self.filepath)
         bpy.ops.engon.asset_pack_update_dialog('INVOKE_DEFAULT')
@@ -986,7 +996,7 @@ class AssetPackUpdateDialog(bpy.types.Operator, asset_pack_installer.AssetPackIn
             blend_maintenance.migrator.find_missing_files()
 
     @polib.utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         installer = asset_pack_installer.instance
 
         if self.close:

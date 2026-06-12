@@ -5,10 +5,14 @@ import bpy_extras
 import pathlib
 import logging
 import collections.abc
+import typing
 from . import errors
 from . import io_bpy
 from .. import log_helpers_bpy
 from .. import utils_bpy
+
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
@@ -44,7 +48,7 @@ class ExportSavable(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
     )
 
     @utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         filepath = pathlib.Path(self.filepath)  # type: ignore
         try:
             self.savable.save_custom(filepath, self.pretty_print)
@@ -63,7 +67,9 @@ class ExportSavable(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
             )
         return {'FINISHED'}
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         if self.filepath == "":
             self.filepath = type(self.savable).addon_name + io_bpy.CONFIG_EXT
         return super().invoke(context, event)
@@ -76,7 +82,7 @@ def _import_savable_from_file(
     filepath: pathlib.Path,
     ignore_version: bool = False,
     ignore_version_op_name: str | None = None,
-) -> set[str]:
+) -> set["rna_enums.OperatorReturnItems"]:
     success = False
     try:
         savable_instance.load_custom(filepath, ignore_version=ignore_version)
@@ -176,7 +182,7 @@ class ImportSavable(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     )
 
     @utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         filepath = pathlib.Path(self.filepath)
         return _import_savable_from_file(
             self,
@@ -186,7 +192,9 @@ class ImportSavable(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
             ignore_version_op_name=type(self).import_savable_ignore_version_op_name,
         )
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         if self.filepath == "":
             self.filepath = type(self.savable).addon_name + io_bpy.CONFIG_EXT
         return super().invoke(context, event)
@@ -223,7 +231,7 @@ class ImportSavableIgnoreVersion(bpy.types.Operator):
         """Callback that will be invoked after an import operation finishes."""
         pass
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         col = layout.column()
         col.alert = True
@@ -251,7 +259,7 @@ class ImportSavableIgnoreVersion(bpy.types.Operator):
         )
 
     @utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         filepath = pathlib.Path(self.filepath)
         return _import_savable_from_file(
             self,
@@ -261,7 +269,9 @@ class ImportSavableIgnoreVersion(bpy.types.Operator):
             ignore_version=True,
         )
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         return context.window_manager.invoke_props_dialog(
             self, title="Unsupported Version", confirm_text="Import Anyway"
         )
@@ -314,7 +324,7 @@ class SearchSavables(bpy.types.Operator):
         options={'HIDDEN', 'SKIP_SAVE'},
     )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
 
         if len(self.found_savables) == 0:
@@ -347,14 +357,16 @@ class SearchSavables(bpy.types.Operator):
         )
 
     @utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         if len(self.found_savables) == 0:
             return {'CANCELLED'}
         selected_item = self.found_savables[self.active_index]
         filepath = pathlib.Path(selected_item.filepath)
         return _import_savable_from_file(self, context, self.savable, filepath)
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         savable_type = type(self.savable)
         for version, filepath in io_bpy.list_versions_with_config(
             addon_name=savable_type.addon_name,

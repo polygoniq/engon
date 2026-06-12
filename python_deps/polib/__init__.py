@@ -3,6 +3,7 @@
 
 import sys
 import logging
+import typing
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
@@ -13,6 +14,7 @@ from . import asset_pack
 try:
     import bpy
     from . import asset_pack_bpy
+    from . import bug_report_bpy
     from . import color_utils_bpy
     from . import custom_props_bpy
     from . import geonodes_mod_utils_bpy
@@ -32,6 +34,8 @@ try:
     from . import ui_bpy
     from . import utils_bpy
     from . import serialization_bpy
+    from . import bmesh_utils_bpy
+    from . import pq_render_bpy
 
     def init_polygoniq_global():
         global telemetry_module_bpy
@@ -68,28 +72,35 @@ except ImportError as e:
         f"polib has been initialized without bpy, all polib modules that use bpy are imported as dummies only."
     )
 
-    import types
+    if not typing.TYPE_CHECKING:
+        # When type checking, we want to have the actual modules available for type hints
+        # (type checker would otherwise considers some imported types as 'Unknown')
+        # The dummy modules are only used at runtime when bpy is not available
+        import types
 
-    asset_pack_bpy = types.ModuleType("asset_pack_bpy")
-    custom_props_bpy = types.ModuleType("custom_props_bpy")
-    color_utils_bpy = types.ModuleType("color_utils_bpy")
-    geonodes_mod_utils_bpy = types.ModuleType("geonodes_mod_utils_bpy")
-    keymaps_bpy = types.ModuleType("keymaps_bpy")
-    linalg_bpy = types.ModuleType("linalg_bpy")
-    log_helpers_bpy = types.ModuleType("log_helpers_bpy")
-    material_utils_bpy = types.ModuleType("material_utils_bpy")
-    node_utils_bpy = types.ModuleType("node_utils_bpy")
-    preview_manager_bpy = types.ModuleType("preview_manager_bpy")
-    remove_duplicates_bpy = types.ModuleType("remove_duplicates_bpy")
-    render_bpy = types.ModuleType("render_bpy")
-    rigs_shared_bpy = types.ModuleType("rigs_shared_bpy")
-    snap_to_ground_bpy = types.ModuleType("snap_to_ground_bpy")
-    spline_utils_bpy = types.ModuleType("spline_utils_bpy")
-    split_file_reader = types.ModuleType("split_file_reader")
-    telemetry_native_module = types.ModuleType("telemetry_native_module")
-    ui_bpy = types.ModuleType("ui_bpy")
-    utils_bpy = types.ModuleType("utils_bpy")
-    serialization_bpy = types.ModuleType("serialization_bpy")
+        asset_pack_bpy = types.ModuleType("asset_pack_bpy")
+        bug_report_bpy = types.ModuleType("bug_report_bpy")
+        custom_props_bpy = types.ModuleType("custom_props_bpy")
+        color_utils_bpy = types.ModuleType("color_utils_bpy")
+        geonodes_mod_utils_bpy = types.ModuleType("geonodes_mod_utils_bpy")
+        keymaps_bpy = types.ModuleType("keymaps_bpy")
+        linalg_bpy = types.ModuleType("linalg_bpy")
+        log_helpers_bpy = types.ModuleType("log_helpers_bpy")
+        material_utils_bpy = types.ModuleType("material_utils_bpy")
+        node_utils_bpy = types.ModuleType("node_utils_bpy")
+        preview_manager_bpy = types.ModuleType("preview_manager_bpy")
+        remove_duplicates_bpy = types.ModuleType("remove_duplicates_bpy")
+        render_bpy = types.ModuleType("render_bpy")
+        rigs_shared_bpy = types.ModuleType("rigs_shared_bpy")
+        snap_to_ground_bpy = types.ModuleType("snap_to_ground_bpy")
+        spline_utils_bpy = types.ModuleType("spline_utils_bpy")
+        split_file_reader = types.ModuleType("split_file_reader")
+        telemetry_native_module = types.ModuleType("telemetry_native_module")
+        ui_bpy = types.ModuleType("ui_bpy")
+        utils_bpy = types.ModuleType("utils_bpy")
+        serialization_bpy = types.ModuleType("serialization_bpy")
+        bmesh_utils_bpy = types.ModuleType("bmesh_utils_bpy")
+        pq_render_bpy = types.ModuleType("pq_render_bpy")
 
 
 # fake bl_info so that this gets picked up by vscode blender integration
@@ -114,6 +125,7 @@ def unregister():  # mostly stub just to avoid an AttributeError when using blen
 __all__ = [
     "asset_pack_bpy",
     "asset_pack",
+    "bug_report_bpy",
     "color_utils_bpy",
     "custom_props_bpy",
     "geonodes_mod_utils_bpy",
@@ -134,4 +146,6 @@ __all__ = [
     "ui_bpy",
     "utils_bpy",
     "serialization_bpy",
+    "bmesh_utils_bpy",
+    "pq_render_bpy",
 ]

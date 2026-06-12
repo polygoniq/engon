@@ -28,6 +28,9 @@ from . import asset_pack_panels
 from .. import polib
 from .. import asset_helpers
 
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -123,10 +126,10 @@ class AddPuddles(bpy.types.Operator):
     bl_options = {'REGISTER'}
 
     @classmethod
-    def poll(cls, context: bpy.types.Context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         return check_puddles_nodegroup_count(context.selected_objects, lambda x: x == 0)
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         try:
             ensure_puddles_nodegroup(context)
         except Exception as e:
@@ -213,10 +216,10 @@ class RemovePuddles(bpy.types.Operator):
     bl_options = {'REGISTER'}
 
     @classmethod
-    def poll(cls, context: bpy.types.Context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         return check_puddles_nodegroup_count(context.selected_objects, lambda x: x > 0)
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         for obj in context.selected_objects:
             if obj.type not in {'MESH', 'CURVE'}:
                 continue
@@ -290,7 +293,7 @@ class PuddlesPanel(feature_utils.EngonFeaturePanelMixin, bpy.types.Panel):
     def draw_header(self, context: bpy.types.Context):
         self.layout.label(text="", icon=self.get_feature_icon())
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout: bpy.types.UILayout = self.layout
 
         layout.operator(AddPuddles.bl_idname, icon='ADD')

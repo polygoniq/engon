@@ -63,7 +63,7 @@ class BotaniqPanel(AssetPackPanelMixin, bpy.types.Panel):
 
     feature_name = "botaniq"
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         pass
 
 
@@ -79,7 +79,7 @@ class InterniqPanel(AssetPackPanelMixin, bpy.types.Panel):
 
     feature_name = "interniq"
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         pass
 
 
@@ -95,7 +95,7 @@ class TraffiqPanel(AssetPackPanelMixin, bpy.types.Panel):
 
     feature_name = "traffiq"
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         pass
 
 
@@ -111,7 +111,7 @@ class AquatiqPanel(AssetPackPanelMixin, bpy.types.Panel):
 
     feature_name = "aquatiq"
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         pass
 
 
@@ -127,11 +127,27 @@ class AesthetiqPanel(AssetPackPanelMixin, bpy.types.Panel):
 
     feature_name = "aesthetiq"
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         pass
 
 
 MODULE_CLASSES.append(AesthetiqPanel)
+
+
+@feature_utils.register_feature
+@polib.log_helpers_bpy.logged_panel
+class HumaniqPanel(AssetPackPanelMixin, bpy.types.Panel):
+    bl_idname = "VIEW_3D_PT_engon_humaniq"
+    bl_label = "humaniq"
+    bl_order = 16
+
+    feature_name = "humaniq"
+
+    def draw(self, context: bpy.types.Context) -> None:
+        pass
+
+
+MODULE_CLASSES.append(HumaniqPanel)
 
 
 def register():

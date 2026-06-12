@@ -26,6 +26,10 @@ import traceback
 
 import bpy
 from bpy.app.handlers import persistent
+import typing
+
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
 
 # Safely import the updater.
 # Prevents popups for users with invalid python installs e.g. missing libraries
@@ -89,11 +93,10 @@ def make_annotations(cls):
             k: v for k, v in cls.__dict__.items() if isinstance(v, bpy.props._PropertyDeferred)
         }
     if bl_props:
-        if '__annotations__' not in cls.__dict__:
-            setattr(cls, '__annotations__', {})
-        annotations = cls.__dict__['__annotations__']
+        if "__annotations__" not in vars(cls):
+            cls.__annotations__ = {}
         for k, v in bl_props.items():
-            annotations[k] = v
+            cls.__annotations__[k] = v
             delattr(cls, k)
     return cls
 
@@ -160,18 +163,20 @@ class AddonUpdaterInstallPopup(bpy.types.Operator):
     )
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         return bpy.app.version < (4, 2, 0) or (
             bpy.app.version >= (4, 2, 0) and bpy.app.online_access
         )
 
-    def check(self, context):
+    def check(self, context: bpy.types.Context) -> bool:
         return True
 
-    def invoke(self, context, event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         return context.window_manager.invoke_props_dialog(self)
 
-    def draw(self, context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         if updater.invalid_updater:
             layout.label(text="Updater module error")
@@ -198,7 +203,7 @@ class AddonUpdaterInstallPopup(bpy.types.Operator):
 
         # Potentially in future, UI to 'check to select/revert to old version'.
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         # In case of error importing updater.
         if updater.invalid_updater:
             return {'CANCELLED'}
@@ -243,12 +248,12 @@ class AddonUpdaterCheckNow(bpy.types.Operator):
     bl_options = {'REGISTER', 'INTERNAL'}
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         return bpy.app.version < (4, 2, 0) or (
             bpy.app.version >= (4, 2, 0) and bpy.app.online_access
         )
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         if updater.invalid_updater:
             return {'CANCELLED'}
 
@@ -301,12 +306,12 @@ class AddonUpdaterUpdateNow(bpy.types.Operator):
     )
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         return bpy.app.version < (4, 2, 0) or (
             bpy.app.version >= (4, 2, 0) and bpy.app.online_access
         )
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
 
         # in case of error importing updater
         if updater.invalid_updater:
@@ -387,7 +392,7 @@ class AddonUpdaterUpdateTarget(bpy.types.Operator):
     )
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         if bpy.app.version >= (4, 2, 0) and not bpy.app.online_access:
             return False
 
@@ -395,10 +400,12 @@ class AddonUpdaterUpdateTarget(bpy.types.Operator):
             return False
         return updater.update_ready is not None and len(updater.tags) > 0
 
-    def invoke(self, context, event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         return context.window_manager.invoke_props_dialog(self)
 
-    def draw(self, context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         if updater.invalid_updater:
             layout.label(text="Updater error")
@@ -409,7 +416,7 @@ class AddonUpdaterUpdateTarget(bpy.types.Operator):
         sub_col = split.column()
         sub_col.prop(self, "target", text="")
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         # In case of error importing updater.
         if updater.invalid_updater:
             return {'CANCELLED'}
@@ -441,10 +448,12 @@ class AddonUpdaterInstallManually(bpy.types.Operator):
 
     error = bpy.props.StringProperty(name="Error Occurred", default="", options={'HIDDEN'})
 
-    def invoke(self, context, event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         return context.window_manager.invoke_popup(self)
 
-    def draw(self, context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
 
         if updater.invalid_updater:
@@ -484,7 +493,7 @@ class AddonUpdaterInstallManually(bpy.types.Operator):
                 row = layout.row()
                 row.label(text="See source website to download the update")
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         return {'FINISHED'}
 
 
@@ -498,10 +507,12 @@ class AddonUpdaterUpdatedSuccessful(bpy.types.Operator):
 
     error = bpy.props.StringProperty(name="Error Occurred", default="", options={'HIDDEN'})
 
-    def invoke(self, context, event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         return context.window_manager.invoke_props_popup(self, event)
 
-    def draw(self, context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
 
         if updater.invalid_updater:
@@ -557,7 +568,7 @@ class AddonUpdaterUpdatedSuccessful(bpy.types.Operator):
                 col.label(text="Addon successfully installed", icon='CHECKBOX_HLT')
                 col.label(text="Consider restarting blender to fully reload.", icon="BLANK1")
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         return {'FINISHED'}
 
 
@@ -570,13 +581,13 @@ class AddonUpdaterRestoreBackup(bpy.types.Operator):
     bl_options = {'REGISTER', 'INTERNAL'}
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         try:
             return os.path.isdir(os.path.join(updater.stage_path, "backup"))
         except:
             return False
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         # in case of error importing updater
         if updater.invalid_updater:
             return {'CANCELLED'}
@@ -593,7 +604,7 @@ class AddonUpdaterIgnore(bpy.types.Operator):
     bl_options = {'REGISTER', 'INTERNAL'}
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         if updater.invalid_updater:
             return False
         elif updater.update_ready:
@@ -601,7 +612,7 @@ class AddonUpdaterIgnore(bpy.types.Operator):
         else:
             return False
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         # in case of error importing updater
         if updater.invalid_updater:
             return {'CANCELLED'}
@@ -618,7 +629,7 @@ class AddonUpdaterEndBackground(bpy.types.Operator):
     bl_description = "Stop checking for update in the background"
     bl_options = {'REGISTER', 'INTERNAL'}
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         # in case of error importing updater
         if updater.invalid_updater:
             return {'CANCELLED'}

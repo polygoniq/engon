@@ -22,49 +22,11 @@ from . import addon_updater_ops
 import bpy
 import os
 import sys
-import tempfile
 import logging
-import logging.handlers
 import importlib
 import typing
 
-root_logger = logging.getLogger("polygoniq")
 logger = logging.getLogger(f"polygoniq.{__name__}")
-if not getattr(root_logger, "polygoniq_initialized", False):
-    root_logger_formatter = logging.Formatter(
-        "P%(process)d:%(asctime)s:%(name)s:%(levelname)s: [%(filename)s:%(lineno)d] %(message)s",
-        "%H:%M:%S",
-    )
-    try:
-        root_logger.setLevel(int(os.environ.get("POLYGONIQ_LOG_LEVEL", "20")))
-    except (ValueError, TypeError):
-        root_logger.setLevel(20)
-    root_logger.propagate = False
-    root_logger_stream_handler = logging.StreamHandler()
-    root_logger_stream_handler.setFormatter(root_logger_formatter)
-    root_logger.addHandler(root_logger_stream_handler)
-    try:
-        log_path = os.path.join(tempfile.gettempdir(), "polygoniq_logs")
-        os.makedirs(log_path, exist_ok=True)
-        root_logger_handler = logging.handlers.TimedRotatingFileHandler(
-            os.path.join(log_path, f"blender_addons.txt"),
-            when="h",
-            interval=1,
-            backupCount=2,
-            utc=True,
-        )
-        root_logger_handler.setFormatter(root_logger_formatter)
-        root_logger.addHandler(root_logger_handler)
-    except:
-        logger.exception(
-            f"Can't create rotating log handler for polygoniq root logger "
-            f"in module \"{__name__}\", file \"{__file__}\""
-        )
-    setattr(root_logger, "polygoniq_initialized", True)
-    logger.info(
-        f"polygoniq root logger initialized in module \"{__name__}\", file \"{__file__}\" -----"
-    )
-
 
 # To comply with extension encapsulation, after the addon initialization:
 # - sys.path needs to stay the same as before the initialization
@@ -133,16 +95,17 @@ finally:
 bl_info = {
     "name": "engon",
     "author": "polygoniq xyz s.r.o.",
-    "version": (1, 8, 0),  # bump doc_url and version in register as well!
+    "version": (1, 9, 0),  # bump doc_url and version in register as well!
     "blender": (4, 2, 0),
     "location": "polygoniq tab in the sidebar of the 3D View window",
     "description": "Browse assets, filter and sort, scatter, animate, adjust rigs",
     "category": "Object",
-    "doc_url": "https://docs.polygoniq.com/engon/1.8.0/",
+    "doc_url": "https://docs.polygoniq.com/engon/1.9.0/",
     "tracker_url": "https://polygoniq.com/discord/",
 }
 
 
+polib.log_helpers_bpy.try_initialize_addon_logging(logger, __name__, __file__)
 telemetry = polib.get_telemetry("engon")
 telemetry.report_addon(bl_info, __file__)
 
@@ -161,7 +124,7 @@ def _post_register():
 def register():
     # We pass mock "bl_info" to the updater, as from Blender 4.2.0, the "bl_info" is
     # no longer available in this scope.
-    addon_updater_ops.register({"version": (1, 8, 0)})
+    addon_updater_ops.register({"version": (1, 9, 0)})
 
     utils.register()
     pack_info_search_paths.register()

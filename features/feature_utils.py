@@ -27,6 +27,9 @@ from .. import asset_registry
 from .. import asset_helpers
 import logging
 
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 MODULE_CLASSES: list[type] = []
@@ -81,7 +84,7 @@ class RandomizePropertyOperator(bpy.types.Operator):
     def get_random_value(self) -> polib.custom_props_bpy.CustomAttributeValueType:
         raise NotImplementedError("This method must be overridden and implemented in a subclass")
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         affected_assets = self.get_affected_assets(context)
         changed_assets = set()
         if self.use_one_value_per_hierarchy:
@@ -139,12 +142,14 @@ class RandomizeFloatPropertyOperator(RandomizePropertyOperator):
         soft_max=1.0,
     )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         layout.prop(self, "float_min", slider=True)
         layout.prop(self, "float_max", slider=True)
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         return context.window_manager.invoke_props_dialog(self)
 
     def get_random_value(self) -> polib.custom_props_bpy.CustomAttributeValueType:
@@ -175,12 +180,14 @@ class RandomizeIntegerPropertyOperator(RandomizePropertyOperator):
         soft_max=12_000,
     )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         layout.prop(self, "int_min", slider=True)
         layout.prop(self, "int_max", slider=True)
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         return context.window_manager.invoke_props_dialog(self)
 
     def get_random_value(self) -> polib.custom_props_bpy.CustomAttributeValueType:
@@ -216,7 +223,7 @@ class SelectFeatureCompatibleObjects(bpy.types.Operator):
     engon_feature_name: bpy.props.StringProperty(options={'HIDDEN'})
 
     @polib.utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         feature: type(EngonAssetFeatureControlPanelMixin) = NAME_FEATURE_MAP.get(
             self.engon_feature_name
         )

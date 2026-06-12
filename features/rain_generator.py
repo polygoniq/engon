@@ -52,7 +52,7 @@ class RainGeneratorPanel(RainGeneratorPanelMixin, bpy.types.Panel):
             emboss=False,
         ).engon_feature_name = self.__class__.feature_name
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout: bpy.types.UILayout = self.layout
         self.conditionally_draw_warning_no_adjustable_active_object(context, layout)
 
@@ -81,7 +81,7 @@ class RainGeneratorGeneralAdjustmentsPanel(
         ],
     )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         self.draw_active_object_modifiers_node_group_inputs_template(
             self.layout,
             context,
@@ -108,7 +108,7 @@ class RainGeneratorSplashEffectsPanel(
         filter_=lambda x: polib.node_utils_bpy.filter_node_socket_name(x, "Splashes", "2D Effects"),
     )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         self.draw_active_object_modifiers_node_group_inputs_template(
             self.layout,
             context,
@@ -136,7 +136,7 @@ class RainGeneratorCameraAdjustmentsPanel(
         socket_names_drawn_first=["Camera Culling Camera"],
     )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         self.draw_active_object_modifiers_node_group_inputs_template(
             self.layout,
             context,

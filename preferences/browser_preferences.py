@@ -58,6 +58,15 @@ class SpawnOptions(bpy.types.PropertyGroup):
         )
     )
 
+    debug_spawn_as_objects: polib.serialization_bpy.Serialize(
+        bpy.props.BoolProperty(
+            name="Spawn As Objects (Beta)",
+            description="If true then assets are spawned as objects with linked meshes instead of instanced collections. "
+            "WARNING: Since this feature is still in beta, some operators may not work properly including convert to editable/linked.",
+            default=False,
+        )
+    )
+
     # Model
     use_collection: polib.serialization_bpy.Serialize(
         bpy.props.EnumProperty(
@@ -215,9 +224,12 @@ class SpawnOptions(bpy.types.PropertyGroup):
         self, asset: mapr.asset.Asset, context: bpy.types.Context
     ) -> hatchery.spawn.DatablockSpawnOptions:
         """Returns spawn options for given asset based on its type"""
+        spawn_as_object = self.debug_spawn_as_objects
         if asset.type_ == mapr.asset_data.AssetDataType.blender_model:
             return hatchery.spawn.ModelSpawnOptions(
-                lambda: self._get_model_parent_collection(asset, context), True
+                spawn_as_object=spawn_as_object,
+                collection_factory_method=lambda: self._get_model_parent_collection(asset, context),
+                select_spawned=True,
             )
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_material:
             # Outside of EDIT mode we only use selected objects

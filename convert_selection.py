@@ -9,6 +9,9 @@ from . import hatchery
 from . import asset_registry
 from . import preferences
 
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -122,7 +125,7 @@ class MakeSelectionEditable(bpy.types.Operator):
         return context.mode == 'OBJECT' and len(context.selected_objects) > 0
 
     @polib.utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         selected_objects_and_parents_names = polib.asset_pack_bpy.make_selection_editable(
             context, True, keep_selection=True, keep_active=True
         )
@@ -162,7 +165,7 @@ class MakeSelectionLinked(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
-    def poll(cls, context: bpy.types.Context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         return (
             context.mode == 'OBJECT'
             and next(
@@ -175,7 +178,7 @@ class MakeSelectionLinked(bpy.types.Operator):
         )
 
     @polib.utils_bpy.blender_cursor('WAIT')
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         converted_objects = make_selection_linked(
             context,
             asset_registry.instance.master_asset_provider,

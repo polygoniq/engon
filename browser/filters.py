@@ -40,6 +40,9 @@ from .. import mapr
 from .. import asset_registry
 from .. import preferences
 
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -138,16 +141,16 @@ class DataRepository:
         return self._lazy_displayed_count >= len(self.current_assets)
 
     @property
-    def lazy_current_assets(self) -> list[mapr.asset.Asset]:
+    def lazy_current_assets(self) -> typing.Sequence[mapr.asset.Asset]:
         return (
             self.last_view.assets[: self._lazy_displayed_count]
             if self.last_view is not None
-            else []
+            else ()
         )
 
     @property
-    def current_assets(self) -> list[mapr.asset.Asset]:
-        return self.last_view.assets if self.last_view is not None else []
+    def current_assets(self) -> typing.Sequence[mapr.asset.Asset]:
+        return self.last_view.assets if self.last_view is not None else ()
 
     @property
     def current_category_id(self) -> mapr.category.CategoryID:
@@ -974,7 +977,7 @@ class BrowserSearchFilter(bpy.types.PropertyGroup, mapr.filters.SearchFilter, Br
 
         mapr.filters.SEARCH_ASSET_SCORE.clear()
         _filter_updated_event(self)
-        get_filters(context).sort_mode = mapr.query.SortMode.MOST_RELEVANT
+        get_filters(context).sort_mode = mapr.query.SortMode.SORTED_MOST_RELEVANT
 
     def get_recent_search_enum_items(
         self, context: bpy.types.Context
@@ -1110,6 +1113,13 @@ class DynamicFilters(bpy.types.PropertyGroup):
                 "Most relevant assets to current search",
                 'SORTBYEXT',
                 2,
+            ),
+            (
+                mapr.query.SortMode.SORTED_MOST_RELEVANT,
+                "Sorted Most Relevant",
+                "Most relevant assets to current search sorted by category and title",
+                'SORTBYEXT',
+                3,
             ),
         ],
         update=lambda self, _: self._sort_mode_updated(),
@@ -1323,7 +1333,7 @@ class MAPR_BrowserResetFilter(bpy.types.Operator):
         if filter_ is not None:
             filter_.reset()
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         if self.reset_all:
             MAPR_BrowserResetFilter.reset_all_filters(context)
             self.reset_all = False

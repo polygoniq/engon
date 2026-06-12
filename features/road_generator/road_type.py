@@ -117,9 +117,9 @@ class RoadType:
                 # boolean from an integer value of 0 or 1
                 socket_type = polib.node_utils_bpy.get_socket_type(input_)
                 if socket_type == "NodeSocketBool":
-                    mod[input_id] = bool(value)
+                    polib.geonodes_mod_utils_bpy.set_mod_input_value(mod, input_id, bool(value))
                 else:
-                    mod[input_.identifier] = value
+                    polib.geonodes_mod_utils_bpy.set_mod_input_value(mod, input_id, value)
 
             # Reassign the nodegroup to prevent type errors from assigning integer (0-1)
             # to a boolean type input above 3.6.

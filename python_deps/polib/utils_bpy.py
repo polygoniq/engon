@@ -459,6 +459,26 @@ def get_case_sensitive_path(path: str) -> str:
     return case_sensitive_path
 
 
+def get_path_ignore_extension_case(path: str) -> str | None:
+    """Checks if a file exists independently of the case of its extension.
+
+    Returns the path with the correct extension case if found. Useful for file formats like .JPG, .jpg, etc.
+    """
+    dir_name = os.path.dirname(path)
+    base_name = os.path.basename(path)
+    name_part, ext_part = os.path.splitext(base_name)
+
+    if not os.path.isdir(dir_name):
+        return None
+
+    for entry in os.listdir(dir_name):
+        entry_name, entry_ext = os.path.splitext(entry)
+        if entry_name == name_part and entry_ext.lower() == ext_part.lower():
+            return os.path.join(dir_name, entry)
+
+    return None
+
+
 def isfile_case_sensitive(path: str) -> bool:
     """Similar to os.path.isfile, but case sensitive.
 
@@ -518,20 +538,25 @@ def get_release_tag_from_version(version: tuple[int, int, int]) -> str:
     return f"v{'.'.join(map(str, version))}"
 
 
+def normalize_addon_name(name: str) -> str:
+    """Normalize a single addon name segment to its canonical simple name.
+
+    Strips the _addon suffix or the variant suffix (_personal, _pro, _studio) if present.
+    """
+    name = name.removesuffix("_addon")
+    for variant in ("_personal", "_pro", "_studio"):
+        name = name.removesuffix(variant)
+    return name
+
+
 def get_conflicting_addons(module_name: str) -> list[str]:
     """Returns a list of messages about possibly conflicting addon installations based on 'module_name'."""
-    this_addon_simple_name = module_name.replace("_addon", "")
+    this_addon_simple_name = normalize_addon_name(module_name)
     if "bl_ext" in this_addon_simple_name:
         # Get the name of the addon if this is an extension module "bl_ext.REPO.ADDON_NAME"
         assert "bl_ext" in this_addon_simple_name
         assert this_addon_simple_name.count(".") >= 2
-        this_addon_simple_name = this_addon_simple_name.rsplit(".", 1)[-1]
-        # Remove any variant suffixes like _personal, _pro, _studio
-        this_addon_simple_name = (
-            this_addon_simple_name.replace("_personal", "")
-            .replace("_pro", "")
-            .replace("_studio", "")
-        )
+        this_addon_simple_name = normalize_addon_name(this_addon_simple_name.rsplit(".", 1)[-1])
 
     # Before engon and paq system, each asset pack had its own addon, there was a brief transition period
     # with materialiq 5, when megaddon was what's engon became.
@@ -543,24 +568,31 @@ def get_conflicting_addons(module_name: str) -> list[str]:
         "megaddon",
     }
 
-    conflicts: list[str] = []
-
+    conflict_msgs: list[str] = []
+    conflict_modules: list[tuple[str, str]] = []
     for mod in addon_utils.modules():
         for candidate in old_addons:
             if candidate in mod.__name__:
-                conflicts.append(
+                conflict_msgs.append(
                     f"Old polygoniq addon found '{mod.__name__}'. "
                     "This is no longer supported and can cause issues with other addons. "
                     f"Migrate to 'engon' and 'paq' system. More info in documentation."
                 )
+                conflict_modules.append((mod.__name__, "old_addon"))
         if this_addon_simple_name in mod.__name__ and module_name != mod.__name__:
-            conflicts.insert(
+            conflict_msgs.insert(
                 0,
                 f"Another installation of '{this_addon_simple_name}' found - '{mod.__name__} from {mod.__file__}'! "
                 "Keep only one installation please!",
             )
+            conflict_modules.append((mod.__name__, "duplicate_addon"))
 
-    return conflicts
+    if len(conflict_modules) > 0:
+        logger.error(
+            f"{len(conflict_modules)} conflicting addons found for '{module_name}'.",
+            extra={"_log_data": {"conflicts": conflict_modules}},
+        )
+    return conflict_msgs
 
 
 def get_addon_docs_page(module_name: str) -> str:

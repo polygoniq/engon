@@ -4,6 +4,7 @@ from . import errors
 import abc
 import typing
 import bpy
+import mathutils
 import logging
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
@@ -73,8 +74,12 @@ def _serialize_vector(attr: typing.Any, serialization_type: type) -> list[JSONCo
     assert (
         typing.get_origin(serialization_type) is VectorProp
     ), f"Serialization type '{serialization_type}' is not a vector type"
-    if not isinstance(attr, bpy.types.bpy_prop_array):
-        raise errors.SerializationError(attr, f"'{attr}' is not of type {bpy.types.bpy_prop_array}")
+    if not isinstance(
+        attr, (bpy.types.bpy_prop_array, mathutils.Color)
+    ):  # Vector propertis of color subtype will return mathutils.Color instead of bpy_prop_array
+        raise errors.SerializationError(
+            attr, f"'{attr}' is not of type {bpy.types.bpy_prop_array} or {mathutils.Color}"
+        )
     item_type, size = typing.get_args(serialization_type)
     if len(attr) != size[0]:
         raise errors.SerializationError(
@@ -294,8 +299,10 @@ def _deserialize_vector(
     # Check attribute type
     attr = getattr(instance, attr_name, None)
     assert attr is not None, f"'{attr_name}' attribute not found in '{type(instance).__name__}'"
-    if not isinstance(attr, bpy.types.bpy_prop_array):
-        raise errors.DeserializationError(attr, f"'{attr}' is not a {bpy.types.bpy_prop_array}")
+    if not isinstance(attr, (bpy.types.bpy_prop_array, mathutils.Color)):
+        raise errors.DeserializationError(
+            attr, f"'{attr}' is not a {bpy.types.bpy_prop_array} or {mathutils.Color}"
+        )
     attr_item = attr[0]
     while type(attr_item) is bpy.types.bpy_prop_array:
         attr_item = attr_item[0]

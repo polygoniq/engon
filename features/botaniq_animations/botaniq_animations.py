@@ -297,7 +297,7 @@ class AnimationsPanel(feature_utils.EngonAssetFeatureControlPanelMixin, bpy.type
             split.label(text="Speed:")
             split.label(text=f"{speed:.1f}x")
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         wind_properties = preferences.prefs_utils.get_preferences(
             context
         ).botaniq_animations_preferences.wind_anim_properties
@@ -404,7 +404,7 @@ class AnimationAdvancedPanel(feature_utils.EngonAssetFeatureControlPanelMixin, b
     def draw_header(self, context: bpy.types.Context):
         self.layout.label(text="", icon='OPTIONS')
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
 
         if self.conditionally_draw_warning_no_adjustable_active_object(

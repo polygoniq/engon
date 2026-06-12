@@ -32,6 +32,9 @@ from . import hatchery
 from . import panel
 from . import preferences
 
+if typing.TYPE_CHECKING:
+    from bpy._typing import rna_enums
+
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -88,6 +91,7 @@ class Clicker(bpy.types.Operator):
     SCALE_SPEED = 0.01
 
     draw_2d_handler_ref = None
+    ui_layout = None
 
     is_running = False
 
@@ -97,6 +101,7 @@ class Clicker(bpy.types.Operator):
         self.target_collection: bpy.types.Collection | None = None
         self.collision_collection = bpy.context.scene.collection
 
+        self.chosen_object: bpy.types.Object | None = None
         self.current_object: bpy.types.Object | None = None
         self.placed_object: bpy.types.Object | None = None
         self.initial_selected_objects: set[bpy.types.Object] = set()
@@ -112,6 +117,55 @@ class Clicker(bpy.types.Operator):
         # Properties controlling the UI state - e. g. tint of the buttons, based on the events
         self.is_scaling = False
 
+        if type(self).ui_layout is None:
+            type(self)._init_ui_layout()
+
+    @classmethod
+    def _init_ui_layout(cls) -> None:
+        ui = polib.pq_render_bpy.ui_bpy
+        styles = polib.pq_render_bpy.styles
+        comp = polib.pq_render_bpy.components_bpy
+
+        MB = comp.MouseButton
+        MA = comp.MouseArrow
+        Mouse = comp.InputCombo.Mouse
+        Key = comp.InputCombo.Key
+
+        cls.ui_place = comp.InputCombo("Place object", [Mouse(buttons=MB.LEFT)])
+        cls.ui_rotate = comp.InputCombo(
+            "Rotate", [Mouse(buttons=MB.LEFT, arrows=MA.LEFT | MA.RIGHT)]
+        )
+        cls.ui_scale = comp.InputCombo(
+            "Scale",
+            [Mouse(buttons=MB.LEFT, arrows=MA.LEFT | MA.RIGHT), Key(comp.ALT_KEY)],
+        )
+        cls.ui_ctrl_key = comp.InputCombo("Align to surface (Hold)", [Key(comp.CTRL_KEY)])
+        cls.ui_random_key = comp.InputCombo("Select random object", [Key("R")])
+        cls.ui_exit_key = comp.InputCombo("Exit", [Key(comp.ESCAPE_KEY)])
+
+        cls.ui_layout = ui.RootFixed(
+            [
+                ui.Flex(
+                    style=styles.StyleFlex(
+                        anchor=styles.Anchor.BOTTOM_LEFT,
+                        width=styles.SizeMode.FULL,
+                        padding=(20, 10),
+                        gap=30,
+                        justify_content=styles.JustifyContent.CENTER,
+                    ),
+                    children=[
+                        cls.ui_place,
+                        cls.ui_rotate,
+                        cls.ui_scale,
+                        cls.ui_ctrl_key,
+                        cls.ui_random_key,
+                        cls.ui_exit_key,
+                    ],
+                )
+            ],
+            avoid_ui_region_overlap=True,
+        )
+
     @staticmethod
     def remove_draw_handlers() -> None:
         if hasattr(Clicker, "draw_2d_handler_ref") and Clicker.draw_2d_handler_ref is not None:
@@ -122,55 +176,20 @@ class Clicker(bpy.types.Operator):
         Clicker.remove_draw_handlers()
 
     def draw_px(self):
+        cls = type(self)
+        assert cls.ui_layout is not None
+
+        # Update dynamic state
         clicker_props = get_clicker_props(bpy.context)
-        ui_scale = bpy.context.preferences.system.ui_scale
-        half_width = bpy.context.region.width / 2.0
-
-        polib.render_bpy.mouse_info(
-            half_width - 440 * ui_scale,
-            20,
-            "Place object",
-            left_click=True,
+        ctrl_key = cls.ui_ctrl_key.symbols[0]
+        ctrl_key.pressed = clicker_props.align_to_surface
+        scale_key = cls.ui_scale.symbols[1]
+        scale_key.pressed = self.is_scaling
+        cls.ui_random_key.style.hidden = (
+            self.models_collection is None or len(self.models_collection.objects) <= 1
         )
 
-        polib.render_bpy.mouse_info(
-            half_width - 300 * ui_scale,
-            20,
-            "Rotate",
-            left_click=True,
-            indicate_left=True,
-            indicate_right=True,
-        )
-
-        # Click and hold ALT
-        polib.render_bpy.mouse_info(
-            half_width - 200 * ui_scale,
-            20,
-            "",
-            left_click=True,
-            indicate_left=True,
-            indicate_right=True,
-        )
-        polib.render_bpy.key_info(
-            half_width - 175 * ui_scale,
-            20,
-            polib.render_bpy.ALT_KEY,
-            "Scale",
-            pressed=self.is_scaling,
-        )
-
-        polib.render_bpy.key_info(
-            half_width - 90 * ui_scale,
-            20,
-            polib.render_bpy.CTRL_KEY,
-            "Align to surface (Hold)",
-            pressed=clicker_props.align_to_surface,
-        )
-        polib.render_bpy.key_info(half_width + 120 * ui_scale, 20, "R", "Select random object")
-
-        polib.render_bpy.key_info(
-            half_width + 330 * ui_scale, 20, polib.render_bpy.ESCAPE_KEY, "Exit"
-        )
+        cls.ui_layout.draw()
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
@@ -181,7 +200,7 @@ class Clicker(bpy.types.Operator):
             and context.mode == 'OBJECT'
         )
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         return {'FINISHED'}
 
     def _cleanup(
@@ -212,7 +231,9 @@ class Clicker(bpy.types.Operator):
         return {'CANCELLED'}
 
     @polib.utils_bpy.safe_modal(on_exception=_cleanup)
-    def modal(self, context: bpy.types.Context, event: bpy.types.Event):
+    def modal(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         if self.current_object is None:
             self.report({'ERROR'}, "No object to place, select at least one object.")
             return {'CANCELLED'}
@@ -257,9 +278,9 @@ class Clicker(bpy.types.Operator):
                 self.choose_next_object(context)
             return {'RUNNING_MODAL'}
 
-        elif event.type == 'R':
+        elif event.type == 'R' and len(self.models_collection.objects) > 1:
             if event.value == 'RELEASE':
-                self.choose_next_object(context)
+                self.choose_next_object(context, allow_same_object=False)
                 self.update_current_object_transform(context, event)
 
             return {'RUNNING_MODAL'}
@@ -354,12 +375,19 @@ class Clicker(bpy.types.Operator):
         polib.asset_pack_bpy.collection_add_object(self.target_collection, self.placed_object)
         self.current_object.hide_viewport = True
         self.place_mouse_position = mathutils.Vector([event.mouse_region_x, event.mouse_region_y])
+        bpy.context.view_layer.objects.active = self.placed_object
         logger.info(f"Object placed: '{self.placed_object.name}'")
 
-    def choose_next_object(self, context: bpy.types.Context) -> None:
+    def choose_next_object(
+        self, context: bpy.types.Context, allow_same_object: bool = True
+    ) -> None:
+        assert (
+            len(self.models_collection.objects) > 0
+        ), "There should be at least one object to choose from"
         clicker_props = get_clicker_props(context)
         if self.current_object is not None:
             bpy.data.objects.remove(self.current_object)
+            self.current_object = None
 
         # If there was a previously placed object, choosing next object starts right after it was
         # finished - it's rotation and scale is set, and we can log the information.
@@ -370,9 +398,16 @@ class Clicker(bpy.types.Operator):
             )
 
         self.current_object_hierarchy_names.clear()
-        random_object = random.choice(self.models_collection.objects)
-        self.current_object = random_object.copy()
-        assert self.current_object is not None
+        while self.current_object is None:
+            random_object = random.choice(self.models_collection.objects)
+            assert random_object is not None
+            if (
+                allow_same_object
+                or len(self.models_collection.objects) == 1
+                or random_object is not self.chosen_object
+            ):
+                self.chosen_object = random_object
+                self.current_object = random_object.copy()
 
         name, _, _ = self.current_object.name.partition(CLICKER_OBJECT_SUFFIX)
         # Create a temp object to automatically get the next name with its suffix for the current object
@@ -492,10 +527,12 @@ class Clicker(bpy.types.Operator):
                 empty.instance_collection = coll
                 self.models_collection.objects.link(empty)
 
-    def cancel(self, context: bpy.types.Context):
+    def cancel(self, context: bpy.types.Context) -> None:
         self._cleanup(context)
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
         if Clicker.is_running:
             logger.error("Another instance of the clicker operator is already running!")
             return {'CANCELLED'}
