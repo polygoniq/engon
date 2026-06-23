@@ -793,6 +793,9 @@ def make_selection_editable(
                     if child.parent_type == 'BONE':
                         bone_parent_registry[child.name] = (parent, source_child.parent_bone)
                 child.matrix_world = child_matrix
+                # Transfer obj constraints to each child before the obj is removed,
+                # otherwise they would be lost.
+                copy_constraints_from_instance_to_realized(obj, child, {}, True)
             bpy.data.objects.remove(obj)
             continue
 

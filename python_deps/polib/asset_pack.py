@@ -13,6 +13,7 @@ ASSET_PACK_COLLECTION_COLOR_MAP = {
     "interniq": 'COLOR_03',  # yellow
     "engon_particle_systems": 'COLOR_04',  # green
     "engon_geometry_nodes": 'COLOR_04',  # green
+    "humaniq": 'COLOR_01',  # red
 }
 
 

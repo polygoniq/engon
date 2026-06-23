@@ -178,11 +178,6 @@ def spawn_model_as_object(
     if options.rotation_euler_override is not None:
         root_obj.rotation_euler = options.rotation_euler_override
 
-    # Copy all children properties from the instanced objects to the instancer object
-    for master_object in master_objects:
-        if master_object.library is not None:
-            utils.copy_custom_props(master_object, root_obj)
-
     for col in root_obj.users_collection:
         if col.library is None:
             col.objects.unlink(root_obj)
