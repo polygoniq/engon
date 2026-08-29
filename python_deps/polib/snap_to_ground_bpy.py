@@ -8,7 +8,6 @@ import math
 import copy
 import logging
 
-
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
 
@@ -257,6 +256,7 @@ def snap_to_ground_adjust_rotation(
             'MESH',
             'CURVE',
             'SURFACE',
+            'LIGHT',
             'META',
             'FONT',
             'CURVES',

@@ -5,3 +5,4 @@ from . import draw_2d_bpy
 from . import styles
 from . import ui_bpy
 from . import components_bpy
+from . import mesh_geometry_bpy

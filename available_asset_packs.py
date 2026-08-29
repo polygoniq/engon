@@ -241,6 +241,11 @@ def _refresh_available_asset_packs() -> None:
             remote_index = _download_asset_packs_index(timeout=TIMEOUT_SECONDS, etag=etag)
             if remote_index is not None:
                 used_index = remote_index
+            elif local_index is not None:
+                # 304 or transient network error — local data is still valid
+                # Touch the file so the 1-day mtime check doesn't keep triggering downloads every refresh call.
+                os.utime(INDEX_LOCAL_FILE_PATH, None)
+                used_index = local_index
 
         if used_index is None:
             return

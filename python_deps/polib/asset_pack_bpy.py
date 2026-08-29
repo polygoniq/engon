@@ -20,6 +20,7 @@ from . import utils_bpy
 from . import rigs_shared_bpy
 from . import custom_props_bpy
 from . import node_utils_bpy
+from . import geonodes_mod_utils_bpy
 
 
 def get_all_object_ancestors(obj: bpy.types.Object) -> typing.Iterable[bpy.types.Object]:
@@ -175,7 +176,7 @@ def is_traffiq_asset_part(obj: bpy.types.Object, part: TraffiqAssetPart) -> bool
         _, obj_part_name, position, number = split_name
         if obj_part_name != part:
             return False
-        if position not in {"FL", "FR", "BL", "BR", "F", "B"}:
+        if position not in {"FL", "FR", "BL", "BR", "F", "B", "TL", "TR", "T"}:
             return False
         if not number.isdigit():
             return False
@@ -471,6 +472,16 @@ def make_selection_editable(
             original_armature_name = utils_bpy.remove_object_duplicate_suffix(obj.data.name)
             result[original_armature_name].append(obj)
 
+    def get_lights_to_objects_map(
+        obj: bpy.types.Object, result: collections.defaultdict[str, list[bpy.types.ID]]
+    ) -> None:
+        for child in obj.children:
+            get_lights_to_objects_map(child, result)
+
+        if obj.type == 'LIGHT' and obj.data is not None:
+            original_light_name = utils_bpy.remove_object_duplicate_suffix(obj.data.name)
+            result[original_light_name].append(obj)
+
     GetNameToUsersMapCallable = typing.Callable[
         [bpy.types.Object, collections.defaultdict[str, list[bpy.types.ID]]], None
     ]
@@ -543,12 +554,12 @@ def make_selection_editable(
                 mod.node_group
             ).items():
                 if node_utils_bpy.get_socket_type(input_) == 'NodeSocketMaterial':
-                    mat = mod[input_.identifier]
+                    mat = geonodes_mod_utils_bpy.get_mod_input_value(mod, input_.identifier)
                     new_mat = old_new_material_map.get(mat)
                     # We enforce materials referenced in geonodes to be present in object material
                     # slots, but this operator can be used for non-polygoniq assets as well.
                     if new_mat is not None:
-                        mod[input_identifier] = new_mat
+                        geonodes_mod_utils_bpy.set_mod_input_value(mod, input_identifier, new_mat)
 
     def copy_constraints_from_instance_to_realized(
         source_obj: bpy.types.Object,
@@ -583,6 +594,15 @@ def make_selection_editable(
                 )
                 return
 
+        # 'duplicates_make_real' already bakes the posed (not in rest pose, constraint-evaluated) transform into
+        # 'target_obj'. If we now copy the constraints as-is, they get evaluated again on top of
+        # that already-posed transform and the pose ends up applied twice (e.g. a 30 degree
+        # rotation becomes 60 degrees). We remember the correct world matrix here so we can
+        # compensate for that once the constraints are copied.
+        unconstrained_world_matrix = None
+        if not copy_between_realized_objects and len(source_obj.constraints) > 0:
+            unconstrained_world_matrix = target_obj.matrix_world.copy()
+
         for source_constraint in source_obj.constraints:
             target_constraint = target_obj.constraints.new(source_constraint.type)
 
@@ -613,6 +633,15 @@ def make_selection_editable(
                         # subtarget is a string, so we can just copy it safely
                         target_copy.subtarget = target.subtarget
                     target_copy.weight = target.weight
+
+        if unconstrained_world_matrix is not None:
+            context.view_layer.update()
+            doubled_world_matrix = target_obj.matrix_world.copy()
+            constrain_transform_delta = doubled_world_matrix @ unconstrained_world_matrix.inverted()
+            target_obj.matrix_world = (
+                constrain_transform_delta.inverted() @ unconstrained_world_matrix
+            )
+            context.view_layer.update()
 
         # in source_obj.children, the Meshes are missing, let's add them from source_obj.instance_collection.all_objects
         source_obj_children = list(source_obj.children)
@@ -793,6 +822,9 @@ def make_selection_editable(
                     if child.parent_type == 'BONE':
                         bone_parent_registry[child.name] = (parent, source_child.parent_bone)
                 child.matrix_world = child_matrix
+                # Transfer obj constraints to each child before the obj is removed,
+                # otherwise they would be lost.
+                copy_constraints_from_instance_to_realized(obj, child, {}, True)
             bpy.data.objects.remove(obj)
             continue
 
@@ -864,6 +896,8 @@ def make_selection_editable(
         )
         # Create copy of armature data shared with other objects or linked from library
         make_datablocks_unique_per_object(obj, get_armatures_to_objects_map, "data")
+        # Create copy of light data shared with other objects or linked from library
+        make_datablocks_unique_per_object(obj, get_lights_to_objects_map, "data")
         # Make auto smooth modifier local to the object, so objects don't disappear when the modifier
         # is missing.
         try_make_auto_smooth_modifier_local(obj)
@@ -883,6 +917,17 @@ def make_selection_editable(
         if keep_selection:
             selected_objects.append(obj_name)
             obj.select_set(True)
+
+        for hierarchy_obj in get_hierarchy(obj):
+            # Due to a bug in Blender while converting boolean inputs we reassign the modifier node
+            # group when spawning. The bug happens when object with modifiers is appended from a blend
+            # file, where the modifier node group is linked from a different file. First append is
+            # correct, but any subsequently appended object with the same modifier triggers the:
+            # 'Property type does not match input socket (NAME)' error and can make some setups not work
+            # Issue link: https://projects.blender.org/blender/blender/issues/110825
+            for mod in hierarchy_obj.modifiers:
+                if mod.type == 'NODES':
+                    mod.node_group = mod.node_group
 
     if keep_active and prev_active_object_name is not None:
         if prev_active_object_name in bpy.data.objects:

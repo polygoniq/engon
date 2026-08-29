@@ -315,7 +315,7 @@ def find_nodegroup_users(
     In this case this returns the original instanced object and list of non-empty objects that are
     instanced.
 
-    In case of editable objects this returns the object itself and list with the object in it.
+    In case of editable objects and lights objects this returns the object itself and list with the object in it.
     """
 
     def find_origin_objects(instancer_obj: bpy.types.Object) -> typing.Iterable[bpy.types.Object]:
@@ -334,7 +334,24 @@ def find_nodegroup_users(
             else:
                 yield obj
 
-    # Firstly gather all the materials that use the nodegroup with given name
+    # Look for valid lights first
+    for light in bpy.data.lights:
+        if not light.use_nodes:
+            continue
+
+        nodes = find_nodes_in_tree(
+            light.node_tree,
+            lambda x: isinstance(x, bpy.types.ShaderNodeGroup)
+            and x.node_tree is not None
+            and x.node_tree.name == nodegroup_name,
+        )
+
+        if len(nodes) > 0:
+            for obj in bpy.data.objects:
+                if obj.data == light:
+                    yield obj, [obj]
+
+    # Gather all the materials that use the nodegroup with given name
     materials_using_nodegroup = set()
     for material in bpy.data.materials:
         if material.node_tree is None:
@@ -380,10 +397,7 @@ def find_nodegroup_users(
             if len(instance_materials.intersection(materials_using_nodegroup)) > 0:
                 yield obj, instanced_objs
 
-        else:
-            if not hasattr(obj, "material_slots"):
-                continue
-
+        elif hasattr(obj, "material_slots"):
             obj_materials = {
                 slot.material for slot in obj.material_slots if slot.material is not None
             }

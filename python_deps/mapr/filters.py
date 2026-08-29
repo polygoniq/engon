@@ -62,16 +62,19 @@ class NumericParameterFilter(Filter):
 
 
 class TagFilter(Filter):
-    def __init__(self, name: str):
+    def __init__(self, name: str, include: bool = True):
         super().__init__(name)
-        # If one instantiates the base TagFilter, they mean to filter by this tag.
-        self.include = True
+        # If one instantiates the base TagFilter, they mean to filter by this tag, unless
+        # 'include' is set to False - in that case assets with this tag are filtered out.
+        self.include = include
+        self.exclude = not include
 
     def filter_(self, asset_: asset.Asset) -> bool:
-        return self.name_without_type in asset_.tags
+        has_tag = self.name_without_type in asset_.tags
+        return has_tag != self.exclude
 
-    def as_dict(self) -> dict:
-        return {self.name: self.include}
+    def as_dict(self) -> dict[str, dict[str, bool]]:
+        return {self.name: {"include": self.include, "exclude": self.exclude}}
 
 
 class TextParameterFilter(Filter):

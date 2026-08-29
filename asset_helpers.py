@@ -53,6 +53,8 @@ BOTANIQ_ALL_SEASONS_RAW = "spring-summer-autumn-winter"
 BQ_COLLECTION_NAME = "botaniq"
 BQ_VINE_GENERATOR_NODE_GROUP_NAME = "bq_Vine_Generator"
 BQ_CURVES_SCATTER_NODE_GROUP_NAME = "bq_Curve_Scatter"
+BQ_MASK_BRANCHES_NODE_GROUP_NAME = "bq_Mask_Branches"
+BQ_MASK_LEAVES_NODE_GROUP_NAME = "bq_Mask_Leaves"
 BQ_ANIM_LIBRARY_BLEND = "bq_Library_Animation_Data.blend"
 
 # humaniq constants
@@ -333,12 +335,19 @@ def gather_curves_instanced_objects(
             ):
                 continue
 
-            for group_input in mod.node_group.inputs:
-                if group_input.type == 'COLLECTION' and group_input.description.startswith(
+            for group_input in polib.node_utils_bpy.get_node_tree_inputs_map(
+                mod.node_group
+            ).values():
+                if polib.node_utils_bpy.get_socket_type(
+                    group_input
+                ) == 'NodeSocketCollection' and group_input.description.startswith(
                     "bq_Curve_Scatter_Collection"
                 ):
-                    if mod.get(group_input.identifier) is not None:
-                        yield from mod.get(group_input.identifier).all_objects
+                    collection = polib.geonodes_mod_utils_bpy.get_mod_input_value(
+                        mod, group_input.identifier
+                    )
+                    if collection is not None:
+                        yield from collection.all_objects
 
             instance_collection = mod.node_group.nodes.get("Instance Collection")
             if instance_collection is not None and instance_collection.collection is not None:

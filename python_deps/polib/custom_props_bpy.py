@@ -39,6 +39,9 @@ class CustomPropertyNames:
     TQ_BUMPS = "tq_bumps"
     # traffiq_paint feature
     TQ_PRIMARY_COLOR = "tq_primary_color"
+    TQ_SECONDARY_COLOR = "tq_secondary_color"
+    TQ_TERTIARY_COLOR = "tq_tertiary_color"
+    TQ_QUATERNARY_COLOR = "tq_quaternary_color"
     TQ_FLAKES_AMOUNT = "tq_flakes_amount"
     TQ_CLEARCOAT = "tq_clearcoat"
     # traffiq_lights feature

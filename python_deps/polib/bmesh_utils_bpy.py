@@ -38,6 +38,41 @@ BMElementCollection: typing.TypeAlias = (
 )
 
 
+@typing.overload
+def get_active_element(
+    bm: bmesh.types.BMesh,
+    element_type: typing.Literal[ElementCollection.VERTS],
+) -> bmesh.types.BMVert | None: ...
+
+
+@typing.overload
+def get_active_element(
+    bm: bmesh.types.BMesh,
+    element_type: typing.Literal[ElementCollection.EDGES],
+) -> bmesh.types.BMEdge | None: ...
+
+
+@typing.overload
+def get_active_element(
+    bm: bmesh.types.BMesh,
+    element_type: typing.Literal[ElementCollection.FACES],
+) -> bmesh.types.BMFace | None: ...
+
+
+@typing.overload
+def get_active_element(
+    bm: bmesh.types.BMesh,
+    element_type: typing.Literal[ElementCollection.LOOPS],
+) -> bmesh.types.BMLoop | None: ...
+
+
+@typing.overload
+def get_active_element(
+    bm: bmesh.types.BMesh,
+    element_type: ElementCollection,
+) -> BMElement | None: ...
+
+
 def get_active_element(bm: bmesh.types.BMesh, element_type: ElementCollection) -> BMElement | None:
     """Get currently active vertex | edge | face | loop
 
@@ -65,6 +100,41 @@ def get_active_element(bm: bmesh.types.BMesh, element_type: ElementCollection) -
     return None
 
 
+@typing.overload
+def get_selected_elements(
+    bm: bmesh.types.BMesh,
+    element_type: typing.Literal[ElementCollection.VERTS],
+) -> typing.Iterator[bmesh.types.BMVert]: ...
+
+
+@typing.overload
+def get_selected_elements(
+    bm: bmesh.types.BMesh,
+    element_type: typing.Literal[ElementCollection.EDGES],
+) -> typing.Iterator[bmesh.types.BMEdge]: ...
+
+
+@typing.overload
+def get_selected_elements(
+    bm: bmesh.types.BMesh,
+    element_type: typing.Literal[ElementCollection.FACES],
+) -> typing.Iterator[bmesh.types.BMFace]: ...
+
+
+@typing.overload
+def get_selected_elements(
+    bm: bmesh.types.BMesh,
+    element_type: typing.Literal[ElementCollection.LOOPS],
+) -> typing.Iterator[bmesh.types.BMLoop]: ...
+
+
+@typing.overload
+def get_selected_elements(
+    bm: bmesh.types.BMesh,
+    element_type: ElementCollection,
+) -> typing.Iterator[BMElement]: ...
+
+
 def get_selected_elements(
     bm: bmesh.types.BMesh,
     element_type: ElementCollection,
@@ -84,6 +154,41 @@ def get_selected_elements(
         )
     collection = getattr(bm, element_type)
     return (elem for elem in collection if elem.select)
+
+
+@typing.overload
+def iter_bm_elements(
+    bm: bmesh.types.BMesh,
+    element_type: typing.Literal[ElementCollection.VERTS],
+) -> typing.Iterator[bmesh.types.BMVert]: ...
+
+
+@typing.overload
+def iter_bm_elements(
+    bm: bmesh.types.BMesh,
+    element_type: typing.Literal[ElementCollection.EDGES],
+) -> typing.Iterator[bmesh.types.BMEdge]: ...
+
+
+@typing.overload
+def iter_bm_elements(
+    bm: bmesh.types.BMesh,
+    element_type: typing.Literal[ElementCollection.FACES],
+) -> typing.Iterator[bmesh.types.BMFace]: ...
+
+
+@typing.overload
+def iter_bm_elements(
+    bm: bmesh.types.BMesh,
+    element_type: typing.Literal[ElementCollection.LOOPS],
+) -> typing.Iterator[bmesh.types.BMLoop]: ...
+
+
+@typing.overload
+def iter_bm_elements(
+    bm: bmesh.types.BMesh,
+    element_type: ElementCollection,
+) -> typing.Iterator[BMElement]: ...
 
 
 def iter_bm_elements(
@@ -211,3 +316,71 @@ def edge_verts_ordered_by_index(
         return v1, v2
     else:
         return v2, v1
+
+
+FaceTriangulation: typing.TypeAlias = dict[
+    bmesh.types.BMFace, list[tuple[bmesh.types.BMVert, bmesh.types.BMVert, bmesh.types.BMVert]]
+]
+
+
+def compute_face_triangulation(bm: bmesh.types.BMesh) -> FaceTriangulation:
+    """Build a `face -> triangles` map matching n-gon tessellation.
+
+    The result maps each bmesh face to the list of triangles produced by n-gon tessellation
+    (`bm.calc_loop_triangles()`). Each triangle is a 3-tuple of `BMVert`. Faces that produce no
+    triangles (degenerate) are absent from the dict, so call sites should use `.get(face)` and treat
+    `None` as "no triangulation available".
+
+    The result depends on the bmesh's current topology AND
+    vertex positions: ear-clipping on concave n-gons can change when verts move,
+    so callers caching the result must invalidate on any geometry edit.
+
+    The returned `BMVert` references stay valid only while `bm` is alive; do not
+    persist the dict across edit-mode toggles or other bmesh invalidations.
+    """
+    face_to_tris: FaceTriangulation = {}
+    for tri in bm.calc_loop_triangles():
+        # `tri` is a 3-tuple of `BMLoop` describing a triangle in the tessellation of `tri[0].face`.
+        face_to_tris.setdefault(tri[0].face, []).append(tuple(l.vert for l in tri))
+    return face_to_tris
+
+
+def get_corner_split_verts(
+    loop: bmesh.types.BMLoop,
+    face_tris: list[tuple[bmesh.types.BMVert, bmesh.types.BMVert, bmesh.types.BMVert]] | None,
+) -> list[bmesh.types.BMVert]:
+    """Return diagonal-target verts for `loop`'s corner, ordered around the face.
+
+    A diagonal target is a face vertex connected to `loop.vert` by an internal
+    triangulation edge generated by n-gon tessellation. The result is ordered as encountered
+    when walking `face.loops` from `loop.link_loop_next` toward `loop.link_loop_prev`.
+
+    Args:
+        loop: Corner whose diagonals are being queried; the corner vertex is `loop.vert`
+            and the bounding edges are `loop.edge` and `loop.link_loop_prev.edge`.
+        face_tris: Triangulation of `loop.face` as produced by `compute_face_triangulation`
+            (the value of `FaceTriangulation[loop.face]`). `None` or an empty list means
+            no triangulation is available for this face and the result is an empty list.
+    """
+    if face_tris is None or len(face_tris) == 0:
+        return []
+    v = loop.vert
+    next_v = loop.link_loop_next.vert
+    prev_v = loop.link_loop_prev.vert
+    # Collect all face vertices connected to `v` by a triangulation edge
+    diag_neighbors: set[bmesh.types.BMVert] = set()
+    for tri in face_tris:
+        if v in tri:
+            for w in tri:
+                if w is not v and w is not next_v and w is not prev_v:
+                    diag_neighbors.add(w)
+    if len(diag_neighbors) == 0:
+        return []
+    # Walk the face loops from `next_v` to `prev_v` and collect the diagonal neighbors in order
+    ordered: list[bmesh.types.BMVert] = []
+    walker = loop.link_loop_next.link_loop_next  # first loop strictly between next_v and prev_v
+    while walker is not loop.link_loop_prev:
+        if walker.vert in diag_neighbors:
+            ordered.append(walker.vert)
+        walker = walker.link_loop_next
+    return ordered

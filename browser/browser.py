@@ -109,10 +109,6 @@ class MAPR_BrowserPreferencesPopoverPanel(bpy.types.Panel):
             preferences.prefs_utils.get_preferences(context).browser_preferences,
             "debug_show_hidden_filters",
         )
-        col.prop(
-            preferences.prefs_utils.get_preferences(context).browser_preferences,
-            "debug_spawn_as_objects",
-        )
         col.separator()
         col.label(text="Asset Providers:")
         sub_col = col.column(align=True)

@@ -178,11 +178,6 @@ def spawn_model_as_object(
     if options.rotation_euler_override is not None:
         root_obj.rotation_euler = options.rotation_euler_override
 
-    # Copy all children properties from the instanced objects to the instancer object
-    for master_object in master_objects:
-        if master_object.library is not None:
-            utils.copy_custom_props(master_object, root_obj)
-
     for col in root_obj.users_collection:
         if col.library is None:
             col.objects.unlink(root_obj)
@@ -203,6 +198,13 @@ def spawn_model_as_object(
                 selected_obj.select_set(False)
 
             root_obj.select_set(True)
+
+    hierarchy_objects = [root_obj] + list(root_obj.children_recursive)
+    for obj in hierarchy_objects:
+        # Same issue as in spawn_geometry_nodes
+        for mod in obj.modifiers:
+            if mod.type == 'NODES':
+                mod.node_group = mod.node_group
 
     return ModelSpawnedData(parent_collection, root_obj)
 
@@ -393,6 +395,11 @@ def spawn_particles(
             # We spawn all objects 10 units below the lowest location of target objects
             obj.location.z = lowest_obj_z - 10.0
             obj.display_type = options.display_type
+
+            # Same issue as in spawn_geometry_nodes
+            for mod in obj.modifiers:
+                if mod.type == 'NODES':
+                    mod.node_group = mod.node_group
 
         if options.instance_layer_collection_parent is not None:
             # Link the instance collection to the parent collection

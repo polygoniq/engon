@@ -386,7 +386,15 @@ MODULE_CLASSES.append(BrowserNumericParameterFilter)
 
 class BrowserTagFilter(bpy.types.PropertyGroup, mapr.filters.TagFilter, BrowserFilter):
     # OVERRIDES 'include' from 'mapr.filters.TagFilter'
-    include: bpy.props.BoolProperty(update=lambda self, context: _filter_updated_event(self))
+    include: bpy.props.BoolProperty(
+        description="include assets with tag",
+        update=lambda self, context: self._include_updated(context),
+    )
+    # OVERRIDES 'exclude' from 'mapr.filters.TagFilter'
+    exclude: bpy.props.BoolProperty(
+        description="exclude assets with tag",
+        update=lambda self, context: self._exclude_updated(context),
+    )
 
     def init(self, name: str):
         self.name = name
@@ -394,16 +402,19 @@ class BrowserTagFilter(bpy.types.PropertyGroup, mapr.filters.TagFilter, BrowserF
 
     def draw(self, context: bpy.types.Context, layout: bpy.types.UILayout) -> None:
         # We do not show the 'ResetFilter' button for the tag filters, as resetting can be done
-        # by toggling the property.
+        # by toggling the properties.
         row = layout.row(align=True)
+        row.alert = self.exclude
         row.prop(self, "include", text=self.get_nice_name(), toggle=1)
+        row.prop(self, "exclude", text="", icon='REMOVE', toggle=1)
 
     def is_default(self) -> bool:
-        return self.include is False
+        return self.include is False and self.exclude is False
 
     def reset(self) -> None:
         super().reset()
         self.include = False
+        self.exclude = False
 
     def filter_(self, asset: mapr.asset.Asset) -> bool:
         # Include asset if the values for this filter are default
@@ -411,6 +422,20 @@ class BrowserTagFilter(bpy.types.PropertyGroup, mapr.filters.TagFilter, BrowserF
             return True
 
         return super().filter_(asset)
+
+    def _include_updated(self, context: bpy.types.Context) -> None:
+        # 'include' and 'exclude' are mutually exclusive, enabling one disables the other.
+        if self.include and self.exclude:
+            self.exclude = False
+
+        _filter_updated_event(self)
+
+    def _exclude_updated(self, context: bpy.types.Context) -> None:
+        # 'include' and 'exclude' are mutually exclusive, enabling one disables the other.
+        if self.exclude and self.include:
+            self.include = False
+
+        _filter_updated_event(self)
 
 
 MODULE_CLASSES.append(BrowserTagFilter)
@@ -1364,11 +1389,14 @@ def _draw_tags(context: bpy.types.Context, layout: bpy.types.UILayout):
 
     ui_scale = context.preferences.system.ui_scale
     estimated_row_width_px = 0
+    estimated_negative_button_width_px = 20
     tag_filters.sort(key=lambda tag: tag.name_without_type.lower())
     for tag_filter in tag_filters:
         # 20 is a margin for each drawn prop
         estimated_row_width_px += ui_scale * (
-            len(tag_filter.name_without_type) * utils.EST_LETTER_WIDTH_PX + 20
+            len(tag_filter.name_without_type) * utils.EST_LETTER_WIDTH_PX
+            + 20
+            + estimated_negative_button_width_px
         )
 
         # 150 is a width from where we display tags always on a single row

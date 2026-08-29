@@ -57,6 +57,11 @@ class TraffiqRigsPreferences(bpy.types.PropertyGroup):
         description="If true, follow path operator will automatically try to bake wheel rotation",
         default=True,
     )
+    auto_bake_trailer_rotation: bpy.props.BoolProperty(
+        name="Auto Bake Trailer Rotation",
+        description="If true, follow path operator will automatically try to bake trailer rotation",
+        default=True,
+    )
     auto_reset_transforms: bpy.props.BoolProperty(
         name="Auto Reset Transforms",
         description="If true, follow path operator will automatically reset transforms"
@@ -148,6 +153,34 @@ def create_fcurve(action: bpy.types.Action, property_name: str) -> bpy.types.FCu
     if bpy.app.version >= (5, 0, 0):
         return fcurves.new(data_path, index=0, group_name=group_name)
     return fcurves.new(data_path, index=0, action_group=group_name)
+
+
+def reset_ik_constraints(context: bpy.types.Context, obj: bpy.types.Object) -> None:
+    """Forces IK constraints on 'obj' to resolve fresh from the rest pose
+
+    Follow Path can teleport the rig a large distance in a single step. The IK solver
+    seeds its iterative solve with the bone's current pose, so a big jump can leave it
+    stuck in the wrong solution (e.g. a flipped knee). Toggling influence to 0 snaps the
+    bone back to rest, and evaluating the depsgraph before restoring influence makes the
+    solver start over cleanly, same as manually setting influence 0 then back to 1.
+    """
+    ik_constraints = [
+        constraint
+        for bone in obj.pose.bones
+        for constraint in bone.constraints
+        if constraint.type == 'IK'
+    ]
+    if len(ik_constraints) == 0:
+        return
+
+    original_influences = [constraint.influence for constraint in ik_constraints]
+    for constraint in ik_constraints:
+        constraint.influence = 0.0
+    context.view_layer.update()
+
+    for constraint, influence in zip(ik_constraints, original_influences):
+        constraint.influence = influence
+    context.view_layer.update()
 
 
 def check_rig_drivers(obj: bpy.types.Object) -> bool:
@@ -269,7 +302,10 @@ class BakingOperatorBase:
         return VectorFCurvesEvaluator(FCurvesEvaluator(fc_root_loc, default_value=(1.0, 1.0, 1.0)))
 
     def _bake_action(
-        self, context: bpy.types.Context, source_bones: typing.Iterable[bpy.types.Bone]
+        self,
+        context: bpy.types.Context,
+        source_bones: typing.Iterable[bpy.types.Bone],
+        bake_into_current_action: bool = False,
     ):
         assert context.object is not None
 
@@ -302,7 +338,7 @@ class BakingOperatorBase:
 
         baked_action = bpy_extras.anim_utils.bake_action(
             context.object,
-            action=None,
+            action=action if bake_into_current_action else None,
             frames=range(self.frame_start, self.frame_end + 1),
             bake_options=bpy_extras.anim_utils.BakeOptions(
                 only_selected=True,
@@ -364,7 +400,7 @@ class BakeWheelRotation(bpy.types.Operator, BakingOperatorBase):
 
         wheel_bones = []
         brake_bones = []
-        for side, position in itertools.product(("L", "R"), ("F", "B")):
+        for side, position in itertools.product(("L", "R"), ("F", "B", "T")):
             for index, wheel_bone in enumerate(
                 bone_name_range(bones, "MCH_WheelRotation", position, side)
             ):
@@ -564,6 +600,81 @@ class BakeSteering(bpy.types.Operator, BakingOperatorBase):
 MODULE_CLASSES.append(BakeSteering)
 
 
+TRAILER_SWIVEL_BONE_NAME = "TrailerSwivel"
+
+
+@polib.log_helpers_bpy.logged_operator
+class BakeTrailerRotation(bpy.types.Operator, BakingOperatorBase):
+    bl_idname = "engon.traffiq_rig_bake_trailer_rotation"
+    bl_label = "Bake Trailer Rotation"
+    bl_description = (
+        "Bakes the trailer swivel rotation with visual keying, overwriting the current action. "
+        "The IK constraint driving the swivel is disabled afterwards, not removed"
+    )
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        if not super().poll(context):
+            return False
+
+        return TRAILER_SWIVEL_BONE_NAME in context.object.data.bones
+
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
+        active_object = context.object
+        assert active_object is not None
+        logger.info(f"Working on target object: {active_object.name}")
+
+        trailer_swivel_bone = active_object.data.bones.get(TRAILER_SWIVEL_BONE_NAME, None)
+        if trailer_swivel_bone is None:
+            self.report(
+                {'ERROR'},
+                f"Could not find '{TRAILER_SWIVEL_BONE_NAME}' bone in '{active_object.name}'",
+            )
+            return {'CANCELLED'}
+
+        pose_bone = active_object.pose.bones[TRAILER_SWIVEL_BONE_NAME]
+        ik_constraint = next((c for c in pose_bone.constraints if c.type == 'IK'), None)
+        if ik_constraint is None:
+            self.report({'WARNING'}, f"No IK constraint found on '{TRAILER_SWIVEL_BONE_NAME}' bone")
+        else:
+            ik_constraint.enabled = True
+
+        # IK rotation limits clamp the swivel to its usual range, but the follow path bake can
+        # briefly need angles outside of it - keep them disabled only for the duration of the bake.
+        use_ik_limit_x = pose_bone.use_ik_limit_x
+        use_ik_limit_y = pose_bone.use_ik_limit_y
+        pose_bone.use_ik_limit_x = False
+        pose_bone.use_ik_limit_y = False
+
+        # Reset IK constraint to ensure baking the same follow path twice will result in the same animation
+        context.scene.frame_set(self.frame_start)
+        reset_ik_constraints(context, active_object)
+
+        try:
+            baked_action = self._bake_action(
+                context, [trailer_swivel_bone], bake_into_current_action=True
+            )
+        finally:
+            pose_bone.use_ik_limit_x = use_ik_limit_x
+            pose_bone.use_ik_limit_y = use_ik_limit_y
+
+        if baked_action is None:
+            self.report({'WARNING'}, "Existing action failed to bake. Won't bake trailer rotation")
+            return {'CANCELLED'}
+
+        # Baked keyframes now drive the swivel, disabling (not removing) the IK constraint
+        # avoids it fighting the baked rotation while keeping it around for further edits.
+        if ik_constraint is not None:
+            ik_constraint.enabled = False
+
+        logger.info(f"Trailer rotation baked on target object {active_object.name}")
+        return {'FINISHED'}
+
+
+MODULE_CLASSES.append(BakeTrailerRotation)
+
+
 @polib.log_helpers_bpy.logged_operator
 class SetGroundSensors(bpy.types.Operator):
     bl_idname = "engon.traffiq_rig_set_ground_sensors"
@@ -624,6 +735,7 @@ class FollowPath(bpy.types.Operator):
         layout = self.layout
         layout.prop(rig_properties, "auto_bake_steering", text="Bake Steering")
         layout.prop(rig_properties, "auto_bake_wheels", text="Bake Wheel Rotation")
+        layout.prop(rig_properties, "auto_bake_trailer_rotation", text="Bake Trailer Rotation")
         layout.prop(rig_properties, "auto_reset_transforms", text="Reset Transforms")
         col = layout.column(align=True)
         col.alert = True
@@ -681,6 +793,9 @@ class FollowPath(bpy.types.Operator):
             sensors_manipulator.set_ground_object(ground_object)
             sensors_manipulator.set_projection_mode('PROJECT')
 
+        if rig_properties.auto_bake_trailer_rotation and BakeTrailerRotation.poll(context):
+            bpy.ops.engon.traffiq_rig_bake_trailer_rotation('INVOKE_DEFAULT')
+
         if rig_properties.auto_bake_wheels:
             bpy.ops.engon.traffiq_rig_bake_wheels_rotation('INVOKE_DEFAULT')
 
@@ -693,7 +808,8 @@ class FollowPath(bpy.types.Operator):
             f"Follow path set for active_object {context.active_object.name}, "
             f"ground_object: {'N/A' if ground_object is None else ground_object.name}, "
             f"auto_bake_steering: {rig_properties.auto_bake_steering}, "
-            f"auto_bake_wheels: {rig_properties.auto_bake_wheels}"
+            f"auto_bake_wheels: {rig_properties.auto_bake_wheels}, "
+            f"auto_bake_trailer_rotation: {rig_properties.auto_bake_trailer_rotation}"
         )
         return {'FINISHED'}
 
@@ -761,7 +877,7 @@ class ChangeFollowPathSpeed(bpy.types.Operator):
 
     rebake: bpy.props.BoolProperty(
         name="Rebake",
-        description="Open wheel and steering rotation bake operators after changing speed",
+        description="Open trailer, wheel and steering rotation bake operators after changing speed",
         default=True,
     )
 
@@ -852,6 +968,11 @@ class ChangeFollowPathSpeed(bpy.types.Operator):
         start_frame_int = round(self.start_frame)
         end_frame_int = round(end_frame)
         if self.rebake:
+            if BakeTrailerRotation.poll(context):
+                bpy.ops.engon.traffiq_rig_bake_trailer_rotation(
+                    'INVOKE_DEFAULT', frame_start=start_frame_int, frame_end=end_frame_int
+                )
+
             bpy.ops.engon.traffiq_rig_bake_wheels_rotation(
                 'INVOKE_DEFAULT', frame_start=start_frame_int, frame_end=end_frame_int
             )
@@ -939,6 +1060,41 @@ class RemoveAnimation(bpy.types.Operator):
         if follow_path_constraint is not None:
             root_bone.constraints.remove(follow_path_constraint)
 
+    def remove_trailer_rotation_bake(
+        self, context: bpy.types.Context, obj: bpy.types.Object
+    ) -> None:
+        """Re-enables the TrailerSwivel IK constraint and removes its baked keyframes
+
+        `BakeTrailerRotation` bakes directly into the current action and disables (but keeps)
+        the IK constraint, so undoing it means re-enabling the constraint and removing the
+        keyframes baked onto the TrailerSwivel bone, rather than removing a constraint.
+        """
+        pose_bone = obj.pose.bones.get(TRAILER_SWIVEL_BONE_NAME, None)
+        if pose_bone is None:
+            return
+
+        ik_constraint = next((c for c in pose_bone.constraints if c.type == 'IK'), None)
+        if ik_constraint is not None:
+            ik_constraint.enabled = True
+
+        pose_bone.location = mathutils.Vector((0.0, 0.0, 0.0))
+        pose_bone.rotation_quaternion = mathutils.Quaternion((1.0, 0.0, 0.0, 0.0))
+        pose_bone.rotation_euler = mathutils.Euler((0.0, 0.0, 0.0))
+
+        reset_ik_constraints(context, obj)
+
+        if obj.animation_data is None or obj.animation_data.action is None:
+            return
+
+        fcurves = polib.utils_bpy.get_fcurves_from_action(obj.animation_data.action)
+        if fcurves is None:
+            return
+
+        bone_data_path_prefix = f'pose.bones["{TRAILER_SWIVEL_BONE_NAME}"]'
+        for fcurve in list(fcurves):
+            if fcurve.data_path.startswith(bone_data_path_prefix):
+                fcurves.remove(fcurve)
+
     def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         active_object = context.active_object
         logger.info(f"Working on active object {active_object.name}")
@@ -950,6 +1106,7 @@ class RemoveAnimation(bpy.types.Operator):
 
         self.remove_follow_path_keyframes(active_object)
         self.remove_constraints(active_object)
+        self.remove_trailer_rotation_bake(context, active_object)
 
         return {'FINISHED'}
 
@@ -1028,6 +1185,7 @@ class TraffiqRigsPanel(bpy.types.Panel, feature_utils.PropertyAssetFeatureContro
         col = layout.column(align=True)
         col.operator(BakeSteering.bl_idname, icon='GIZMO')
         col.operator(BakeWheelRotation.bl_idname, icon='PHYSICS')
+        col.operator(BakeTrailerRotation.bl_idname, icon='CON_KINEMATIC')
         layout.separator()
 
         self.layout.operator(RemoveAnimation.bl_idname, icon='PANEL_CLOSE')
@@ -1046,8 +1204,11 @@ def get_position_display_name(position: str) -> str:
         "BR": "Back Right",
         "FR": "Front Right",
         "FL": "Front Left",
+        "TL": "Trailer Left",
+        "TR": "Trailer Right",
         "F": "Front",
         "B": "Back",
+        "T": "Trailer",
     }
 
     position_split = position.split("_", 1)

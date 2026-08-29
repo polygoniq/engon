@@ -46,6 +46,7 @@ from . import sculpture_wear
 
 from . import road_generator
 from . import vine_generator
+from . import branch_and_leaves_masking
 from . import river_generator
 from . import rain_generator
 
@@ -84,6 +85,7 @@ def register():
     emergency_lights.register()
     road_generator.register()
     vine_generator.register()
+    branch_and_leaves_masking.register()
     river_generator.register()
     rain_generator.register()
 
@@ -101,6 +103,7 @@ def unregister():
     crowd_generator.unregister()
     rain_generator.unregister()
     river_generator.unregister()
+    branch_and_leaves_masking.unregister()
     vine_generator.unregister()
     road_generator.unregister()
     emergency_lights.unregister()

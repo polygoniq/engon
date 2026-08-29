@@ -4,6 +4,7 @@ import bpy
 import numpy
 import typing
 from . import node_utils_bpy
+from . import geonodes_mod_utils_bpy
 
 try:
     import hatchery
@@ -122,7 +123,7 @@ def get_materials_used_by_geonodes(obj: bpy.types.Object) -> frozenset[bpy.types
         # Scan modifier inputs
         for input_ in node_utils_bpy.get_node_tree_inputs_map(mod.node_group).values():
             if node_utils_bpy.get_socket_type(input_) == 'NodeSocketMaterial':
-                mat = mod[input_.identifier]
+                mat = geonodes_mod_utils_bpy.get_mod_input_value(mod, input_.identifier)
                 if mat is not None:
                     used_materials.add(mat)
 
