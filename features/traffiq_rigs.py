@@ -603,6 +603,10 @@ MODULE_CLASSES.append(BakeSteering)
 TRAILER_SWIVEL_BONE_NAME = "TrailerSwivel"
 
 
+def has_trailer(obj: bpy.types.Object) -> bool:
+    return TRAILER_SWIVEL_BONE_NAME in obj.data.bones
+
+
 @polib.log_helpers_bpy.logged_operator
 class BakeTrailerRotation(bpy.types.Operator, BakingOperatorBase):
     bl_idname = "engon.traffiq_rig_bake_trailer_rotation"
@@ -618,7 +622,7 @@ class BakeTrailerRotation(bpy.types.Operator, BakingOperatorBase):
         if not super().poll(context):
             return False
 
-        return TRAILER_SWIVEL_BONE_NAME in context.object.data.bones
+        return has_trailer(context.object)
 
     def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         active_object = context.object
@@ -707,6 +711,32 @@ MODULE_CLASSES.append(SetGroundSensors)
 
 
 @polib.log_helpers_bpy.logged_operator
+class ResetTrailerIK(bpy.types.Operator):
+    bl_idname = "engon.traffiq_rig_reset_trailer_ik"
+    bl_label = "Reset Trailer"
+    bl_description = (
+        "Forces IK constraints on active object with a trailer to resolve fresh from the rest pose"
+    )
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        return (
+            context.mode in {'OBJECT', 'POSE'}
+            and polib.rigs_shared_bpy.is_object_rigged(context.active_object)
+            and has_trailer(context.active_object)
+        )
+
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
+        active_object = context.active_object
+        reset_ik_constraints(context, active_object)
+        return {'FINISHED'}
+
+
+MODULE_CLASSES.append(ResetTrailerIK)
+
+
+@polib.log_helpers_bpy.logged_operator
 class FollowPath(bpy.types.Operator):
     bl_idname = "engon.traffiq_rig_follow_path"
     bl_label = "Follow Path"
@@ -735,7 +765,8 @@ class FollowPath(bpy.types.Operator):
         layout = self.layout
         layout.prop(rig_properties, "auto_bake_steering", text="Bake Steering")
         layout.prop(rig_properties, "auto_bake_wheels", text="Bake Wheel Rotation")
-        layout.prop(rig_properties, "auto_bake_trailer_rotation", text="Bake Trailer Rotation")
+        if has_trailer(context.active_object):
+            layout.prop(rig_properties, "auto_bake_trailer_rotation", text="Bake Trailer Rotation")
         layout.prop(rig_properties, "auto_reset_transforms", text="Reset Transforms")
         col = layout.column(align=True)
         col.alert = True
@@ -1188,7 +1219,9 @@ class TraffiqRigsPanel(bpy.types.Panel, feature_utils.PropertyAssetFeatureContro
         col.operator(BakeTrailerRotation.bl_idname, icon='CON_KINEMATIC')
         layout.separator()
 
-        self.layout.operator(RemoveAnimation.bl_idname, icon='PANEL_CLOSE')
+        col = layout.column(align=True)
+        col.operator(ResetTrailerIK.bl_idname, icon='CON_KINEMATIC')
+        col.operator(RemoveAnimation.bl_idname, icon='PANEL_CLOSE')
 
 
 MODULE_CLASSES.append(TraffiqRigsPanel)

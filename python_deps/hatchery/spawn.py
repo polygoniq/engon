@@ -455,19 +455,52 @@ def spawn_particles(
     )
 
 
+@dataclasses.dataclass
+class WorldSpawnOptions(DatablockSpawnOptions):
+    spawn_dome: bool = False
+    # Options for the spawned dome object
+    collection_factory_method: typing.Callable[[], bpy.types.Collection | None] | None = None
+    select_spawned: bool = True
+
+
 class WorldSpawnedData(SpawnedData):
-    def __init__(self, world: bpy.types.World):
+    def __init__(self, world: bpy.types.World, dome_obj: bpy.types.Object | None = None):
         self.world = world
-        super().__init__({world})
+        self.dome_obj = dome_obj
+        super().__init__({world, dome_obj} if dome_obj is not None else {world})
 
 
 def spawn_world(
-    path: str, context: bpy.types.Context, options: DatablockSpawnOptions
+    path: str, context: bpy.types.Context, options: WorldSpawnOptions
 ) -> WorldSpawnedData:
-    """Loads world from 'path' and replaces current scene world with it, returns the loaded world."""
-    world = load.load_world(path)
+    """Loads world and optional dome object from 'path' and returns them. Replaces current scene world with the loaded world and spawns the dome object if present"""
+    world, dome_obj = load.load_world(path, spawn_dome=options.spawn_dome)
     context.scene.world = world
-    return WorldSpawnedData(world)
+
+    if dome_obj is None:
+        return WorldSpawnedData(world)
+
+    parent_collection = None
+    if options.collection_factory_method is not None:
+        parent_collection = options.collection_factory_method()
+
+    if parent_collection is None and options.select_spawned:
+        raise RuntimeError(
+            "Wrong arguments: Cannot select spawned dome objects without a parent collection. "
+            "The object wouldn't be present in the View Layer!"
+        )
+
+    if parent_collection is not None:
+        parent_collection.objects.link(dome_obj)
+
+        # Only change selection if we linked the object, so it is present in view layer and if
+        # caller wants to.
+        if options.select_spawned:
+            for selected_obj in context.selected_objects:
+                selected_obj.select_set(False)
+            dome_obj.select_set(True)
+
+    return WorldSpawnedData(world, dome_obj)
 
 
 @dataclasses.dataclass

@@ -77,7 +77,7 @@ class BlenderWorldAssetData(BlenderAssetData):
     type_ = asset_data.AssetDataType.blender_world
 
     def spawn(
-        self, path: str, context: bpy.types.Context, options: hatchery.spawn.DatablockSpawnOptions
+        self, path: str, context: bpy.types.Context, options: hatchery.spawn.WorldSpawnOptions
     ) -> hatchery.spawn.WorldSpawnedData:
         return hatchery.spawn.spawn_world(path, context, options)
 

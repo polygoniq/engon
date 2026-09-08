@@ -783,6 +783,51 @@ class MAPR_BrowserReplaceActiveMaterials(MAPR_SpawnSingleAssetBase):
 MODULE_CLASSES.append(MAPR_BrowserReplaceActiveMaterials)
 
 
+@polib.log_helpers_bpy.logged_operator
+class MAPR_BrowserSpawnHDRIAsDome(MAPR_SpawnSingleAssetBase):
+    bl_idname = "engon.browser_spawn_hdri_as_dome"
+    bl_label = "Spawn HDRI as Dome"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def description(cls, context: bpy.types.Context, props: bpy.types.OperatorProperties) -> str:
+        asset = asset_registry.instance.master_asset_provider.get_asset(props.asset_id)
+        if asset is None:
+            return f"Asset with id '{props.asset_id}' cannot be spawned"
+
+        message = f"Spawn HDRI '{asset.title}' as a dome in the scene"
+        return message
+
+    @polib.utils_bpy.blender_cursor('WAIT')
+    def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
+        prefs = preferences.prefs_utils.get_preferences(context).browser_preferences
+        asset = self._get_asset()
+        if asset is None:
+            self.report({'ERROR'}, f"Asset with id {self.asset_id} not found")
+            return {'CANCELLED'}
+
+        can_spawn, why_fail = prefs.spawn_options.can_spawn(asset, context)
+        if not can_spawn:
+            logger.error(f"Cannot spawn asset {self.asset_id}: {why_fail}")
+            return {'CANCELLED'}
+
+        if asset.type_ != mapr.asset_data.AssetDataType.blender_world:
+            self.report({'ERROR'}, f"Asset with id {self.asset_id} is not a world asset")
+            return {'CANCELLED'}
+
+        spawn_options = prefs.spawn_options.get_spawn_options(asset, context)
+        assert isinstance(spawn_options, hatchery.spawn.WorldSpawnOptions)
+        spawn_options.spawn_dome = True
+
+        spawned_data = self._spawn(context, asset, spawn_options)
+        assert isinstance(spawned_data, hatchery.spawn.WorldSpawnedData)
+
+        return {'FINISHED'}
+
+
+MODULE_CLASSES.append(MAPR_BrowserSpawnHDRIAsDome)
+
+
 class MAPR_BrowserSelectedAssetsOperatorBase(MAPR_SpawnAssetBase):
     """Base class for manipulating selected assets from engon browser."""
 

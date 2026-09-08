@@ -268,7 +268,10 @@ class SpawnOptions(bpy.types.PropertyGroup):
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_scene:
             return hatchery.spawn.SceneSpawnOptions()
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_world:
-            return hatchery.spawn.DatablockSpawnOptions()
+            return hatchery.spawn.WorldSpawnOptions(
+                collection_factory_method=lambda: self._get_model_parent_collection(asset, context),
+                select_spawned=True,
+            )
         elif asset.type_ == mapr.asset_data.AssetDataType.blender_geometry_nodes:
             return hatchery.spawn.GeometryNodesSpawnOptions(
                 lambda: self._get_model_parent_collection(asset, context),

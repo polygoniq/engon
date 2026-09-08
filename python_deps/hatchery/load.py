@@ -110,14 +110,27 @@ def load_particles(
     return obj, data_to.particles
 
 
-def load_world(blend_path: str, link: bool = False) -> bpy.types.World:
-    """Loads first world from 'blend_path' and returns it."""
+def load_world(
+    blend_path: str, link: bool = False, spawn_dome: bool = False
+) -> tuple[bpy.types.World, bpy.types.Object | None]:
+    """Loads first world and optional object from 'blend_path' and returns them."""
+    asset_name, _ = os.path.splitext(os.path.basename(blend_path))
     with bpy.data.libraries.load(blend_path, link=link) as (data_from, data_to):
         assert len(data_from.worlds) > 0
         data_to.worlds = [data_from.worlds[0]]
+        if spawn_dome and asset_name in data_from.objects:
+            data_to.objects = [asset_name]
 
     world = data_to.worlds[0]
-    return world
+    dome_obj: bpy.types.Object | None = None
+    if spawn_dome:
+        if len(data_to.objects) > 0:
+            dome_obj = data_to.objects[0]
+        else:
+            raise RuntimeError(
+                f"World asset '{blend_path}' does not contain dome object '{asset_name}'"
+            )
+    return world, dome_obj
 
 
 def load_scene(blend_path: str, link: bool = False) -> bpy.types.Scene:

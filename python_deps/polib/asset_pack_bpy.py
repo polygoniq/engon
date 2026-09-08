@@ -650,10 +650,21 @@ def make_selection_editable(
                 if source_child.type == 'MESH':
                     source_obj_children.append(source_child)
 
-        source_obj_children = sorted(source_obj_children, key=lambda x: x.name)
-        target_obj_children = sorted(target_obj.children, key=lambda x: x.name)
+        # Match children by name instead of pairing by sorted position, 'source_obj_children'
+        # and 'target_obj.children' can differ in length/order (e.g. 'instance_collection.all_objects'
+        # pulls in mesh descendants recursively), which would otherwise silently pair unrelated objects.
+        target_children_by_name: dict[str, list[bpy.types.Object]] = collections.defaultdict(list)
+        for target_child in sorted(target_obj.children, key=lambda x: x.name):
+            target_children_by_name[
+                utils_bpy.remove_object_duplicate_suffix(target_child.name)
+            ].append(target_child)
 
-        for source_child, target_child in zip(source_obj_children, target_obj_children):
+        for source_child in sorted(source_obj_children, key=lambda x: x.name):
+            source_child_name = utils_bpy.remove_object_duplicate_suffix(source_child.name)
+            candidates = target_children_by_name.get(source_child_name, [])
+            if len(candidates) == 0:
+                continue
+            target_child = candidates.pop(0)
             copy_constraints_from_instance_to_realized(
                 source_child, target_child, instanced_to_realized_name_map
             )

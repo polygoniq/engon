@@ -417,6 +417,11 @@ class MAPR_ShowAssetMenu(bpy.types.Operator):
                 spawn.MAPR_BrowserReplaceActiveMaterials.bl_idname, icon='MATERIAL'
             ).asset_id = asset.id_
 
+        if asset.type_ == mapr.asset_data.AssetDataType.blender_world and "HDRI Dome" in asset.tags:
+            col.operator(spawn.MAPR_BrowserSpawnHDRIAsDome.bl_idname, icon='WORLD').asset_id = (
+                asset.id_
+            )
+
         if "Drawable" in asset.tags or asset.id_ in DRAWABLE_GEONODES_ASSET_IDS:
             col.operator(
                 spawn.MAPR_BrowserDrawGeometryNodesAsset.bl_idname, icon='GREASEPENCIL'

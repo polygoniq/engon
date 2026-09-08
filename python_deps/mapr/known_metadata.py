@@ -16,6 +16,7 @@ TAGS = {
     "Bedroom": {"description": ""},
     "Buildable": {"description": "Asset can be used modally as a building block"},
     "Cafe": {"description": ""},
+    "Cargo": {"description": ""},
     "Cat": {"description": ""},
     "Caucasian": {"description": ""},
     "Child": {"description": ""},
@@ -63,6 +64,7 @@ TAGS = {
     "Workwear": {"description": ""},
     "Drawable": {"description": "Asset that can be drawn using pen tools"},
     "Photoscan": {"description": "Assets created using photogrammetry"},
+    "HDRI Dome": {"description": "HDRI asset that can be spawned as a dome in the scene"},
 }
 
 # Which numeric parameters can be added to assets in grumpy_cat. Each maps to a dictionary with more
