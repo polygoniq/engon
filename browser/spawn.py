@@ -649,6 +649,9 @@ class MAPR_BrowserReplaceSelected(MAPR_SpawnSingleAssetBase):
             return {'CANCELLED'}
 
         objects_to_replace = MAPR_BrowserReplaceSelected.get_objects_to_replace(context)
+        affected_particle_settings = polib.particles_bpy.get_settings_instancing_objects(
+            objects_to_replace
+        )
         spawn_options = prefs.spawn_options.get_spawn_options(asset, context)
         assert isinstance(spawn_options, hatchery.spawn.ModelSpawnOptions)
         spawn_options.collection_factory_method = None
@@ -669,9 +672,16 @@ class MAPR_BrowserReplaceSelected(MAPR_SpawnSingleAssetBase):
         # We go through all selected objects and replace them with the new object. We keep
         # the old objects in the `bpy.data.` - they will be removed when the .blend file is saved
         # if there are no more users of the object.
+        particle_instanced_objects = {
+            obj
+            for particle_settings in affected_particle_settings
+            for obj in particle_settings.instance_collection.objects
+        }
+        replaced_object_names: dict[str, str] = {}
         for i, obj in enumerate(objects_to_replace):
             # Use the spawned object for the first iteration, otherwise create a copy
             obj_copy = new_object.copy() if i > 0 else new_object
+            replaced_object_names[obj.name] = obj_copy.name
             for old_collection in obj.users_collection:
                 old_collection.objects.unlink(obj)
                 old_collection.objects.link(obj_copy)
@@ -679,17 +689,63 @@ class MAPR_BrowserReplaceSelected(MAPR_SpawnSingleAssetBase):
             for child in obj.children:
                 child.parent = obj_copy
             obj_copy.matrix_world = obj.matrix_world
-            obj_copy.select_set(True)
+            obj_copy.select_set(
+                prefs.spawn_options.make_editable or obj in particle_instanced_objects
+            )
 
-        if prefs.spawn_options.make_editable:
+        if len(context.selected_objects) > 0:
             polib.asset_pack_bpy.make_selection_editable(
                 context, True, keep_selection=True, keep_active=True
             )
+
+        for obj_copy_name in replaced_object_names.values():
+            obj_copy = bpy.data.objects.get(obj_copy_name, None)
+            if obj_copy is not None:
+                obj_copy.select_set(True)
+
+        polib.particles_bpy.transfer_instance_weights(
+            affected_particle_settings, replaced_object_names
+        )
 
         if prefs.spawn_options.remove_duplicates:
             self._remove_duplicates()
 
         return {'FINISHED'}
+
+    def invoke(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> set["rna_enums.OperatorReturnItems"]:
+        prefs = preferences.prefs_utils.get_preferences(context).browser_preferences
+        asset_provider = asset_registry.instance.master_asset_provider
+        asset = asset_provider.get_asset(self.asset_id)
+        if asset is None:
+            self.report({'ERROR'}, f"No asset found for '{self.asset_id}'")
+            return {'CANCELLED'}
+
+        can_spawn, self.why_fail = prefs.spawn_options.can_spawn(asset, context)
+        if not can_spawn:
+            return context.window_manager.invoke_popup(self, width=500)
+
+        objects_to_replace = MAPR_BrowserReplaceSelected.get_objects_to_replace(context)
+        affected_particle_settings = polib.particles_bpy.get_settings_instancing_objects(
+            objects_to_replace
+        )
+        if len(affected_particle_settings) > 0 and not (prefs.spawn_options.make_editable):
+            return context.window_manager.invoke_props_dialog(self, width=400)
+        return self.execute(context)
+
+    def draw(self, context: bpy.types.Context) -> None:
+        if getattr(self, "why_fail", None) is not None:
+            super().draw(context)
+            return
+
+        layout = self.layout
+        polib.ui_bpy.draw_message_in_lines(
+            layout,
+            message="Some of the selected objects are used in particle systems.\n"
+            "Those will be replaced with editable copies of this asset\n"
+            "to stay visible in the particle systems.",
+        )
 
 
 MODULE_CLASSES.append(MAPR_BrowserReplaceSelected)
@@ -819,8 +875,54 @@ class MAPR_BrowserSpawnHDRIAsDome(MAPR_SpawnSingleAssetBase):
         assert isinstance(spawn_options, hatchery.spawn.WorldSpawnOptions)
         spawn_options.spawn_dome = True
 
+        selected_dome_objs = {
+            obj
+            for obj in context.selected_objects
+            if obj.type == 'MESH'
+            and polib.geonodes_mod_utils_bpy.has_geometry_nodes_modifier_with_node_group(
+                obj, asset_helpers.MQ_HDRI_DOME_GEOMETRY_NODE_GROUP_NAME
+            )
+        }
+
+        spawn_options.target_objects = selected_dome_objs
+        spawn_options.select_spawned = len(selected_dome_objs) == 0
         spawned_data = self._spawn(context, asset, spawn_options)
         assert isinstance(spawned_data, hatchery.spawn.WorldSpawnedData)
+
+        if spawned_data.dome_obj is None:
+            logger.error(
+                f"Tried to spawn HDRI '{self.asset_id}' as dome, but no dome object was created!"
+            )
+            return {'FINISHED'}
+
+        if spawned_data.world.node_tree is not None:
+            background_node_groups = polib.node_utils_bpy.find_nodegroups_by_name(
+                spawned_data.world.node_tree,
+                asset_helpers.MQ_HDRI_BACKGROUND_NODE_GROUP_NAME,
+            )
+            if len(background_node_groups) == 0:
+                logger.warning(
+                    f"World '{spawned_data.world.name}' has no HDRI background node group."
+                )
+                return {'FINISHED'}
+
+            if len(background_node_groups) > 1:
+                logger.warning(
+                    f"World '{spawned_data.world.name}' has multiple HDRI background node groups. "
+                    f"Using the first one."
+                )
+
+            node_group = background_node_groups.pop()
+            use_background_color_input = node_group.inputs.get(
+                asset_helpers.MQ_HDRI_DOME_USE_BACKGROUND_COLOR_INPUT_NAME
+            )
+            if use_background_color_input is None:
+                logger.warning(
+                    f"Node group '{node_group.name}' has no "
+                    f"'{asset_helpers.MQ_HDRI_DOME_USE_BACKGROUND_COLOR_INPUT_NAME}' input"
+                )
+            else:
+                use_background_color_input.default_value = 1.0
 
         return {'FINISHED'}
 

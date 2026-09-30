@@ -80,9 +80,17 @@ class AssetParametersMeta:
     - 'num:width', 'num:image_count'
     - 'text:bpy.data.version'
     - 'tag:outdoor'
+    - 'scoped_tag:style::modernism'
 
     The unique parameter names and tags are constructed right away. The expensive per-parameter
     metadata are constructed lazily on demand and cached.
+
+    Tags are split into 'unique_tags' (unscoped, prefixed 'tag:') and 'unique_scoped_tags'
+    (prefixed 'scoped_tag:') - see 'asset.parse_scoped_tag' for the "scope::value" tag format.
+    'unique_scopes' additionally holds just the scopes (prefixed 'scoped_tag:') of
+    'unique_scoped_tags', with no value - e.g. 'scoped_tag:style' for 'scoped_tag:style::modernism'.
+    This is included in 'unique_parameter_names' so that scope-grouping filters can be matched by
+    name the same way as any other filter, without having to special-case them by type.
     """
 
     def __init__(self, assets: typing.Sequence[asset.Asset]):
@@ -105,13 +113,25 @@ class AssetParametersMeta:
             location_names.update(asset_.location_parameters)
             tags.update(asset_.tags)
 
-        self.unique_tags: set[str] = {f"tag:{t}" for t in tags}
+        self.unique_tags: set[str] = set()
+        self.unique_scoped_tags: set[str] = set()
+        self.unique_scopes: set[str] = set()
+        for tag in tags:
+            scope, _ = asset.parse_scoped_tag(tag)
+            if scope is None:
+                self.unique_tags.add(f"tag:{tag}")
+            else:
+                self.unique_scoped_tags.add(f"scoped_tag:{tag}")
+                self.unique_scopes.add(f"scoped_tag:{scope}")
+
         self.unique_parameter_names: set[str] = set()
         self.unique_parameter_names.update(f"num:{n}" for n in numeric_names)
         self.unique_parameter_names.update(f"text:{n}" for n in text_names)
         self.unique_parameter_names.update(f"vec:{n}" for n in vector_names)
         self.unique_parameter_names.update(f"loc:{n}" for n in location_names)
         self.unique_parameter_names.update(self.unique_tags)
+        self.unique_parameter_names.update(self.unique_scoped_tags)
+        self.unique_parameter_names.update(self.unique_scopes)
 
     @functools.cached_property
     def _ranges(self) -> ParameterRanges:

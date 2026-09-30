@@ -303,7 +303,7 @@ class PuddlesPanel(feature_utils.EngonFeaturePanelMixin, bpy.types.Panel):
             [context.active_object], lambda x: x != 0
         ):
             col = layout.column(align=True)
-            PuddlesPanel.template.draw_from_material(context.active_object.active_material, col)
+            PuddlesPanel.template.draw_from_datablock(context.active_object.active_material, col)
 
 
 MODULE_CLASSES.append(PuddlesPanel)

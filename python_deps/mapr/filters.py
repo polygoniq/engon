@@ -77,6 +77,44 @@ class TagFilter(Filter):
         return {self.name: {"include": self.include, "exclude": self.exclude}}
 
 
+class ScopedTagsFilter(Filter):
+    """Filters assets by their tag value within one 'scope'.
+
+    Within a scope, multiple 'include_values' are OR-ed
+    together (asset passes if its value for 'scope' is any of them) and multiple 'exclude_values'
+    are effectively AND-ed (asset is rejected if its value is any of them).
+    """
+
+    def __init__(
+        self,
+        scope: str,
+        include_values: typing.Iterable[str] = (),
+        exclude_values: typing.Iterable[str] = (),
+    ):
+        super().__init__(f"scoped_tag:{scope}")
+        self.scope = scope
+        self.include_values = frozenset(include_values)
+        self.exclude_values = frozenset(exclude_values)
+
+    def filter_(self, asset_: asset.Asset) -> bool:
+        value = asset.get_scoped_tag_value(asset_, self.scope)
+        if value in self.exclude_values:
+            return False
+
+        if len(self.include_values) == 0:
+            return True
+
+        return value in self.include_values
+
+    def as_dict(self) -> dict:
+        return {
+            self.name: {
+                "include": sorted(self.include_values),
+                "exclude": sorted(self.exclude_values),
+            }
+        }
+
+
 class TextParameterFilter(Filter):
     def __init__(self, name: str, values: set[str]):
         super().__init__(name)

@@ -33,6 +33,8 @@ from . import botaniq_adjustments
 from . import botaniq_animations
 from . import curve_scatter
 
+from . import materialiq_hdri
+
 from . import traffiq_paint_adjustments
 from . import traffiq_wear
 from . import traffiq_lights_settings
@@ -71,6 +73,8 @@ def register():
     botaniq_adjustments.register()
     botaniq_animations.register()
     curve_scatter.register()
+
+    materialiq_hdri.register()
 
     traffiq_paint_adjustments.register()
     traffiq_wear.register()
@@ -117,6 +121,8 @@ def unregister():
     traffiq_lights_settings.unregister()
     traffiq_wear.unregister()
     traffiq_paint_adjustments.unregister()
+
+    materialiq_hdri.unregister()
 
     curve_scatter.unregister()
     botaniq_animations.unregister()

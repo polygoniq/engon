@@ -3,8 +3,9 @@
 
 import bpy
 import os
-import typing
+import itertools
 import logging
+import typing
 
 logger = logging.getLogger(f"polygoniq.{__name__}")
 
@@ -26,7 +27,11 @@ def is_materialiq_texture(image: bpy.types.Image) -> bool:
     return False
 
 
-def change_texture_size(max_size: int, image: bpy.types.Image):
+def change_texture_size(
+    max_size: int,
+    image: bpy.types.Image,
+    texture_dirs: typing.Iterable[str] | None = None,
+):
     if not is_materialiq_texture(image):
         return
 
@@ -37,18 +42,19 @@ def change_texture_size(max_size: int, image: bpy.types.Image):
     logger.debug(f"Changing {image.name} to {max_size}...")
 
     new_path = None
-    found = False
-    parent_dir = os.path.dirname(image.filepath)
-    for ext in TEXTURE_EXTENSIONS:
-        new_path = generate_filepath(parent_dir, basename, str(max_size), ext)
-        new_abs_path = bpy.path.abspath(new_path)
+    search_dirs = {bpy.path.abspath(os.path.dirname(image.filepath))}
+    if texture_dirs is not None:
+        search_dirs.update(bpy.path.abspath(texture_dir) for texture_dir in texture_dirs)
+
+    for search_dir, ext in itertools.product(search_dirs, TEXTURE_EXTENSIONS):
+        candidate_path = generate_filepath(search_dir, basename, str(max_size), ext)
         # We getsize() to check that the file is not empty. Because of compress_texture, there could
         # exist different file formats of the same texture, and all except one of them would be empty.
-        if os.path.exists(new_abs_path) and os.path.getsize(new_abs_path) > 0:
-            found = True
+        if os.path.exists(candidate_path) and os.path.getsize(candidate_path) > 0:
+            new_path = candidate_path
             break
 
-    if not found:
+    if new_path is None:
         logger.warning(f"Can't find {image.name} in size {max_size}, skipping...")
         return
 
@@ -56,15 +62,16 @@ def change_texture_size(max_size: int, image: bpy.types.Image):
     image.name = os.path.basename(new_path)
 
 
-def change_texture_sizes(max_size: int, only_textures: set[bpy.types.Image] | None = None):
+def change_texture_sizes(
+    max_size: int,
+    only_textures: set[bpy.types.Image] | None = None,
+    texture_dirs: typing.Iterable[str] | None = None,
+):
     logger.debug(f"mq: changing textures to {max_size}...")
 
-    if only_textures is not None:
-        for image in only_textures:
-            change_texture_size(max_size, image)
-    else:
-        for image in bpy.data.images:
-            change_texture_size(max_size, image)
+    images = bpy.data.images if only_textures is None else only_textures
+    for image in images:
+        change_texture_size(max_size, image, texture_dirs)
 
 
 def get_used_textures_in_node(node: bpy.types.Node) -> set[bpy.types.Image]:

@@ -451,7 +451,7 @@ def filter_node_socket_name(
 
 @dataclasses.dataclass
 class NodeSocketsDrawTemplate:
-    """Template for drawing node sockets from a nodegroup in a material or geonodes modifier.
+    """Template for drawing node sockets from a nodegroup in a geonodes modifier or datablock with node tree.
 
     The 'filter_' and 'socket_names_drawn_first' are optional and they are mutually exclusive if provided.
     If 'socket_names_drawn_first' is not None, their relative inputs are drawn first if they exist
@@ -465,19 +465,22 @@ class NodeSocketsDrawTemplate:
     socket_names_drawn_first: list[str] | None = None
     exact_match: bool = True
 
-    def draw_from_material(
+    def draw_from_datablock(
         self,
-        mat: bpy.types.Material,
+        datablock: bpy.types.Material | bpy.types.Light | bpy.types.World,
         layout: bpy.types.UILayout,
         draw_max_first_occurrences: int = 1,
     ) -> None:
+        assert hasattr(datablock, "node_tree")
         if draw_max_first_occurrences < 1:
             return
         nodegroups = list(
             itertools.chain(
-                find_nodes_by_name(mat.node_tree, self.name_prefix, exact_match=self.exact_match),
+                find_nodes_by_name(
+                    datablock.node_tree, self.name_prefix, exact_match=self.exact_match
+                ),
                 find_nodegroups_by_name(
-                    mat.node_tree, self.name_prefix, exact_match=self.exact_match
+                    datablock.node_tree, self.name_prefix, exact_match=self.exact_match
                 ),
             )
         )

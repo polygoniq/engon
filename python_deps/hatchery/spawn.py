@@ -461,6 +461,7 @@ class WorldSpawnOptions(DatablockSpawnOptions):
     # Options for the spawned dome object
     collection_factory_method: typing.Callable[[], bpy.types.Collection | None] | None = None
     select_spawned: bool = True
+    target_objects: set[bpy.types.Object] = dataclasses.field(default_factory=set)
 
 
 class WorldSpawnedData(SpawnedData):
@@ -468,6 +469,53 @@ class WorldSpawnedData(SpawnedData):
         self.world = world
         self.dome_obj = dome_obj
         super().__init__({world, dome_obj} if dome_obj is not None else {world})
+
+
+def replace_dome_objects(
+    context: bpy.types.Context,
+    spawned_dome_obj: bpy.types.Object,
+    target_objects: typing.Iterable[bpy.types.Object],
+) -> None:
+    """Copies every geometry nodes modifier from 'spawned_dome_obj' onto each object in
+    'target_objects', replacing any of the target's existing modifiers that use the same node
+    group, and removes 'spawned_dome_obj' afterwards.
+    """
+    # Copy the set of targets to avoid modifying the original
+    target_objects = set(target_objects)
+
+    spawned_mods = [mod for mod in spawned_dome_obj.modifiers if mod.type == 'NODES']
+    for mod in spawned_mods:
+        # Same issue as in spawn_geometry_nodes
+        mod.node_group = mod.node_group
+
+    spawned_node_group_names = {
+        mod.node_group.name for mod in spawned_mods if mod.node_group is not None
+    }
+
+    for target_obj in target_objects:
+        old_mods = [
+            mod
+            for mod in target_obj.modifiers
+            if mod.type == 'NODES'
+            and mod.node_group is not None
+            and mod.node_group.name in spawned_node_group_names
+        ]
+
+        with context.temp_override(
+            active_object=spawned_dome_obj,
+            object=spawned_dome_obj,
+            selected_objects=[target_obj],
+        ):
+            for mod in spawned_mods:
+                bpy.ops.object.modifier_copy_to_selected(modifier=mod.name)
+
+        for old_mod in old_mods:
+            target_obj.modifiers.remove(old_mod)
+
+    spawned_mesh = spawned_dome_obj.data if spawned_dome_obj.type == 'MESH' else None
+    bpy.data.objects.remove(spawned_dome_obj, do_unlink=True)
+    if spawned_mesh is not None and spawned_mesh.users == 0:
+        bpy.data.meshes.remove(spawned_mesh)
 
 
 def spawn_world(
@@ -499,6 +547,10 @@ def spawn_world(
             for selected_obj in context.selected_objects:
                 selected_obj.select_set(False)
             dome_obj.select_set(True)
+
+    if len(options.target_objects) > 0:
+        replace_dome_objects(context, dome_obj, options.target_objects)
+        return WorldSpawnedData(world, next(iter(options.target_objects)))
 
     return WorldSpawnedData(world, dome_obj)
 

@@ -124,6 +124,7 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
                 asset_to_category_id[asset_id] = child_category_id
 
         self.asset_categories = self.map_assets_to_categories()
+        asset_data_json = index_json.get("asset_data", {})
         for asset_id, asset_metadata_json in index_json.get("asset_metadata", {}).items():
             # Update vector parameters with color parameters for older asset packs
             # compatibility (prior to engon 1.2.0). Color parameters were defined solely prior to
@@ -141,10 +142,23 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
             ]
             category_path = None if len(category_list) == 0 else tuple(category_list)
 
+            text_parameters = asset_metadata_json.get("text_parameters", {})
+
+            # Assets are indexed one per .blend file, so all asset data of one asset share the
+            # same primary .blend file. Its basename is the original name of the asset, which we
+            # expose as a hidden, searchable parameter, as the title is prettified for the UI.
+            asset_data_ids = self.child_asset_data.get(asset_id, [])
+            if len(asset_data_ids) > 0:
+                primary_blend_file = asset_data_json.get(asset_data_ids[0], {}).get(
+                    "primary_blend_file", ""
+                )
+                original_name, _ = os.path.splitext(os.path.basename(primary_blend_file))
+                if original_name != "":
+                    text_parameters["original_name"] = original_name
+
             # Convert country of origin to location parameters to make the country of origin
             # compatible with the search map feature. This is relevant for asset packs with
             # implied geographical data, such as "country_of_origin" in traffiq and interniq.
-            text_parameters = asset_metadata_json.get("text_parameters", {})
             location_parameters = asset_metadata_json.get("location_parameters", {})
             if (
                 "country_of_origin" in text_parameters
@@ -172,7 +186,7 @@ class LocalJSONProvider(file_provider.FileProvider, asset_provider.AssetProvider
                 category_path=category_path,
                 numeric_parameters=asset_metadata_json.get("numeric_parameters", {}),
                 vector_parameters=vector_parameters,
-                text_parameters=asset_metadata_json.get("text_parameters", {}),
+                text_parameters=text_parameters,
                 location_parameters=asset_metadata_json.get("location_parameters", {}),
                 foreign_search_matter=foreign_search_matter,
             )

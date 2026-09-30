@@ -517,6 +517,11 @@ def get_all_datablocks(data: bpy.types.BlendData) -> list[tuple[bpy.types.ID, st
     # crashing due to memory issues
     ret = []
     for member_variable_name in dir(data):
+        # Since Blender 5.2, bpy.data has an "all_ids" collection that is a union of all the
+        # other data collections. Skip it here, otherwise every linked ID gets visited twice
+        # (once through its own collection, once through all_ids).
+        if member_variable_name == "all_ids":
+            continue
         member_variable = getattr(data, member_variable_name)
         if isinstance(member_variable, bpy.types.bpy_prop_collection):
             for datablock in member_variable:

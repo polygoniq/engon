@@ -119,6 +119,11 @@ class ClickerProperties(bpy.types.PropertyGroup):
         ),
         default=True,
     )
+    remember_weights: bpy.props.BoolProperty(
+        name="Remember Weights",
+        description="If enabled, the clicker will remember the weights of objects from previous sessions",
+        default=True,
+    )
 
 
 MODULE_CLASSES.append(ClickerProperties)

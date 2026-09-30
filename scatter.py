@@ -222,7 +222,7 @@ class ENGON_UL_ScatterAssetsList(bpy.types.UIList):
             layout.label(text=item.name)
             return
 
-        asset_name, _ = item.name.split(":")
+        asset_name = polib.particles_bpy.get_instance_weight_object_name(item)
         split = layout.split(factor=0.8)
         split.label(text=asset_name)
         split.prop(item, "count", text="")
@@ -587,8 +587,7 @@ class ParticleSystemAppendSelection(bpy.types.Operator):
             instance_collection.objects.link(obj)
             logger.info(f"Appended {obj.name}")
 
-        # Update instance collection to propagate changes
-        active_particle_system.settings.instance_collection = instance_collection
+        polib.particles_bpy.refresh_instance_collection(active_particle_system.settings)
         return {'FINISHED'}
 
 
@@ -622,8 +621,9 @@ class ParticleSystemRemoveAsset(bpy.types.Operator):
         )
         instance_collection = particle_settings.instance_collection
         prev_index = particle_settings.active_instanceweight_index
-        # instanceweight.name stores "name: COUNT" for some reason
-        root_object_to_unlink_name, _ = particle_settings.active_instanceweight.name.split(":", 1)
+        root_object_to_unlink_name = polib.particles_bpy.get_instance_weight_object_name(
+            particle_settings.active_instanceweight
+        )
         # instanceweights use the object it has to be in the bpy.data.objects
         assert root_object_to_unlink_name in bpy.data.objects
         root_object_to_unlink = bpy.data.objects.get(root_object_to_unlink_name)
@@ -639,7 +639,7 @@ class ParticleSystemRemoveAsset(bpy.types.Operator):
             # for loop to work (or using .update_tag()), but unfortunately it doesn't.
             # Ideally we would use the bpy.ops.particle.dupliobj_remove(), but only when somebody
             # figures out what is the right context override for that one...
-            particle_settings.instance_collection = instance_collection
+            polib.particles_bpy.refresh_instance_collection(particle_settings)
             # If there is no user or only one user of the object we can assume the particle system
             # is the last user.
             if obj.users <= 1:
@@ -722,8 +722,9 @@ class ParticleSystemRefresh(bpy.types.Operator):
         return True
 
     def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
-        ps_settings = context.active_object.particle_systems.active.settings
-        ps_settings.instance_collection = ps_settings.instance_collection
+        polib.particles_bpy.refresh_instance_collection(
+            context.active_object.particle_systems.active.settings
+        )
 
         return {'FINISHED'}
 
@@ -1228,7 +1229,7 @@ class ScatterInstancerDetailPanel(panel.EngonPanelMixin, bpy.types.Panel):
             row.operator(ParticleSystemRefresh.bl_idname, text="", icon='FILE_REFRESH')
             return
 
-        orig_name, _ = dupli_object.name.split(":")
+        orig_name = polib.particles_bpy.get_instance_weight_object_name(dupli_object)
         row = layout.row()
         row.label(text=orig_name, icon='OBJECT_DATA')
 

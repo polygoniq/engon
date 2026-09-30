@@ -60,6 +60,13 @@ BQ_ANIM_LIBRARY_BLEND = "bq_Library_Animation_Data.blend"
 # humaniq constants
 HQ_CROWD_GENERATOR_NODE_GROUP_NAME = "hq_Curve_Crowd"
 
+# materialiq constants
+MQ_HDRI_BACKGROUND_NODE_GROUP_NAME = "mq_HDRI_Background"
+MQ_HDRI_DOME_COLOR_NODE_GROUP_NAME = "mq_HDRI-Dome_Color"
+MQ_HDRI_DOME_MAPPING_NODE_GROUP_NAME = "mq_HDRI-Dome_Mapping"
+MQ_HDRI_DOME_GEOMETRY_NODE_GROUP_NAME = "mq_HDRI-Dome"
+MQ_HDRI_DOME_USE_BACKGROUND_COLOR_INPUT_NAME = "Use Background Color"
+
 # traffiq constants
 TQ_MODIFIER_LIBRARY_BLEND = "tq_Library_Modifiers.blend"
 TQ_EMERGENCY_LIGHTS_NODE_GROUP_NAME = "tq_Emergency_Lights"
@@ -202,6 +209,13 @@ def get_materialiq_texture_sizes_enum_items(
         texture_sizes = {1024, 2048, 4096, 8192}
 
     return [(str(size), str(size), f"materialiq texture size: {size}") for size in texture_sizes]
+
+
+def get_materialiq_texture_dirs() -> set[str]:
+    return {
+        os.path.join(pack.install_path, "textures")
+        for pack in asset_registry.instance.get_packs_by_engon_feature("materialiq")
+    }
 
 
 def get_asset_pack_library_path(engon_feature: str, library_blend_name: str) -> str | None:

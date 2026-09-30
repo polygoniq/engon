@@ -482,14 +482,62 @@ def make_selection_editable(
             original_light_name = utils_bpy.remove_object_duplicate_suffix(obj.data.name)
             result[original_light_name].append(obj)
 
+    def get_actions_to_animation_data_map(
+        obj: bpy.types.Object, result: collections.defaultdict[str, list[bpy.types.ID]]
+    ) -> None:
+        for child in obj.children:
+            get_actions_to_animation_data_map(child, result)
+
+        # Both the object and its data can carry their own action, a light object animates its
+        # transform while the light data animates energy for example.
+        for owner in (obj, obj.data):
+            # 'obj.data' is None for empties and not every ID type supports animation data
+            animation_data = getattr(owner, "animation_data", None)
+            if animation_data is None or animation_data.action is None:
+                continue
+
+            original_action_name = utils_bpy.remove_object_duplicate_suffix(
+                animation_data.action.name
+            )
+            # Animation data can be shared across the hierarchy, the same animation
+            # data must not be counted twice when deciding whether the action is used elsewhere.
+            if animation_data not in result[original_action_name]:
+                result[original_action_name].append(animation_data)
+
+    def assign_action_keep_slot(animation_data: bpy.types.AnimData, action: bpy.types.ID) -> None:
+        """Assigns 'action' to 'animation_data' and rebinds the action slot it was bound to.
+
+        Assigning an action clears the action slot binding, without rebinding it the owner ends up
+        with an action but no animation.
+        """
+        slot_identifier = None
+        if bpy.app.version >= (4, 4, 0) and animation_data.action_slot is not None:
+            slot_identifier = animation_data.action_slot.identifier
+
+        animation_data.action = action
+        if slot_identifier is None:
+            return
+
+        slot = next((s for s in action.slots if s.identifier == slot_identifier), None)
+        if slot is None:
+            logger.warning(
+                f"Action slot '{slot_identifier}' is missing in the local copy of action "
+                f"'{action.name}', its animation may be lost."
+            )
+            return
+
+        animation_data.action_slot = slot
+
     GetNameToUsersMapCallable = typing.Callable[
         [bpy.types.Object, collections.defaultdict[str, list[bpy.types.ID]]], None
     ]
+    AssignDatablockCallable = typing.Callable[[typing.Any, bpy.types.ID], None]
 
     def make_datablocks_unique_per_object(
         obj: bpy.types.Object,
         get_data_to_struct_map: GetNameToUsersMapCallable,
         datablock_name: str,
+        assign_datablock: AssignDatablockCallable | None = None,
     ) -> dict[bpy.types.ID, bpy.types.ID]:
         old_new_datablock_map = {}
         datablocks_to_owner_structs: collections.defaultdict[str, list[bpy.types.ID]] = (
@@ -502,13 +550,19 @@ def make_selection_editable(
                 continue
 
             first_datablock = getattr(owner_structs[0], datablock_name)
-            if first_datablock.library is None and first_datablock.users == len(owner_structs):
+            # Fake user counts towards 'users' but doesn't mean the datablock is used by another
+            # owner. Actions are flagged with it most of the time, meshes or materials rarely.
+            real_users = first_datablock.users - (1 if first_datablock.use_fake_user else 0)
+            if first_datablock.library is None and real_users == len(owner_structs):
                 continue
 
             # data block is linked from library or it is used outside of object 'obj' -> create copy
             datablock_duplicate = first_datablock.copy()
             for owner_struct in owner_structs:
-                setattr(owner_struct, datablock_name, datablock_duplicate)
+                if assign_datablock is None:
+                    setattr(owner_struct, datablock_name, datablock_duplicate)
+                else:
+                    assign_datablock(owner_struct, datablock_duplicate)
                 old_new_datablock_map[first_datablock] = datablock_duplicate
         return old_new_datablock_map
 
@@ -561,16 +615,17 @@ def make_selection_editable(
                     if new_mat is not None:
                         geonodes_mod_utils_bpy.set_mod_input_value(mod, input_identifier, new_mat)
 
-    def copy_constraints_from_instance_to_realized(
+    def copy_animations_and_constraints_from_instance_to_realized(
         source_obj: bpy.types.Object,
         target_obj: bpy.types.Object,
         instanced_to_realized_name_map: dict[bpy.types.Object, bpy.types.Object],
         copy_between_realized_objects: bool = False,
     ) -> None:
-        """Copy constraints from 'source_obj' to 'target_obj' recursively.
+        """Copy animations and constraints from 'source_obj' to 'target_obj' recursively.
 
-        Constraints are not preserved when using 'duplicates_make_real' operator. This function
-        copies constraints from 'source_obj' to 'target_obj' and for all their children.
+        Animation actions and constraints are not preserved when using 'duplicates_make_real'
+        operator. This function copies them from 'source_obj' to 'target_obj' and for all their
+        children.
 
         Special handling is needed for 'targets' property of constraints, as it is a bpy collection.
         This is not an exhaustive implementation for all constraint types, but it covers all known
@@ -643,6 +698,18 @@ def make_selection_editable(
             )
             context.view_layer.update()
 
+        if source_obj.animation_data is not None and source_obj.animation_data.action is not None:
+            assert (
+                target_obj.animation_data is None
+            ), "Realized instance should not have animation data yet"
+            anim_data = target_obj.animation_data_create()
+            source_anim_data = source_obj.animation_data
+            anim_data.action = source_anim_data.action
+            # Blender 4.4 split actions into slots, before that the action alone carried the
+            # animation and assigning it is all it takes.
+            if bpy.app.version >= (4, 4, 0):
+                anim_data.action_slot = source_anim_data.action_slot
+
         # in source_obj.children, the Meshes are missing, let's add them from source_obj.instance_collection.all_objects
         source_obj_children = list(source_obj.children)
         if source_obj.type == 'EMPTY' and source_obj.instance_type == 'COLLECTION':
@@ -665,7 +732,7 @@ def make_selection_editable(
             if len(candidates) == 0:
                 continue
             target_child = candidates.pop(0)
-            copy_constraints_from_instance_to_realized(
+            copy_animations_and_constraints_from_instance_to_realized(
                 source_child, target_child, instanced_to_realized_name_map
             )
 
@@ -684,7 +751,9 @@ def make_selection_editable(
                 child_matrix = nested_child.matrix_world.copy()
                 nested_child.parent = obj
                 nested_child.matrix_world = child_matrix
-                copy_constraints_from_instance_to_realized(child, nested_child, {}, True)
+                copy_animations_and_constraints_from_instance_to_realized(
+                    child, nested_child, {}, True
+                )
                 name = child.name
                 bpy.data.objects.remove(child)
                 nested_child.name = name
@@ -833,25 +902,28 @@ def make_selection_editable(
                     if child.parent_type == 'BONE':
                         bone_parent_registry[child.name] = (parent, source_child.parent_bone)
                 child.matrix_world = child_matrix
-                # Transfer obj constraints to each child before the obj is removed,
-                # otherwise they would be lost.
-                copy_constraints_from_instance_to_realized(obj, child, {}, True)
+                # Transfer obj constraints and animation actions to each child before the obj is
+                # removed, otherwise they would be lost.
+                copy_animations_and_constraints_from_instance_to_realized(obj, child, {}, True)
             bpy.data.objects.remove(obj)
             continue
 
         realized_to_instance_map = {r: i for i, r in instance_to_realized_map.items()}
         for child in obj.children:
-            # Blender operator duplicates_make_real doesn't append object constraints.
-            # Thus we have to copy those constraints manually.
+            # Blender operator duplicates_make_real doesn't append object constraints and animations
+            # We have to copy them manually
             original = realized_to_instance_map.get(child)
             if original is None:
                 logger.warning(
-                    f"Failed to find realized object for '{child.name}', skipping constraints copy"
+                    f"Failed to find realized object for '{child.name}', "
+                    f"skipping constraints and animation copy"
                 )
                 continue
             if not is_polygoniq_object(child):
                 continue
-            copy_constraints_from_instance_to_realized(original, child, instance_to_realized_map)
+            copy_animations_and_constraints_from_instance_to_realized(
+                original, child, instance_to_realized_map
+            )
 
         remove_unnecessary_empties(obj)
         if delete_base_empty:
@@ -909,6 +981,10 @@ def make_selection_editable(
         make_datablocks_unique_per_object(obj, get_armatures_to_objects_map, "data")
         # Create copy of light data shared with other objects or linked from library
         make_datablocks_unique_per_object(obj, get_lights_to_objects_map, "data")
+        # Create copy of animation actions shared with other objects or linked from library
+        make_datablocks_unique_per_object(
+            obj, get_actions_to_animation_data_map, "action", assign_action_keep_slot
+        )
         # Make auto smooth modifier local to the object, so objects don't disappear when the modifier
         # is missing.
         try_make_auto_smooth_modifier_local(obj)

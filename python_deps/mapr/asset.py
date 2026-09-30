@@ -16,7 +16,32 @@ logger = logging.getLogger(f"polygoniq.{__name__}")
 AssetID = str
 # assets can have any number of tags - e.g. "European" car, "Coupe" car,
 # then you can combine them in queries: I want "European" "Coupe" car.
+# Tags can also be grouped into scopes, e.g. "Season::Summer", "Season::Winter" - values of the same scope are
+# OR-ed together (I want "Summer" or "Winter" Season).
 Tag = str
+SCOPE_SEPARATOR = "::"
+
+
+def parse_scoped_tag(tag: Tag) -> tuple[str | None, str]:
+    """Splits 'tag' into (scope, value). 'scope' is None if 'tag' has no scope."""
+
+    scope, separator, value = tag.partition(SCOPE_SEPARATOR)
+    if len(separator) == 0:
+        return None, tag
+
+    return scope, value
+
+
+def get_scoped_tag_value(asset_: "Asset", scope: str) -> str | None:
+    """Returns the value of the tag for 'scope' on 'asset_', None if it has none."""
+    prefix = f"{scope}{SCOPE_SEPARATOR}"
+    for tag in asset_.tags:
+        if tag.startswith(prefix):
+            return tag[len(prefix) :]
+
+    return None
+
+
 # numeric parameters have values that can be sorted and compared - e.g. "Car Length" of 4.6 meters
 # then you can query all cars where a parameter is equal to something, in a certain range, lower
 # or higher than something, etc... For example I want a car with "Car Length" < 5 meters.
@@ -104,7 +129,9 @@ class Asset:
             )
             if search_weight <= 0.0:
                 continue
-            token = tag.lower()
+
+            _, value = parse_scoped_tag(tag)
+            token = value.lower()
             ret[token] = max(search_weight, ret[token])
 
         for name, value in self.text_parameters.items():

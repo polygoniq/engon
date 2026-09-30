@@ -139,10 +139,47 @@ def clear_object_animation_property(obj: bpy.types.Object, property_name: str):
         fcurve_datapath = f'["{property_name}"]'
         action = obj.animation_data.action
         fcurves = polib.utils_bpy.get_fcurves_from_action(action)
-        fcurve = fcurves.find(fcurve_datapath)
-        if fcurve is not None:
-            fcurves.remove(fcurve)
+        if fcurves is not None:
+            fcurve = fcurves.find(fcurve_datapath)
+            if fcurve is not None:
+                fcurves.remove(fcurve)
     obj[property_name] = 0.0
+
+
+def clear_pose_bone_transform_fcurves(obj: bpy.types.Object, bone_name: str) -> None:
+    """Removes location, rotation and custom property fcurves of 'bone_name' from the object's
+    current action"""
+
+    if obj.animation_data is None or obj.animation_data.action is None:
+        return
+
+    action = obj.animation_data.action
+    fcurves = polib.utils_bpy.get_fcurves_from_action(action)
+    if fcurves is not None:
+        prefix = f'pose.bones["{bone_name}"]'
+        transform_suffixes = {
+            ".location",
+            ".rotation_euler",
+            ".rotation_quaternion",
+            ".rotation_axis_angle",
+        }
+        for fcurve in list(fcurves):
+            if not fcurve.data_path.startswith(prefix):
+                continue
+            suffix = fcurve.data_path[len(prefix) :]
+            # Custom properties use a bracketed data path, e.g. '["prop_name"]'
+            if suffix in transform_suffixes or suffix.startswith("["):
+                fcurves.remove(fcurve)
+
+    clear_object_animation_property(
+        obj, polib.custom_props_bpy.CustomPropertyNames.TQ_SUSPENSION_FACTOR
+    )
+    clear_object_animation_property(
+        obj, polib.custom_props_bpy.CustomPropertyNames.TQ_SUSPENSION_ROLLING_FACTOR
+    )
+    clear_object_animation_property(
+        obj, polib.custom_props_bpy.CustomPropertyNames.TQ_WHEELS_Y_ROLLING
+    )
 
 
 def create_fcurve(action: bpy.types.Action, property_name: str) -> bpy.types.FCurve:
@@ -655,6 +692,9 @@ class BakeTrailerRotation(bpy.types.Operator, BakingOperatorBase):
         context.scene.frame_set(self.frame_start)
         reset_ik_constraints(context, active_object)
 
+        # Remove keyframes from a previous bake so none linger outside the new frame range
+        clear_pose_bone_transform_fcurves(active_object, TRAILER_SWIVEL_BONE_NAME)
+
         try:
             baked_action = self._bake_action(
                 context, [trailer_swivel_bone], bake_into_current_action=True
@@ -749,6 +789,26 @@ class FollowPath(bpy.types.Operator):
 
     CONSTRAINT_NAME = "tq_follow_path"
 
+    frame_start: bpy.props.IntProperty(
+        name="Start Frame",
+        description="First frame of the follow path animation, also used for the auto bakes",
+        min=0,
+    )
+    frame_end: bpy.props.IntProperty(
+        name="End Frame",
+        description="Last frame of the follow path animation, also used for the auto bakes",
+        min=0,
+    )
+    keyframe_tolerance: bpy.props.FloatProperty(
+        name="Keyframe Tolerance", description="Passed to the auto bakes", min=0, default=0.01
+    )
+    rotation_factor: bpy.props.FloatProperty(
+        name="Steering Rotation Factor",
+        description="Passed to the auto Bake Steering",
+        min=0.1,
+        default=1,
+    )
+
     @staticmethod
     def get_offset_data_path(root_bone_name: str, fp_constraint_name: str) -> str:
         # Data path has to have double string quotes inside to work correctly
@@ -763,10 +823,22 @@ class FollowPath(bpy.types.Operator):
     def draw(self, context: bpy.types.Context) -> None:
         rig_properties = preferences.prefs_utils.get_preferences(context).traffiq_rigs_preferences
         layout = self.layout
+        row = layout.row()
+        row.prop(self, "frame_start")
+        row.prop(self, "frame_end")
+        layout.prop(self, "keyframe_tolerance")
+        layout.separator(type='LINE')
+
         layout.prop(rig_properties, "auto_bake_steering", text="Bake Steering")
+        if rig_properties.auto_bake_steering:
+            layout.prop(self, "rotation_factor")
+        layout.separator(type='LINE')
+
         layout.prop(rig_properties, "auto_bake_wheels", text="Bake Wheel Rotation")
         if has_trailer(context.active_object):
             layout.prop(rig_properties, "auto_bake_trailer_rotation", text="Bake Trailer Rotation")
+        layout.separator(type='LINE')
+
         layout.prop(rig_properties, "auto_reset_transforms", text="Reset Transforms")
         col = layout.column(align=True)
         col.alert = True
@@ -783,6 +855,8 @@ class FollowPath(bpy.types.Operator):
     def invoke(
         self, context: bpy.types.Context, event: bpy.types.Event
     ) -> set["rna_enums.OperatorReturnItems"]:
+        self.frame_start = context.scene.frame_start
+        self.frame_end = context.scene.frame_end
         return context.window_manager.invoke_props_dialog(self)
 
     def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
@@ -794,6 +868,10 @@ class FollowPath(bpy.types.Operator):
 
         bpy.ops.object.mode_set(mode='POSE')
         active_object = context.view_layer.objects.active
+        if active_object is None:
+            self.report({'ERROR'}, "No active object!")
+            return {'CANCELLED'}
+
         if not check_rig_drivers(active_object):
             self.report({'ERROR'}, f"Corrupted animation drivers in '{active_object.name}'")
             return {'CANCELLED'}
@@ -813,11 +891,21 @@ class FollowPath(bpy.types.Operator):
             root_bone.name, follow_path_constraint.name
         )
 
+        # Remove stale offset_factor keyframes
+        if (
+            active_object.animation_data is not None
+            and active_object.animation_data.action is not None
+        ):
+            fcurves = polib.utils_bpy.get_fcurves_from_action(active_object.animation_data.action)
+            existing_fcurve = fcurves.find(offset_factor_data_path)
+            if existing_fcurve is not None:
+                fcurves.remove(existing_fcurve)
+
         follow_path_constraint.offset_factor = 1.0
-        active_object.keyframe_insert(offset_factor_data_path, frame=context.scene.frame_start)
+        active_object.keyframe_insert(offset_factor_data_path, frame=self.frame_start)
 
         follow_path_constraint.offset_factor = 0.0
-        active_object.keyframe_insert(offset_factor_data_path, frame=context.scene.frame_end)
+        active_object.keyframe_insert(offset_factor_data_path, frame=self.frame_end)
 
         sensors_manipulator = GroundSensorsManipulator(active_object.pose)
         if ground_object is not None:
@@ -825,13 +913,29 @@ class FollowPath(bpy.types.Operator):
             sensors_manipulator.set_projection_mode('PROJECT')
 
         if rig_properties.auto_bake_trailer_rotation and BakeTrailerRotation.poll(context):
-            bpy.ops.engon.traffiq_rig_bake_trailer_rotation('INVOKE_DEFAULT')
+            bpy.ops.engon.traffiq_rig_bake_trailer_rotation(
+                'EXEC_DEFAULT',
+                frame_start=self.frame_start,
+                frame_end=self.frame_end,
+                keyframe_tolerance=self.keyframe_tolerance,
+            )
 
         if rig_properties.auto_bake_wheels:
-            bpy.ops.engon.traffiq_rig_bake_wheels_rotation('INVOKE_DEFAULT')
+            bpy.ops.engon.traffiq_rig_bake_wheels_rotation(
+                'EXEC_DEFAULT',
+                frame_start=self.frame_start,
+                frame_end=self.frame_end,
+                keyframe_tolerance=self.keyframe_tolerance,
+            )
 
         if rig_properties.auto_bake_steering:
-            bpy.ops.engon.traffiq_rig_bake_steering('INVOKE_DEFAULT')
+            bpy.ops.engon.traffiq_rig_bake_steering(
+                'EXEC_DEFAULT',
+                frame_start=self.frame_start,
+                frame_end=self.frame_end,
+                keyframe_tolerance=self.keyframe_tolerance,
+                rotation_factor=self.rotation_factor,
+            )
 
         bpy.ops.object.mode_set(mode='OBJECT')
 
@@ -889,7 +993,7 @@ class ChangeFollowPathSpeed(bpy.types.Operator):
 
     start_frame: bpy.props.IntProperty(name="Start Frame", min=0)
 
-    target_speed: bpy.props.FloatProperty(name="Target Speed", default=10.0, min=0.1)
+    target_speed: bpy.props.FloatProperty(name="Target Speed", default=50.0, min=0.1)
 
     unit: bpy.props.EnumProperty(
         name="Unit",
@@ -910,6 +1014,16 @@ class ChangeFollowPathSpeed(bpy.types.Operator):
         name="Rebake",
         description="Open trailer, wheel and steering rotation bake operators after changing speed",
         default=True,
+    )
+
+    keyframe_tolerance: bpy.props.FloatProperty(
+        name="Keyframe Tolerance", description="Passed to the auto bakes", min=0, default=0.01
+    )
+    rotation_factor: bpy.props.FloatProperty(
+        name="Steering Rotation Factor",
+        description="Passed to the auto Bake Steering",
+        min=0.1,
+        default=1,
     )
 
     @classmethod
@@ -942,6 +1056,14 @@ class ChangeFollowPathSpeed(bpy.types.Operator):
         # Only first spline is used for the follow path constraint
         self.spline_len = curve.data.splines[0].calc_length()
         self.start_frame = context.scene.frame_start
+
+        # Reuse the tolerance/rotation factor from the last Follow Path invocation instead of
+        # asking the user to set them again here.
+        follow_path_props = context.window_manager.operator_properties_last(FollowPath.bl_idname)
+        if follow_path_props is not None:
+            self.keyframe_tolerance = follow_path_props.keyframe_tolerance
+            self.rotation_factor = follow_path_props.rotation_factor
+
         return context.window_manager.invoke_props_dialog(self)
 
     def draw(self, context: bpy.types.Context) -> None:
@@ -963,6 +1085,9 @@ class ChangeFollowPathSpeed(bpy.types.Operator):
         row.label(text=f"End Frame: {round(self.start_frame + animation_frames)}")
 
         layout.prop(self, "rebake")
+        if self.rebake:
+            layout.prop(self, "keyframe_tolerance")
+            layout.prop(self, "rotation_factor")
 
     @staticmethod
     def get_animation_frames(spline_length: float, target_velocity: float, fps: float) -> float:
@@ -1001,15 +1126,25 @@ class ChangeFollowPathSpeed(bpy.types.Operator):
         if self.rebake:
             if BakeTrailerRotation.poll(context):
                 bpy.ops.engon.traffiq_rig_bake_trailer_rotation(
-                    'INVOKE_DEFAULT', frame_start=start_frame_int, frame_end=end_frame_int
+                    'EXEC_DEFAULT',
+                    frame_start=start_frame_int,
+                    frame_end=end_frame_int,
+                    keyframe_tolerance=self.keyframe_tolerance,
                 )
 
             bpy.ops.engon.traffiq_rig_bake_wheels_rotation(
-                'INVOKE_DEFAULT', frame_start=start_frame_int, frame_end=end_frame_int
+                'EXEC_DEFAULT',
+                frame_start=start_frame_int,
+                frame_end=end_frame_int,
+                keyframe_tolerance=self.keyframe_tolerance,
             )
 
             bpy.ops.engon.traffiq_rig_bake_steering(
-                'INVOKE_DEFAULT', frame_start=start_frame_int, frame_end=end_frame_int
+                'EXEC_DEFAULT',
+                frame_start=start_frame_int,
+                frame_end=end_frame_int,
+                keyframe_tolerance=self.keyframe_tolerance,
+                rotation_factor=self.rotation_factor,
             )
 
         return {'FINISHED'}

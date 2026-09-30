@@ -47,7 +47,9 @@ class ChangeTextureSizeGlobal(bpy.types.Operator):
     )
 
     def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
-        hatchery.textures.change_texture_sizes(int(self.max_size))
+        hatchery.textures.change_texture_sizes(
+            int(self.max_size), texture_dirs=asset_helpers.get_materialiq_texture_dirs()
+        )
         self.report({"INFO"}, f"Changed global texture sizes to {self.max_size}")
         return {'FINISHED'}
 
@@ -78,7 +80,9 @@ class ChangeTextureSizeActiveMaterial(bpy.types.Operator):
 
     def execute(self, context: bpy.types.Context) -> set["rna_enums.OperatorReturnItems"]:
         textures = hatchery.textures.get_used_textures(context.active_object.active_material)
-        hatchery.textures.change_texture_sizes(int(self.max_size), textures)
+        hatchery.textures.change_texture_sizes(
+            int(self.max_size), textures, texture_dirs=asset_helpers.get_materialiq_texture_dirs()
+        )
         self.report(
             {"INFO"},
             f"Changed active material '{context.active_object.active_material.name}' "

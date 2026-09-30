@@ -23,6 +23,7 @@ try:
     from . import log_helpers_bpy
     from . import material_utils_bpy
     from . import node_utils_bpy
+    from . import particles_bpy
     from . import preview_manager_bpy
     from . import remove_duplicates_bpy
     from . import render_bpy
@@ -88,6 +89,7 @@ except ImportError as e:
         log_helpers_bpy = types.ModuleType("log_helpers_bpy")
         material_utils_bpy = types.ModuleType("material_utils_bpy")
         node_utils_bpy = types.ModuleType("node_utils_bpy")
+        particles_bpy = types.ModuleType("particles_bpy")
         preview_manager_bpy = types.ModuleType("preview_manager_bpy")
         remove_duplicates_bpy = types.ModuleType("remove_duplicates_bpy")
         render_bpy = types.ModuleType("render_bpy")
@@ -135,6 +137,7 @@ __all__ = [
     "log_helpers_bpy",
     "material_utils_bpy",
     "node_utils_bpy",
+    "particles_bpy",
     "preview_manager_bpy",
     "remove_duplicates_bpy",
     "render_bpy",

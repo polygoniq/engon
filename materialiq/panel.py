@@ -44,7 +44,6 @@ from .. import preferences
 from .. import asset_helpers
 from .. import __package__ as base_package
 
-
 MODULE_CLASSES: list[typing.Any] = []
 
 
@@ -271,10 +270,10 @@ class MappingPanel(MaterialiqMaterialMixin, bpy.types.Panel):
         col = layout.column(align=True)
 
         if MaterialiqAdvancedUIPanelMixin.poll(context):
-            MappingPanel.advanced_template.draw_from_material(mat, col)
+            MappingPanel.advanced_template.draw_from_datablock(mat, col)
             return
 
-        MappingPanel.basic_template.draw_from_material(mat, col)
+        MappingPanel.basic_template.draw_from_datablock(mat, col)
 
 
 MODULE_CLASSES.append(MappingPanel)
@@ -305,7 +304,7 @@ class TextureBombingPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
             return
 
         col = layout.column(align=True)
-        TextureBombingPanel.template.draw_from_material(mat, col)
+        TextureBombingPanel.template.draw_from_datablock(mat, col)
 
 
 MODULE_CLASSES.append(TextureBombingPanel)
@@ -362,7 +361,7 @@ class AdjustmentsPanel(MaterialiqMaterialMixin, bpy.types.Panel):
         if mat is None:
             return
         col = layout.column(align=True)
-        AdjustmentsPanel.template.draw_from_material(mat, col)
+        AdjustmentsPanel.template.draw_from_datablock(mat, col)
 
 
 MODULE_CLASSES.append(AdjustmentsPanel)
@@ -399,7 +398,7 @@ class AdjustmentsDiffusePanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
             return
 
         col = layout.column(align=True)
-        AdjustmentsDiffusePanel.template.draw_from_material(mat, col)
+        AdjustmentsDiffusePanel.template.draw_from_datablock(mat, col)
 
 
 MODULE_CLASSES.append(AdjustmentsDiffusePanel)
@@ -427,7 +426,7 @@ class AdjustmentsSpecularPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
             return
 
         col = layout.column(align=True)
-        AdjustmentsSpecularPanel.template.draw_from_material(mat, col)
+        AdjustmentsSpecularPanel.template.draw_from_datablock(mat, col)
 
 
 MODULE_CLASSES.append(AdjustmentsSpecularPanel)
@@ -455,7 +454,7 @@ class AdjustmentsRoughnessPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel)
             return
 
         col = layout.column(align=True)
-        AdjustmentsRoughnessPanel.template.draw_from_material(mat, col)
+        AdjustmentsRoughnessPanel.template.draw_from_datablock(mat, col)
 
 
 MODULE_CLASSES.append(AdjustmentsRoughnessPanel)
@@ -488,8 +487,8 @@ class AdjustmentsNormalPanel(MaterialiqAdvancedUIPanelMixin, bpy.types.Panel):
             return
 
         col = layout.column(align=True)
-        AdjustmentsNormalPanel.adjustment_template.draw_from_material(mat, col)
-        AdjustmentsNormalPanel.bevel_template.draw_from_material(mat, col)
+        AdjustmentsNormalPanel.adjustment_template.draw_from_datablock(mat, col)
+        AdjustmentsNormalPanel.bevel_template.draw_from_datablock(mat, col)
 
 
 MODULE_CLASSES.append(AdjustmentsNormalPanel)
@@ -528,7 +527,7 @@ class TransparentAdjustmentsPanel(MaterialiqMaterialMixin, bpy.types.Panel):
             return
 
         col = layout.column(align=True)
-        TransparentAdjustmentsPanel.template.draw_from_material(mat, col)
+        TransparentAdjustmentsPanel.template.draw_from_datablock(mat, col)
 
 
 MODULE_CLASSES.append(TransparentAdjustmentsPanel)

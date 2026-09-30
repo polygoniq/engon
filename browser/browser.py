@@ -339,7 +339,11 @@ class MAPR_BrowserShowAssetDetail(bpy.types.Operator):
             heading.label(text="Tags", icon='COLOR')
             col = box.column()
             for tag in sorted(self.asset.tags):
-                col.label(text=tag)
+                scope, value = mapr.asset.parse_scoped_tag(tag)
+                if scope is None:
+                    col.label(text=tag)
+                else:
+                    col.label(text=f"{mapr.known_metadata.format_group_name(scope)}: {value}")
         else:
             heading.label(text="No tags found")
 

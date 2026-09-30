@@ -441,6 +441,53 @@ class BrowserTagFilter(bpy.types.PropertyGroup, mapr.filters.TagFilter, BrowserF
 MODULE_CLASSES.append(BrowserTagFilter)
 
 
+class BrowserScopedTagsFilter(
+    bpy.types.PropertyGroup, mapr.filters.ScopedTagsFilter, BrowserFilter
+):
+    """Groups all known values of one tag scope into one filter."""
+
+    scope: bpy.props.StringProperty(options={'HIDDEN'})
+    values: bpy.props.CollectionProperty(type=BrowserTagFilter)
+
+    def init(self, scope: str):
+        self.scope = scope
+        self.name = f"scoped_tag:{scope}"
+        self.name_without_type = scope
+
+    def add_value(self, tag_value: str) -> None:
+        item = self.values.add()
+        item.name = tag_value
+        item.name_without_type = tag_value
+
+    def is_default(self) -> bool:
+        return not any(v.include or v.exclude for v in self.values)
+
+    def reset(self) -> None:
+        super().reset()
+        for value in self.values:
+            value.include = False
+            value.exclude = False
+
+    def filter_(self, asset_: mapr.asset.Asset) -> bool:
+        if self.is_default():
+            return True
+
+        return super().filter_(asset_)
+
+    @property
+    def include_values(self) -> set[str]:
+        # OVERRIDES 'include_values' from 'mapr.filters.ScopedTagsFilter'
+        return {v.name for v in self.values if v.include}
+
+    @property
+    def exclude_values(self) -> set[str]:
+        # OVERRIDES 'exclude_values' from 'mapr.filters.ScopedTagsFilter'
+        return {v.name for v in self.values if v.exclude}
+
+
+MODULE_CLASSES.append(BrowserScopedTagsFilter)
+
+
 class ProxiedFilterParameterValue(bpy.types.PropertyGroup):
     filter_name: bpy.props.StringProperty()
 
@@ -1042,6 +1089,18 @@ class FilterGroup(bpy.types.PropertyGroup):
     def get_nice_name(self) -> str:
         return mapr.known_metadata.format_group_name(self.name)
 
+    def draw_collapsible_header(self, layout: bpy.types.UILayout, text: str) -> None:
+        """Draws the collapse toggle row shared by all group headers."""
+        row = layout.row(align=True)
+        row.alignment = 'LEFT'
+        row.prop(
+            self,
+            "collapsed",
+            text=text,
+            emboss=False,
+            icon='RIGHTARROW' if self.collapsed else 'DOWNARROW_HLT',
+        )
+
     def draw(
         self,
         context: bpy.types.Context,
@@ -1049,15 +1108,7 @@ class FilterGroup(bpy.types.PropertyGroup):
         filters_: list[BrowserFilter],
     ) -> None:
         box = layout.box()
-        row = box.row()
-        row.alignment = 'LEFT'
-        row.prop(
-            self,
-            "collapsed",
-            text=self.get_nice_name(),
-            emboss=False,
-            icon='RIGHTARROW' if self.collapsed else 'DOWNARROW_HLT',
-        )
+        self.draw_collapsible_header(box.row(), self.get_nice_name())
 
         # Skip drawing filters if group is collapsed
         if self.collapsed:
@@ -1103,6 +1154,7 @@ class GroupedParametrizationFilters:
 class DynamicFilters(bpy.types.PropertyGroup):
     numeric_filters: bpy.props.CollectionProperty(type=BrowserNumericParameterFilter)
     tag_filters: bpy.props.CollectionProperty(type=BrowserTagFilter)
+    scoped_tag_filters: bpy.props.CollectionProperty(type=BrowserScopedTagsFilter)
     text_filters: bpy.props.CollectionProperty(type=BrowserTextParameterFilter)
     vector_filters: bpy.props.CollectionProperty(type=BrowserVectorParameterFilter)
     location_filters: bpy.props.CollectionProperty(type=BrowserLocationParameterFilter)
@@ -1110,6 +1162,7 @@ class DynamicFilters(bpy.types.PropertyGroup):
     asset_types: bpy.props.PointerProperty(type=BrowserAssetTypesFilter)
 
     filter_groups: bpy.props.CollectionProperty(type=FilterGroup)
+    tag_scope_groups: bpy.props.CollectionProperty(type=FilterGroup)
 
     # We define sort mode here, as it is related to the filtering closely.
     # It cannot be defined in preferences, as we need to query the data repository
@@ -1222,6 +1275,33 @@ class DynamicFilters(bpy.types.PropertyGroup):
                     if filter_ is None:
                         filter_ = collection.add()
                         filter_.init(param_meta)
+
+            # Scoped tags are grouped by scope, all values of a scope live on one
+            # 'BrowserScopedTagsFilter' and are OR-ed together if more tags are selected
+            for scoped_tag_name in current_view.parameters_meta.unique_scoped_tags:
+                scoped_tag = mapr.parameter_meta.remove_type_from_name(scoped_tag_name)
+                scope, tag_value = mapr.asset.parse_scoped_tag(scoped_tag)
+                assert scope is not None
+
+                tag_show_filter = mapr.known_metadata.TAGS.get(scoped_tag, {}).get(
+                    "show_filter", True
+                )
+                if not browser_prefs.debug_show_hidden_filters and not tag_show_filter:
+                    continue
+
+                group_filter = self.scoped_tag_filters.get(f"scoped_tag:{scope}", None)
+                if group_filter is None:
+                    group_filter = self.scoped_tag_filters.add()
+                    group_filter.init(scope)
+
+                if group_filter.values.get(tag_value, None) is None:
+                    group_filter.add_value(tag_value)
+
+            for tag_filter in self.scoped_tag_filters:
+                if self.tag_scope_groups.get(tag_filter.scope, None) is None:
+                    group = self.tag_scope_groups.add()
+                    group.name = tag_filter.scope
+                    group.collapsed = False
         finally:
             IS_RECONSTRUCT = False
 
@@ -1239,6 +1319,8 @@ class DynamicFilters(bpy.types.PropertyGroup):
         """Clears all dynamically constructed parametrization filters"""
         self.numeric_filters.clear()
         self.tag_filters.clear()
+        self.scoped_tag_filters.clear()
+        self.tag_scope_groups.clear()
         self.text_filters.clear()
         self.vector_filters.clear()
         self.location_filters.clear()
@@ -1305,6 +1387,7 @@ class DynamicFilters(bpy.types.PropertyGroup):
             self.asset_types.name: self.asset_types,
             self.search.name: self.search,
             **self.tag_filters,
+            **self.scoped_tag_filters,
             **self.parametrization_filters,
         }
 
@@ -1370,27 +1453,23 @@ class MAPR_BrowserResetFilter(bpy.types.Operator):
 MODULE_CLASSES.append(MAPR_BrowserResetFilter)
 
 
-def _draw_tags(context: bpy.types.Context, layout: bpy.types.UILayout):
-    """Draws dynamic filter tags to 'layout' as pills that adjust width based on the region size"""
-    dyn_filters = get_filters(context)
-    tag_filters: list[BrowserTagFilter] = [x for x in dyn_filters.tag_filters if x.is_drawn()]
+def _draw_tag_pills(
+    context: bpy.types.Context,
+    layout: bpy.types.UILayout,
+    tag_filters: typing.Sequence["BrowserTagFilter"],
+    force_enabled: bool = False,
+) -> None:
+    """Draws 'tag_filters' as pills wrapped onto multiple rows based on the region width.
 
-    if len(tag_filters) == 0:
-        row = layout.row()
-        row.enabled = False
-        row.label(text="No tags found", icon='PANEL_CLOSE')
-        return
-
-    layout.label(text="Tags", icon='COLOR')
-    col = layout.column()
-    col.enabled = not asset_repository.is_loading
-    row = col.row()
-    row.alignment = 'LEFT'
-
+    'force_enabled' keeps every pill clickable regardless of BrowserFilter.enabled - used for
+    scoped tag groups.
+    """
     ui_scale = context.preferences.system.ui_scale
     estimated_row_width_px = 0
     estimated_negative_button_width_px = 20
-    tag_filters.sort(key=lambda tag: tag.name_without_type.lower())
+
+    row = layout.row()
+    row.alignment = 'LEFT'
     for tag_filter in tag_filters:
         # 20 is a margin for each drawn prop
         estimated_row_width_px += ui_scale * (
@@ -1402,11 +1481,59 @@ def _draw_tags(context: bpy.types.Context, layout: bpy.types.UILayout):
         # 150 is a width from where we display tags always on a single row
         if estimated_row_width_px > context.region.width or context.region.width < 150:
             estimated_row_width_px = 0
-            row = col.row()
+            row = layout.row()
             row.alignment = 'LEFT'
 
-        row.enabled = tag_filter.enabled or not tag_filter.is_default()
+        row.enabled = force_enabled or tag_filter.enabled or not tag_filter.is_default()
         tag_filter.draw(context, row)
+
+
+def _draw_tags(context: bpy.types.Context, layout: bpy.types.UILayout) -> None:
+    """Draws dynamic filter tags to layout as pills, grouped by scope."""
+    dyn_filters = get_filters(context)
+
+    unscoped_tags = sorted(
+        (t for t in dyn_filters.tag_filters if t.is_drawn()),
+        key=lambda t: t.name_without_type.lower(),
+    )
+
+    scoped_groups = sorted(
+        (f for f in dyn_filters.scoped_tag_filters if f.is_drawn()),
+        key=lambda f: f.scope.lower(),
+    )
+
+    if len(unscoped_tags) == 0 and len(scoped_groups) == 0:
+        row = layout.row()
+        row.enabled = False
+        row.label(text="No tags found", icon='PANEL_CLOSE')
+        return
+
+    layout.label(text="Tags", icon='COLOR')
+    col = layout.column()
+    col.enabled = not asset_repository.is_loading
+
+    if len(unscoped_tags) > 0:
+        _draw_tag_pills(context, col, unscoped_tags)
+
+    for group_filter in scoped_groups:
+        group = dyn_filters.tag_scope_groups.get(group_filter.scope, None)
+        if group is None:
+            logger.error(f"FilterGroup for tag scope '{group_filter.scope}' is missing.")
+            continue
+
+        box = col.box()
+        group.draw_collapsible_header(
+            box.row(), mapr.known_metadata.format_parameter_name(group_filter.scope)
+        )
+        if group.collapsed:
+            continue
+
+        _draw_tag_pills(
+            context,
+            box.box(),
+            sorted(group_filter.values, key=lambda v: v.name.lower()),
+            force_enabled=True,
+        )
 
 
 def draw(context: bpy.types.Context, layout: bpy.types.UILayout) -> None:

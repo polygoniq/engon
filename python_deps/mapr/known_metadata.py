@@ -158,6 +158,11 @@ TEXT_PARAMETERS = {
         "description": "Which version of the .blend format was used for this asset",
         "show_filter": False,
     },
+    "original_name": {
+        "description": "Name of the original .blend file",
+        "search_weight": 1.0,
+        "show_filter": False,
+    },
     "copyright": {
         "description": "Who holds the copyright of this asset",
         "show_filter": False,
